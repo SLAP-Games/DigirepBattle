@@ -35,16 +35,6 @@
 			path = DigiRepBattle;
 			sourceTree = "<group>";
 		};
-		552E35CC2EAE41CB00B85C7E /* DigiRepBattleTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DigiRepBattleTests;
-			sourceTree = "<group>";
-		};
-		552E35D62EAE41CB00B85C7E /* DigiRepBattleUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DigiRepBattleUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,8 +66,6 @@
 			isa = PBXGroup;
 			children = (
 				552E35B92EAE41C600B85C7E /* DigiRepBattle */,
-				552E35CC2EAE41CB00B85C7E /* DigiRepBattleTests */,
-				552E35D62EAE41CB00B85C7E /* DigiRepBattleUITests */,
 				552E35B82EAE41C600B85C7E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,9 +118,6 @@
 			dependencies = (
 				552E35CB2EAE41CB00B85C7E /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				552E35CC2EAE41CB00B85C7E /* DigiRepBattleTests */,
-			);
 			name = DigiRepBattleTests;
 			packageProductDependencies = (
 			);
@@ -152,9 +137,6 @@
 			);
 			dependencies = (
 				552E35D52EAE41CB00B85C7E /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				552E35D62EAE41CB00B85C7E /* DigiRepBattleUITests */,
 			);
 			name = DigiRepBattleUITests;
 			packageProductDependencies = (

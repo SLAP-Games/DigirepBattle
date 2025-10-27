@@ -10,12 +10,11 @@ import CoreData
 
 @main
 struct DigiRepBattleApp: App {
-    let persistenceController = PersistenceController.shared
-
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .background(Color(.systemGray6))
+                .ignoresSafeArea()
         }
     }
 }
