@@ -18,7 +18,11 @@ struct BoardView: View {
                       creatureSymbol: vm.creatureSymbol,
                       toll: vm.toll,
                       hp: vm.hp,
-                      hpMax: vm.hpMax
+                      hpMax: vm.hpMax,
+                      branchSource: vm.branchSource,
+                      branchCandidates: vm.branchCandidates,
+                      onPickBranch: { vm.pickBranch($0) },
+                      focusTile: vm.focusTile
         )
     }
 }

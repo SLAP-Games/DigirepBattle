@@ -30,7 +30,8 @@ struct ContentView: View {
                         hpMax: vm.hpMax,
                         branchSource: vm.branchSource,
                         branchCandidates: vm.branchCandidates,
-                        onPickBranch: { vm.pickBranch($0) }
+                        onPickBranch: { vm.pickBranch($0) },
+                        focusTile: vm.focusTile   
                     )
                     .frame(height: boardH)
                     .background {

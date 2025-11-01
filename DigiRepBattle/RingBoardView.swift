@@ -35,10 +35,19 @@ struct RingBoardView: View {
     let hp: [Int]
     let hpMax: [Int]
 
-    // ===（任意）分岐UIを使う場合のフック ===
+    // 分岐UI（既存そのまま）
     var branchSource: Int? = nil
     var branchCandidates: [Int] = []
     var onPickBranch: ((Int) -> Void)? = nil
+
+    // ★ 追加：VM から「このマスを中央へ」の指示を受け取る
+    var focusTile: Int? = nil
+
+    // ★ 追加：パン・ズーム状態
+    @State private var scale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var gestureScale: CGFloat = 1.0
+    @State private var gestureOffset: CGSize = .zero
 
     // 角を重ねた正方形×2 のグラフ
     private var graph: [BoardNode] {
@@ -46,102 +55,175 @@ struct RingBoardView: View {
     }
 
     var body: some View {
-        PanZoomContainer {
-            GeometryReader { geo in
-                let step = tileSize + gap
+        GeometryReader { geo in
+            let step = tileSize + gap
 
-                // グリッド境界→中央配置
-                let (minX, maxX, minY, maxY) = bounds(graph.map { $0.grid })
-                let spanX = CGFloat(maxX - minX)
-                let spanY = CGFloat(maxY - minY)
-                let boardSize = CGSize(width: (spanX + 1) * step, height: (spanY + 1) * step)
-                let origin = CGPoint(
-                    x: (geo.size.width - boardSize.width) / 2,
-                    y: (geo.size.height - boardSize.height) / 2
-                )
+            // グリッド境界→盤の自然サイズ（原点はこのビューの左上）
+            let (minX, maxX, minY, maxY) = bounds(graph.map { $0.grid })
+            let spanX = CGFloat(maxX - minX)
+            let spanY = CGFloat(maxY - minY)
+            let boardSize = CGSize(width: (spanX + 1) * step, height: (spanY + 1) * step)
 
-                ZStack {
-                    // 背景ガイド
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [6,6]))
-                        .frame(width: boardSize.width, height: boardSize.height)
-                        .position(x: origin.x + boardSize.width/2, y: origin.y + boardSize.height/2)
-
-                    // エッジ（接続線）。重複描画を避けるため a<b のみ
-                    Path { p in
-                        for node in graph {
-                            let a = node.id
-                            let aPos = point(for: node.grid, minX: minX, minY: minY, step: step, origin: origin, tileSize: tileSize)
-                            for b in node.neighbors where b > a {
-                                let bPos = point(for: graph[b].grid, minX: minX, minY: minY, step: step, origin: origin, tileSize: tileSize)
-                                p.move(to: aPos)
-                                p.addLine(to: bPos)
-                            }
-                        }
-                    }
-                    .stroke(.secondary.opacity(0.35), lineWidth: 2)
-
-                    // タイル
-                    ForEach(graph) { node in
-                        let idx = node.id
-                        let pos = point(for: node.grid, minX: minX, minY: minY, step: step, origin: origin, tileSize: tileSize)
-
-                        // 互換安全：配列は旧16マス想定でもクラッシュしないようにガード
-                        let safeOwner = owner.indices.contains(idx) ? owner[idx] : nil
-                        let safeLevel = level.indices.contains(idx) ? level[idx] : 0
-                        let safeSymbol = creatureSymbol.indices.contains(idx) ? creatureSymbol[idx] : nil
-                        let safeHp = hp.indices.contains(idx) ? hp[idx] : nil
-                        let safeHpMax = hpMax.indices.contains(idx) ? hpMax[idx] : nil
-
-                        // 互換安全：owner.count を“旧ボードの最大添字”の目安にし、
-                        // 越えた分は toll を呼ばず 0 を返す（内部の out-of-range を防ぐ）
-                        let safeToll: Int = (idx < owner.count) ? toll(idx) : 0
-
-                        TileView(index: idx,
-                                 size: tileSize,
-                                 hasP1: idx == p1Pos,
-                                 hasP2: idx == p2Pos,
-                                 owner: safeOwner,
-                                 level: safeLevel,
-                                 creatureSymbol: safeSymbol,
-                                 toll: safeToll,
-                                 hp: safeHp,
-                                 hpMax: safeHpMax
-                        )
-                        .position(pos)
-                    }
-
-                    // 分岐選択UI（使う場合のみ）
-                    if let src = branchSource,
-                       let srcNode = graph.first(where: { $0.id == src }),
-                       !branchCandidates.isEmpty
-                    {
-                        let srcPos = point(for: srcNode.grid, minX: minX, minY: minY, step: step, origin: origin, tileSize: tileSize)
-                        ForEach(branchCandidates, id: \.self) { cand in
-                            let targetPos = point(for: graph[cand].grid, minX: minX, minY: minY, step: step, origin: origin, tileSize: tileSize)
-                            let mid = CGPoint(x: (srcPos.x + targetPos.x) / 2, y: (srcPos.y + targetPos.y) / 2)
-
-                            Button {
-                                onPickBranch?(cand)
-                            } label: {
-                                VStack(spacing: 4) {
-                                    Image(systemName: "arrowtriangle.forward.fill")
-                                        .rotationEffect(angle(from: srcPos, to: targetPos))
-                                        .font(.system(size: 16, weight: .bold))
-                                    Text("\(cand + 1)")
-                                        .font(.caption2).bold()
-                                }
-                                .padding(8)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .shadow(radius: 6)
-                            }
-                            .position(mid)
+            // 既存の“中央配置”はやめ、原点(0,0) から描画。
+            // 中央寄せは offset/scale で行う（=カメラ方式）。
+            ZStack {
+                // エッジ
+                Path { p in
+                    for node in graph {
+                        let a = node.id
+                        let aPos = pointNoOrigin(for: node.grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                        for b in node.neighbors where b > a {
+                            let bPos = pointNoOrigin(for: graph[b].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                            p.move(to: aPos)
+                            p.addLine(to: bPos)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .stroke(.secondary.opacity(0.35), lineWidth: 2)
+
+                // タイル
+                ForEach(graph) { node in
+                    let idx = node.id
+                    let pos = pointNoOrigin(for: node.grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+
+                    let safeOwner   = owner.indices.contains(idx) ? owner[idx] : nil
+                    let safeLevel   = level.indices.contains(idx) ? level[idx] : 0
+                    let safeSymbol  = creatureSymbol.indices.contains(idx) ? creatureSymbol[idx] : nil
+                    let safeHp      = hp.indices.contains(idx) ? hp[idx] : nil
+                    let safeHpMax   = hpMax.indices.contains(idx) ? hpMax[idx] : nil
+                    let safeToll    = (idx < owner.count) ? toll(idx) : 0
+
+                    TileView(index: idx,
+                             size: tileSize,
+                             hasP1: idx == p1Pos,
+                             hasP2: idx == p2Pos,
+                             owner: safeOwner,
+                             level: safeLevel,
+                             creatureSymbol: safeSymbol,
+                             toll: safeToll,
+                             hp: safeHp,
+                             hpMax: safeHpMax
+                    )
+                    .position(pos)
+                }
+
+                // 分岐選択UI（既存そのまま）
+                if let src = branchSource,
+                   let srcNode = graph.first(where: { $0.id == src }),
+                   !branchCandidates.isEmpty {
+                    let srcPos = pointNoOrigin(for: srcNode.grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                    ForEach(branchCandidates, id: \.self) { cand in
+                        let targetPos = pointNoOrigin(for: graph[cand].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                        let mid = CGPoint(x: (srcPos.x + targetPos.x) / 2, y: (srcPos.y + targetPos.y) / 2)
+                        Button { onPickBranch?(cand) } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: "arrowtriangle.forward.fill")
+                                    .rotationEffect(angle(from: srcPos, to: targetPos))
+                                    .font(.system(size: 16, weight: .bold))
+                                Text("\(cand + 1)").font(.caption2).bold()
+                            }
+                            .padding(8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .shadow(radius: 6)
+                        }
+                        .position(mid)
+                    }
+                }
             }
+            .frame(width: boardSize.width, height: boardSize.height, alignment: .topLeading)
+            // ★ ここで“疑似カメラ”を適用
+            .scaleEffect(scale * gestureScale, anchor: .topLeading)
+            .offset(x: offset.width + gestureOffset.width,
+                    y: offset.height + gestureOffset.height)
+            .contentShape(Rectangle()) // ヒット領域
+            // ★ ピンチ（拡大縮小）
+            .gesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        gestureScale = value
+                    }
+                    .onEnded { value in
+                        let newScale = min(max(scale * value, 0.6), 2.5)
+                        // 拡大縮小の中心がずれ過ぎないよう、端的にスケールだけ確定
+                        scale = newScale
+                        gestureScale = 1.0
+                        // 必要ならここで offset の再調整も可能
+                    }
+            )
+            // ★ ドラッグ（平行移動）
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { v in gestureOffset = v.translation }
+                    .onEnded { v in
+                        offset.width += v.translation.width
+                        offset.height += v.translation.height
+                        gestureOffset = .zero
+                    }
+            )
+            // ★ ターン終了などで focusTile が変わったら“自動で中央へ”
+            .onChange(of: focusTile) { _, new in
+                guard let idx = new else { return }
+                DispatchQueue.main.async {
+                    centerOnTile(idx,
+                                 in: geo.size,
+                                 minX: minX, minY: minY,
+                                 step: step, tileSize: tileSize)
+                }
+            }
+            // 初回レイアウト時に、現在プレイヤーの位置へ
+            .onAppear {
+                if let idx = focusTile {
+                    centerOnTile(idx,
+                                 in: geo.size,
+                                 minX: minX, minY: minY,
+                                 step: step, tileSize: tileSize,
+                                 animated: false)
+                }
+            }
+            .clipped() // “操作ビューを除く表示領域”内に収める
         }
+    }
+
+    // === 中央寄せ（疑似カメラ）：盤座標→画面中央へくるよう offset を決める ===
+    private func centerOnTile(_ idx: Int,
+                              in viewSize: CGSize,
+                              minX: Int, minY: Int,
+                              step: CGFloat, tileSize: CGFloat,
+                              animated: Bool = true)
+    {
+        // タイル中心（盤のローカル座標・(0,0)起点）
+        let p = pointNoOrigin(for: graph[idx].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+        let viewCenter = CGPoint(x: viewSize.width/2, y: viewSize.height/2)
+
+        // “今の（確定済み）スケール”を使ってオフセットを計算（ジェスチャー中でない前提）
+        let s = scale
+
+        // 変換式: screenPoint = p*s + offset → offset = viewCenter - p*s
+        let target = CGSize(width: viewCenter.x - p.x * s,
+                            height: viewCenter.y - p.y * s)
+
+        // ついでに、ちょっと寄りのズーム（任意）：見やすい倍率に穏やかに調整
+        let targetScale = (s < 1.2) ? 1.2 : min(s, 2.0)
+
+        let apply = {
+            self.scale = targetScale
+            self.offset = target
+            self.gestureScale = 1.0
+            self.gestureOffset = .zero
+        }
+
+        if animated {
+            withAnimation(.easeInOut(duration: 0.45)) { apply() }
+        } else {
+            apply()
+        }
+    }
+
+    // 旧 `point(for:)` と同等だが、中央寄せoriginを使わない版（左上原点）
+    private func pointNoOrigin(for g: I2, minX: Int, minY: Int, step: CGFloat, tileSize: CGFloat) -> CGPoint {
+        let x = CGFloat(g.x - minX) * step + tileSize / 2
+        let y = CGFloat(g.y - minY) * step + tileSize / 2
+        return CGPoint(x: x, y: y)
     }
 }
 

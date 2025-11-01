@@ -14,6 +14,7 @@ final class GameVM: ObservableObject {
     // 分岐UI用（RingBoardViewへ渡す）
     @Published var branchSource: Int? = nil
     @Published var branchCandidates: [Int] = []
+    @Published var focusTile: Int? = nil
     
     // 移動管理
     private var stepsLeft: Int = 0
@@ -111,6 +112,7 @@ final class GameVM: ObservableObject {
             for _ in 0..<3 { drawOne(for: pid) }
         }
         startTurnIfNeeded()
+        self.focusTile = players[turn].pos
     }
     
     private func nextIndex(for pid: Int, from cur: Int) -> Int {
@@ -137,10 +139,12 @@ final class GameVM: ObservableObject {
         startTurnIfNeeded()
         
         healOnBoard()
-
+        
+        focusTile = players[turn].pos
         if turn == 1 {
-            // CPU自動行動
-            runCpuAuto()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                self.runCpuAuto()
+            }
         }
     }
     
@@ -181,7 +185,7 @@ final class GameVM: ObservableObject {
         // ★ ここがポイント：現在地がマス5で、これから動くなら、
         //   プレイヤーは先に分岐を選ばせ、CPUは即ランダム分岐してから移動開始
         if players[turn].pos == CROSS_NODE, stepsLeft > 0 {
-            // プレイヤー
+            focusTile = players[turn].pos
             branchSource = CROSS_NODE
             branchCandidates = CROSS_CHOICES
             phase = .branchSelecting
@@ -189,6 +193,7 @@ final class GameVM: ObservableObject {
         }
         phase = .moving
         continueMove()
+        focusTile = players[turn].pos
     }
     
     private func handleAfterMove() {
@@ -467,6 +472,7 @@ final class GameVM: ObservableObject {
         phase = .moved
         // ここで landedOnOpponentTileIndex など既存処理を続ける
         handleAfterMove()
+        focusTile = players[turn].pos
     }
     
     // 既存の「次のマス」算出を利用して1歩進める
