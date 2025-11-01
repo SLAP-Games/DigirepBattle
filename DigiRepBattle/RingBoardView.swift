@@ -178,7 +178,7 @@ struct RingBoardView: View {
             )
             .onAppear {
                 if terrains.count != count {
-                    terrains = generateTerrains(count: count)
+                    terrains = buildFixedTerrains(count: count)
                 }
             }
             // 初回レイアウト時に、現在プレイヤーの位置へ
@@ -323,6 +323,41 @@ private func generateTerrains(count: Int) -> [TileTerrain] {
             t[i] = TileTerrain(imageName: pick.0, attribute: pick.1)
         }
     }
+    return t
+}
+
+private func buildFixedTerrains(count: Int) -> [TileTerrain] {
+    var t = Array(repeating: TileTerrain(imageName: "field", attribute: .normal), count: count)
+
+    // 1始まりの範囲を0始まりindexに適用するヘルパ
+    func setRange(_ startTile: Int, _ endTile: Int, _ image: String, _ attr: TileAttribute) {
+        let s = max(1, startTile)
+        let e = min(count, endTile)
+        guard s <= e else { return }
+        for tile in s...e {
+            t[tile - 1] = TileTerrain(imageName: image, attribute: attr)
+        }
+    }
+
+    // 指定：
+    setRange(1,1,"town",.normal)
+    // マス2〜4: field
+    setRange(2, 4, "field", .normal)
+    setRange(5,5,"town",.normal)
+    // マス6〜9: desert
+    setRange(6, 9, "desert", .dry)
+    // マス10〜13: water
+    setRange(10, 13, "water", .water)
+    // マス14〜16: field
+    setRange(14, 16, "field", .normal)
+    // マス17〜20: fire
+    setRange(17, 20, "fire", .heat)
+    setRange(21,21,"town",.normal)
+    // マス22〜25: snow
+    setRange(22, 25, "snow", .cold)
+    // マス26〜31: field
+    setRange(26, 31, "field", .normal)
+
     return t
 }
 

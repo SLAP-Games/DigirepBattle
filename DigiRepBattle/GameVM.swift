@@ -57,8 +57,11 @@ final class GameVM: ObservableObject {
     @Published var rWat: [Int]
     @Published var rHot: [Int]
     @Published var rCold: [Int]
+    @Published var cost: [Int]
     @Published var showSpecialMenu: Bool = false
     @Published var currentSpecialKind: SpecialNodeKind? = nil
+    private var spellPool: [Card] = []
+    private var creaturePool: [Card] = []
 
     // プレイヤー
     @Published var players: [Player] = [
@@ -118,6 +121,10 @@ final class GameVM: ObservableObject {
         self.rWat = Array(repeating: 0, count: tileCount)
         self.rHot = Array(repeating: 0, count: tileCount)
         self.rCold = Array(repeating: 0, count: tileCount)
+        self.cost = Array(repeating: 1, count: tileCount)
+        
+        self.spellPool = buildSpellPool()
+        self.creaturePool = buildCreaturePool()
 
         // デッキ生成（30枚：spell×10, creature×20）＆シャッフル
         for pid in 0...1 {
@@ -139,6 +146,38 @@ final class GameVM: ObservableObject {
         }
         startTurnIfNeeded()
         self.focusTile = players[turn].pos
+        self.terrain = buildFixedTerrain()
+    }
+    
+    private func buildFixedTerrain() -> [TileTerrain] {
+        // 既定は field（ノーマル）
+        var arr = Array(
+            repeating: TileTerrain(imageName: "field", attribute: .normal),
+            count: tileCount
+        )
+
+        // 1始まり → 配列index（0始まり）に変換して代入するヘルパ
+        func setRange(_ startTile: Int, _ endTile: Int, image: String, attr: TileAttribute) {
+            let s = max(1, startTile)
+            let e = min(tileCount, endTile)
+            guard s <= e else { return }
+            for t in s...e {
+                let i = t - 1   // 1始まり → 0始まり
+                arr[i] = TileTerrain(imageName: image, attribute: attr)
+            }
+        }
+
+        // ご指定の固定割り当て（タイル番号は 1..31）
+        setRange( 2,  4, image: "field",  attr: .normal) // 2〜4
+        setRange( 6,  9, image: "desert", attr: .dry)    // 6〜9
+        setRange(10, 13, image: "water",  attr: .water)  // 10〜13
+        setRange(14, 16, image: "field",  attr: .normal) // 14〜16
+        setRange(17, 20, image: "fire",   attr: .heat)   // 17〜20
+        setRange(22, 25, image: "snow",   attr: .cold)   // 22〜25
+        setRange(26, 31, image: "field",  attr: .normal) // 26〜31
+
+        // 指定が無い 1,5,21（＝チェックポイント）は既定の field のまま
+        return arr
     }
     
     private func nextIndex(for pid: Int, from cur: Int) -> Int {
@@ -146,6 +185,31 @@ final class GameVM: ObservableObject {
         case .cw:  return nextCW[cur]
         case .ccw: return nextCCW[cur]
         }
+    }
+    
+    private func buildSpellPool() -> [Card] {
+        (1...30).map { i in
+            let name = String(format: "スペル（S%02d）", i)
+            return Card(kind: .spell, name: name, symbol: "sun.max.fill")
+        }
+    }
+
+    private func buildCreaturePool() -> [Card] {
+        (1...60).map { i in
+            let name = String(format: "クリーチャー（C%02d）", i)
+            var c = Card(kind: .creature, name: name, symbol: "lizard.fill")
+            c.stats = .defaultLizard
+            return c
+        }
+    }
+
+    /// 固定50枚（順序固定）。※シャッフルしない
+    private func makeFixedDeck() -> [Card] {
+        let spells = Array(spellPool.prefix(20))       // S01..S20
+        let creatures = Array(creaturePool.prefix(30)) // C01..C30
+        // 既存が popLast() なら、末尾が「山札の上」だが、
+        // 今回はドロー時にランダム化するのでそのままでOK
+        return spells + creatures
     }
 
     // MARK: - ターン管理
@@ -194,8 +258,10 @@ final class GameVM: ObservableObject {
 
     // MARK: - 山札・手札
     private func drawOne(for pid: Int) {
-        guard let c = decks[pid].popLast() else { return }
-        hands[pid].append(c)
+        guard !decks[pid].isEmpty else { return }
+        let idx = Int.random(in: 0..<decks[pid].count)
+        let picked = decks[pid].remove(at: idx)   // ← ランダムで抜き取る
+        hands[pid].append(picked)
     }
 
     func discard(_ card: Card, for pid: Int) {
@@ -381,6 +447,15 @@ final class GameVM: ObservableObject {
     func placeCreature(from card: Card, at tile: Int, by pid: Int) {
         guard canPlaceCreature(at: tile) else { return }
         let s = card.stats ?? CreatureStats.defaultLizard
+        let price = max(0, s.cost)
+        
+        guard tryPay(price, by: pid) else {
+            if pid == 0 {
+                // プレイヤーにはメッセージ（CPUは不要なら表示しない）
+                battleResult = "GOLD不足で設置できません（必要: \(price)）"
+            }
+            return
+        }
         owner[tile] = pid
         level[tile] = max(level[tile], 1)
         creatureSymbol[tile] = card.symbol
@@ -393,6 +468,7 @@ final class GameVM: ObservableObject {
         rWat[tile] = s.resistWater
         rHot[tile] = s.resistHeat
         rCold[tile] = s.resistCold
+        cost[tile]  = s.cost
         hp = hp
         creatureOnTile[tile] = Creature(
             id: UUID().uuidString,
@@ -401,6 +477,17 @@ final class GameVM: ObservableObject {
             stats: s,
             hp: s.hpMax
         )
+    }
+    
+    private func tryPay(_ amount: Int, by pid: Int) -> Bool {
+        guard amount > 0 else { return true }
+        guard players.indices.contains(pid) else { return false }
+        if players[pid].gold >= amount {
+            players[pid].gold -= amount
+            return true
+        } else {
+            return false
+        }
     }
 
     func hpRatio(_ tile: Int) -> CGFloat? {
@@ -648,7 +735,8 @@ final class GameVM: ObservableObject {
                     resistDry: rDry[tile],
                     resistWater: rWat[tile],
                     resistHeat: rHot[tile],
-                    resistCold: rCold[tile]
+                    resistCold: rCold[tile],
+                    cost: (cost.indices.contains(tile) ? cost[tile] : 1)
                 )
                 let img = creatureSymbol.indices.contains(tile) ? (creatureSymbol[tile] ?? "lizard.fill") : "lizard.fill"
                 creature = Creature(id: "legacy-\(tile)", owner: own, imageName: img, stats: stats, hp: hp[tile])
