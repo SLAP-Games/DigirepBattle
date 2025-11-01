@@ -38,6 +38,8 @@ final class GameVM: ObservableObject {
     @Published var rWat: [Int]
     @Published var rHot: [Int]
     @Published var rCold: [Int]
+    @Published var showSpecialMenu: Bool = false
+    @Published var currentSpecialKind: SpecialNodeKind? = nil
 
     // プレイヤー
     @Published var players: [Player] = [
@@ -276,7 +278,7 @@ final class GameVM: ObservableObject {
                 return
             }
             let t = players[0].pos
-            if owner[t] == nil {
+            if owner[t] == nil, canPlaceCreature(at: t) {
                 placeCreature(from: card, at: t, by: 0)
                 consumeFromHand(card, for: 0)
             }
@@ -317,6 +319,7 @@ final class GameVM: ObservableObject {
             // 移動後：空き地ならクリーチャーを1枚置く
             let t = self.players[1].pos
             if self.owner[t] == nil,
+               self.canPlaceCreature(at: t),
                let creature = self.hands[1].first(where: { $0.kind == .creature }) {
                 self.placeCreature(from: creature, at: t, by: 1)  // ← これに変更
                 self.consumeFromHand(creature, for: 1)
@@ -336,6 +339,7 @@ final class GameVM: ObservableObject {
     }
     
     func placeCreature(from card: Card, at tile: Int, by pid: Int) {
+        guard canPlaceCreature(at: tile) else { return }
         let s = card.stats ?? CreatureStats.defaultLizard
         owner[tile] = pid
         level[tile] = max(level[tile], 1)
@@ -471,8 +475,10 @@ final class GameVM: ObservableObject {
         }
         phase = .moved
         // ここで landedOnOpponentTileIndex など既存処理を続ける
+        didStop(at: players[turn].pos, isYou: turn == 0)
         handleAfterMove()
         focusTile = players[turn].pos
+        
     }
     
     // 既存の「次のマス」算出を利用して1歩進める
@@ -542,5 +548,43 @@ final class GameVM: ObservableObject {
             phase = .moved
             handleAfterMove()
         }
+    }
+    
+    // === 追加: 設置可否チェック ===
+    func canPlaceCreature(at index: Int) -> Bool {
+        return !isSpecialNode(index)
+    }
+
+    // === 追加: 駒の移動完了時に特別マスか確認してメニューを開く ===
+    func didStop(at index: Int, isYou: Bool) {
+        // 自分のターンで止まった場合のみメニューを提示（必要ならCPUにも対応可）
+        if isYou, let kind = specialNodeKind(for: index) {
+            currentSpecialKind = kind
+            showSpecialMenu = true
+        } else {
+            currentSpecialKind = nil
+            showSpecialMenu = false
+        }
+    }
+
+    // === 追加: 空実装の機能スタブ ===
+    func actionLevelUpOnSpecialNode() {
+        // TODO: マスレベルUPの処理
+    }
+
+    func actionMoveCreatureFromSpecialNode() {
+        // TODO: クリーチャー移動の処理
+    }
+
+    func actionPurchaseSkillOnSpecialNode() {
+        // TODO: スキル購入の処理
+    }
+
+    func actionEndTurnFromSpecialNode() {
+        // TODO: ターン終了の処理
+        showSpecialMenu = false
+        currentSpecialKind = nil
+        endTurn()
+        // ここで既存のターン終了ハンドラを呼ぶ等
     }
 }

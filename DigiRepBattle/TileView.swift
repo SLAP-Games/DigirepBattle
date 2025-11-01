@@ -12,13 +12,19 @@ struct TileView: View {
     let size: CGFloat
     let hasP1: Bool
     let hasP2: Bool
+    
     let owner: Int?
     let level: Int
     let creatureSymbol: String?
     let toll: Int
+    
     let hp: Int?
     let hpMax: Int?
-
+    let bgImageName: String?          // 例: "field", "desert", "town" など（拡張子不要）
+    let attribute: TileAttribute?      // 表示には未使用（今後の判定用）
+    
+    private var special: SpecialNodeKind? { specialNodeKind(for: index) }
+    private var isPlaceable: Bool { !isSpecialNode(index) }   // クリーチャー設置可否
     private var accent: Color {
         switch owner {
         case 0: return .blue
@@ -34,7 +40,19 @@ struct TileView: View {
         ZStack {
             // タイル本体
             RoundedRectangle(cornerRadius: 14)
-                .fill(.white)
+                .fill(Color.clear)
+                .background(
+                    Group {
+                        if let bg = bgImageName {
+                            Image(bg)
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            Color.white
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(owner == nil ? .secondary.opacity(0.8) : accent,
@@ -114,5 +132,24 @@ struct TileView: View {
                     .padding(6)
             }
         }
+        .overlay(
+            // === 追加: 特別マスの建物画像 ===
+            Group {
+                if let special {
+                    switch special {
+                    case .castle:
+                        Image("castle") // Assetsに castle.png を登録
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: size * 0.76, height: size * 0.76)
+                    case .tower:
+                        Image("tower") // Assetsに tower.png を登録
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: size * 0.72, height: size * 0.72)
+                    }
+                }
+            }
+        )
     }
 }

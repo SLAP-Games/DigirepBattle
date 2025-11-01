@@ -7,6 +7,15 @@
 
 import SwiftUI
 
+enum TileAttribute: String {
+    case normal, dry, water, heat, cold
+}
+
+struct TileTerrain {
+    let imageName: String      // 例: "field", "desert", "water", "fire", "snow", "town"
+    let attribute: TileAttribute
+}
+
 // 素朴な整数座標
 private struct I2: Hashable {
     var x: Int
@@ -48,6 +57,7 @@ struct RingBoardView: View {
     @State private var offset: CGSize = .zero
     @State private var gestureScale: CGFloat = 1.0
     @State private var gestureOffset: CGSize = .zero
+    @State private var terrains: [TileTerrain] = []
 
     // 角を重ねた正方形×2 のグラフ
     private var graph: [BoardNode] {
@@ -57,6 +67,7 @@ struct RingBoardView: View {
     var body: some View {
         GeometryReader { geo in
             let step = tileSize + gap
+            let count = graph.count
 
             // グリッド境界→盤の自然サイズ（原点はこのビューの左上）
             let (minX, maxX, minY, maxY) = bounds(graph.map { $0.grid })
@@ -92,6 +103,7 @@ struct RingBoardView: View {
                     let safeHp      = hp.indices.contains(idx) ? hp[idx] : nil
                     let safeHpMax   = hpMax.indices.contains(idx) ? hpMax[idx] : nil
                     let safeToll    = (idx < owner.count) ? toll(idx) : 0
+                    let terr = terrains.indices.contains(idx) ? terrains[idx] : TileTerrain(imageName: "field", attribute: .normal)
 
                     TileView(index: idx,
                              size: tileSize,
@@ -102,7 +114,9 @@ struct RingBoardView: View {
                              creatureSymbol: safeSymbol,
                              toll: safeToll,
                              hp: safeHp,
-                             hpMax: safeHpMax
+                             hpMax: safeHpMax,
+                             bgImageName: terr.imageName,
+                             attribute: terr.attribute
                     )
                     .position(pos)
                 }
@@ -160,14 +174,9 @@ struct RingBoardView: View {
                         gestureOffset = .zero
                     }
             )
-            // ★ ターン終了などで focusTile が変わったら“自動で中央へ”
-            .onChange(of: focusTile) { _, new in
-                guard let idx = new else { return }
-                DispatchQueue.main.async {
-                    centerOnTile(idx,
-                                 in: geo.size,
-                                 minX: minX, minY: minY,
-                                 step: step, tileSize: tileSize)
+            .onAppear {
+                if terrains.count != count {
+                    terrains = generateTerrains(count: count)
                 }
             }
             // 初回レイアウト時に、現在プレイヤーの位置へ
@@ -180,6 +189,17 @@ struct RingBoardView: View {
                                  animated: false)
                 }
             }
+            // ★ ターン終了などで focusTile が変わったら“自動で中央へ”
+            .onChange(of: focusTile) { _, new in
+                guard let idx = new else { return }
+                DispatchQueue.main.async {
+                    centerOnTile(idx,
+                                 in: geo.size,
+                                 minX: minX, minY: minY,
+                                 step: step, tileSize: tileSize)
+                }
+            }
+            
             .clipped() // “操作ビューを除く表示領域”内に収める
         }
     }
@@ -279,6 +299,31 @@ private func makeOverlappedSquareGraph(side s: Int) -> [BoardNode] {
 }
 
 // MARK: - 描画ユーティリティ
+private func generateTerrains(count: Int) -> [TileTerrain] {
+    var t = Array(repeating: TileTerrain(imageName: "field", attribute: .normal), count: count)
+
+    // 固定マス（1,5,21）= index 0,4,20
+    let fixed = [0, 4, 20].filter { $0 < count }
+    for i in fixed {
+        t[i] = TileTerrain(imageName: "town", attribute: .normal)
+    }
+
+    let candidates: [(String, TileAttribute)] = [
+        ("field", .normal),
+        ("desert", .dry),
+        ("water", .water),
+        ("fire",  .heat),
+        ("snow",  .cold),
+    ]
+
+    for i in 0..<count where !fixed.contains(i) {
+        if let pick = candidates.randomElement() {
+            t[i] = TileTerrain(imageName: pick.0, attribute: pick.1)
+        }
+    }
+    return t
+}
+
 private func bounds(_ pts: [I2]) -> (Int, Int, Int, Int) {
     let xs = pts.map { $0.x }
     let ys = pts.map { $0.y }

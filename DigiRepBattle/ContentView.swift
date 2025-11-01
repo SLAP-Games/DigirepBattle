@@ -108,6 +108,23 @@ struct ContentView: View {
                         .frame(maxHeight: controlsH * 0.9)
                     }
                     .padding(.horizontal)
+                    
+                    if vm.showSpecialMenu {
+                        ZStack{
+                            Color.yellow
+                            SpecialNodeMenu(
+                                kind: vm.currentSpecialKind,
+                                levelUp: { vm.actionLevelUpOnSpecialNode() },
+                                moveCreature: { vm.actionMoveCreatureFromSpecialNode() },
+                                buySkill: { vm.actionPurchaseSkillOnSpecialNode() },
+                                endTurn: {
+                                    vm.endTurn()
+                                }
+                            )
+                            .frame(height: controlsH)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
                     // バトル選択プロンプト（自分が相手マスに止まった直後）
                     if let t = vm.landedOnOpponentTileIndex,
                        vm.turn == 0, vm.phase == .moved, !vm.expectBattleCardSelection {
@@ -201,6 +218,46 @@ private struct CardView: View {
             }
             .padding(6)
         }
+    }
+}
+
+struct SpecialNodeMenu: View {
+    let kind: SpecialNodeKind?
+    let levelUp: () -> Void
+    let moveCreature: () -> Void
+    let buySkill: () -> Void
+    let endTurn: () -> Void
+
+    var title: String {
+        switch kind {
+        case .some(.castle): return "城（特別マス）"
+        case .some(.tower):  return "塔（特別マス）"
+        case .none:          return "特別マス"
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(title)
+                .font(.headline)
+
+            HStack(spacing: 12) {
+                Button("マスレベルUP", action: levelUp)
+                    .buttonStyle(.borderedProminent)
+
+                Button("クリーチャー移動", action: moveCreature)
+                    .buttonStyle(.bordered)
+
+                Button("スキル購入", action: buySkill)
+                    .buttonStyle(.bordered)
+
+                Button("ターン終了", action: endTurn)
+                    .buttonStyle(.bordered)
+            }
+            .padding(.horizontal, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.ultraThinMaterial)
     }
 }
 
