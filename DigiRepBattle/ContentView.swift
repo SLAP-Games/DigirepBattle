@@ -31,7 +31,8 @@ struct ContentView: View {
                         branchSource: vm.branchSource,
                         branchCandidates: vm.branchCandidates,
                         onPickBranch: { vm.pickBranch($0) },
-                        focusTile: vm.focusTile   
+                        onTapTile: { vm.tapTileForInspect($0) },
+                        focusTile: vm.focusTile
                     )
                     .frame(height: boardH)
                     .background {
@@ -44,6 +45,15 @@ struct ContentView: View {
                     Badge(player: vm.players[1], active: vm.turn == 1, tint: .red)
                         .padding(.top, 10)
                         .padding(.trailing, 12)
+                    
+                    if let idx = vm.inspectTarget,
+                       let iv = vm.makeInspectView(for: idx, viewer: 0) { // 0 = You
+                        CreatureInfoPanel(iv: iv, onClose: { vm.closeInspect() })
+                            .padding(.top, 8)
+                            .padding(.horizontal, 8)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .zIndex(10)
+                    }
                 }
 
                 // ── 下：操作エリア（自プレイヤー専用） ──

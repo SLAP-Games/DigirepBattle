@@ -9,6 +9,25 @@ import SwiftUI
 import Foundation
 import Combine
 
+struct CreatureInspectView {
+    // マップ
+    let tileIndex: Int
+    let mapImageName: String
+    let mapAttribute: String  // 表示用（日本語化など）
+
+    // クリーチャー
+    let owner: Int
+    let imageName: String
+    let hpText: String
+    let affection: String
+    let power: String
+    let durability: String
+    let dryRes: String
+    let waterRes: String
+    let heatRes: String
+    let coldRes: String
+}
+
 @MainActor
 final class GameVM: ObservableObject {
     // 分岐UI用（RingBoardViewへ渡す）
@@ -52,7 +71,10 @@ final class GameVM: ObservableObject {
     @Published var mustDiscardFor: Int? = nil   // 捨てる必要がある手番（0 or 1）: UI表示用
     @Published var showLogOverlay: Bool = false
     @Published var canEndTurn: Bool = true
-
+    @Published var terrain: [TileTerrain] = []
+    @Published var inspectTarget: Int? = nil
+    @Published var creatureOnTile: [Int: Creature] = [:]
+    
     enum Phase { case ready, rolled, moving, branchSelecting, moved }
     enum Dir { case cw, ccw }
     private var moveDir: [Dir] = [.cw, .cw]
@@ -159,6 +181,10 @@ final class GameVM: ObservableObject {
             if newHP != hp[i] {
                 hp[i] = newHP
                 touched = true
+            }
+            if var c = creatureOnTile[i] {
+                c.hp = newHP
+                creatureOnTile[i] = c
             }
         }
         if touched { hp = hp } // ← 再描画トリガ
@@ -354,6 +380,13 @@ final class GameVM: ObservableObject {
         rHot[tile] = s.resistHeat
         rCold[tile] = s.resistCold
         hp = hp
+        creatureOnTile[tile] = Creature(
+            id: UUID().uuidString,
+            owner: pid,
+            imageName: card.symbol,  // 専用画像があればそちらに
+            stats: s,
+            hp: s.hpMax
+        )
     }
 
     func hpRatio(_ tile: Int) -> CGFloat? {
@@ -409,6 +442,10 @@ final class GameVM: ObservableObject {
         let dmg1 = max(0, atk1 - def1)
         hp[t] = max(0, hp[t] - dmg1)
         hp = hp
+        if var c = creatureOnTile[t] {
+            c.hp = hp[t]
+            creatureOnTile[t] = c
+        }
 
         if hp[t] <= 0 {
             // 撃破 → 奪取
@@ -587,4 +624,83 @@ final class GameVM: ObservableObject {
         endTurn()
         // ここで既存のターン終了ハンドラを呼ぶ等
     }
+    
+    func canSeeFullStats(of creature: Creature, viewer: Int) -> Bool {
+        // 自分の所有なら全表示。敵は基本HP以外非表示。
+        return creature.owner == viewer
+        // 例: 鑑定アイテム所持時は true を返す分岐を足せる
+        // if revealAllForEnemy { return true }
+    }
+
+    // マップ・クリーチャー情報を混ぜた検査VMを作る
+    func makeInspectView(for tile: Int, viewer: Int) -> CreatureInspectView? {
+        // 個体が未登録なら配列ベースの旧データから推測するフォールバック
+        var creature: Creature?
+        if let c = creatureOnTile[tile] { creature = c }
+        else if owner.indices.contains(tile), let own = owner[tile] {
+            // 旧配列から最小限再構築（画像はシンボル名を仮置き）
+            if hpMax.indices.contains(tile) {
+                let stats = CreatureStats(
+                    hpMax: hpMax[tile],
+                    affection: aff[tile],
+                    power: pow[tile],
+                    durability: dur[tile],
+                    resistDry: rDry[tile],
+                    resistWater: rWat[tile],
+                    resistHeat: rHot[tile],
+                    resistCold: rCold[tile]
+                )
+                let img = creatureSymbol.indices.contains(tile) ? (creatureSymbol[tile] ?? "lizard.fill") : "lizard.fill"
+                creature = Creature(id: "legacy-\(tile)", owner: own, imageName: img, stats: stats, hp: hp[tile])
+            }
+        }
+        guard let c = creature else { return nil }
+
+        // 地形の安全参照（未初期化ならデフォルト）
+        let mapImg: String
+        let mapAttrJP: String
+        if terrain.indices.contains(tile) {
+            mapImg = terrain[tile].imageName
+            // top-level TileAttribute を日本語にマップ
+            switch terrain[tile].attribute {
+            case .normal: mapAttrJP = "ノーマル"
+            case .dry:    mapAttrJP = "砂地"
+            case .water:  mapAttrJP = "水辺"
+            case .heat:   mapAttrJP = "火山"
+            case .cold:   mapAttrJP = "雪原"
+            }
+        } else {
+            mapImg = "field"
+            mapAttrJP = "ノーマル"
+        }
+
+        let seeAll = canSeeFullStats(of: c, viewer: viewer)
+        func show(_ v: Int) -> String { String(v) }
+        func mask(_ v: Int) -> String { seeAll ? show(v) : "不明" }
+
+        return CreatureInspectView(
+            tileIndex: tile,
+            mapImageName: mapImg,
+            mapAttribute: mapAttrJP,
+            owner: c.owner,
+            imageName: c.imageName,
+            hpText: "\(c.hp) / \(c.stats.hpMax)",
+            affection: seeAll ? show(c.stats.affection) : "不明",
+            power:     seeAll ? show(c.stats.power)     : "不明",
+            durability:seeAll ? show(c.stats.durability): "不明",
+            dryRes:    mask(c.stats.resistDry),
+            waterRes:  mask(c.stats.resistWater),
+            heatRes:   mask(c.stats.resistHeat),
+            coldRes:   mask(c.stats.resistCold)
+        )
+    }
+    // タイルタップ時ハンドラ（クリーチャーがいないタイルは無視）
+    func tapTileForInspect(_ index: Int) {
+        if creatureOnTile[index] == nil, (owner.indices.contains(index) ? owner[index] : nil) == nil {
+            return
+        }
+        inspectTarget = index
+    }
+
+    func closeInspect() { inspectTarget = nil }
 }

@@ -26,3 +26,30 @@ struct CreatureStats: Equatable {
         resistDry: 3, resistWater: 2, resistHeat: 3, resistCold: 4
     )
 }
+
+struct Creature: Identifiable, Equatable {
+    let id: String
+    let owner: Int        // 0=You, 1=CPU
+    var imageName: String
+    var stats: CreatureStats  // 基礎能力（種のテンプレを束ねる）
+    var hp: Int               // 現在HP（最大は stats.hpMax）
+
+    // 将来の拡張余地（鑑定や装備、バフ/デバフ）
+    var revealed: RevealLevel = .hpOnly
+    var buffs: [Buff] = []
+}
+
+// 鑑定や可視化方針を切り替えやすく
+enum RevealLevel {
+    case none       // 何も見せない（使わない想定）
+    case hpOnly     // 敵の基本
+    case full       // 自分 or 鑑定アイテム適用時
+}
+
+// 例：バフの型（必要になったら）
+struct Buff: Equatable {
+    enum Kind { case powerUp, guardUp, resistAllUp }
+    let kind: Kind
+    let amount: Int
+    let untilTurn: Int
+}

@@ -48,8 +48,7 @@ struct RingBoardView: View {
     var branchSource: Int? = nil
     var branchCandidates: [Int] = []
     var onPickBranch: ((Int) -> Void)? = nil
-
-    // ★ 追加：VM から「このマスを中央へ」の指示を受け取る
+    var onTapTile: ((Int) -> Void)? = nil
     var focusTile: Int? = nil
 
     // ★ 追加：パン・ズーム状態
@@ -119,6 +118,9 @@ struct RingBoardView: View {
                              attribute: terr.attribute
                     )
                     .position(pos)
+                    .onTapGesture {
+                        onTapTile?(idx) 
+                    }
                 }
 
                 // 分岐選択UI（既存そのまま）

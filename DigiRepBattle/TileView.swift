@@ -99,11 +99,11 @@ struct TileView: View {
                     HStack {
                         Text("Lv \(level)")
                             .font(.caption2).bold()
-                            .foregroundStyle(accent)
+                            .foregroundStyle(.white)
                         Spacer()
                         Text("\(toll)")
                             .font(.caption2).bold()
-                            .foregroundStyle(accent)
+                            .foregroundStyle(.white)
                     }
                     .padding(.horizontal, 6)
                     .padding(.bottom, 4)
@@ -111,7 +111,6 @@ struct TileView: View {
             }
             .frame(width: size, height: size)
         }
-        // ← ここがポイント：overlay で四隅に固定
         .overlay(alignment: .topLeading) {
             if hasP1 {
                 Image(systemName: "person.fill")

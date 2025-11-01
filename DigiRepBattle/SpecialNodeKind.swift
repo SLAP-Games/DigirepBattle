@@ -8,19 +8,17 @@
 import Foundation
 
 enum SpecialNodeKind {
-    case castle   // マス1
-    case tower    // マス5, マス21
+    case castle, tower
 }
 
 func specialNodeKind(for index: Int) -> SpecialNodeKind? {
-    switch index {      // 0始まり
-    case 0:  return .castle   // マス1
-    case 4:  return .tower    // マス5
-    case 20: return .tower    // マス21
-    default: return nil
+    switch index {
+    case 0, 20: return .castle
+    case 4:     return .tower
+    default:    return nil
     }
 }
 
 func isSpecialNode(_ index: Int) -> Bool {
-    return specialNodeKind(for: index) != nil
+    return [0, 4, 20].contains(index)
 }
