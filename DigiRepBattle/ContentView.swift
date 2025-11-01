@@ -25,7 +25,12 @@ struct ContentView: View {
                         owner: vm.owner,
                         level: vm.level,
                         creatureSymbol: vm.creatureSymbol,
-                        toll: vm.toll
+                        toll: vm.toll,
+                        hp: vm.hp,
+                        hpMax: vm.hpMax,
+                        branchSource: vm.branchSource,
+                        branchCandidates: vm.branchCandidates,
+                        onPickBranch: { vm.pickBranch($0) }
                     )
                     .frame(height: boardH)
                     .background {
@@ -54,6 +59,7 @@ struct ContentView: View {
 
                                 Button("✅ End") { vm.endTurn() }
                                     .disabled(!(vm.turn == 0 && vm.phase == .moved))
+                                    .disabled(!vm.canEndTurn)
 
                                 Text("Roll: \(vm.lastRoll)")
                                     .font(.caption)
@@ -76,13 +82,16 @@ struct ContentView: View {
                                                     Button("捨てる") { vm.discard(card, for: 0) }
                                                         .buttonStyle(.borderedProminent)
                                                         .padding(6)
-                                                } else if vm.turn == 0 {
-                                                    // 使用フェーズ
-                                                    if vm.phase == .ready && card.kind == .spell {
-                                                        Button("使う") { vm.useSpellPreRoll(card) }
+                                                } else if vm.phase == .ready && card.kind == .spell {
+                                                    Button("使う") { vm.useSpellPreRoll(card) }
+                                                        .buttonStyle(.borderedProminent)
+                                                        .padding(6)
+                                                } else if vm.turn == 0, vm.phase == .moved {
+                                                    if vm.expectBattleCardSelection && card.kind == .creature {
+                                                        Button("戦闘") { vm.startBattle(with: card) }
                                                             .buttonStyle(.borderedProminent)
                                                             .padding(6)
-                                                    } else if vm.phase == .moved {
+                                                    } else {
                                                         Button("使う") { vm.useCardAfterMove(card) }
                                                             .buttonStyle(.borderedProminent)
                                                             .padding(6)
@@ -98,6 +107,44 @@ struct ContentView: View {
                         .frame(maxHeight: controlsH * 0.9)
                     }
                     .padding(.horizontal)
+                    // バトル選択プロンプト（自分が相手マスに止まった直後）
+                    if let t = vm.landedOnOpponentTileIndex,
+                       vm.turn == 0, vm.phase == .moved, !vm.expectBattleCardSelection {
+                        ZStack{
+                            Color.yellow
+                            HStack(spacing: 12) {
+                                Text("相手のマス（\(t+1)）です。どうする？").bold()
+                                Button("戦闘する") { vm.chooseBattle() }
+                                    .buttonStyle(.borderedProminent)
+                                Button("戦闘しない（通行料を払う）") { vm.payTollAndEndChoice() }
+                                    .buttonStyle(.bordered)
+                            }
+                            .padding(8)
+                            .background(.yellow.opacity(1))
+                        }
+                        
+                    }
+                    if let text = vm.battleResult {
+                        ZStack {
+                            Color.yellow
+                                .onTapGesture { vm.battleResult = nil }
+
+                            VStack(spacing: 12) {
+                                Text(text)
+                                    .multilineTextAlignment(.center)
+                                    .font(.title3.bold())
+                                    .padding(.vertical, 4)
+
+                                Button("閉じる") { vm.battleResult = nil }
+                                    .buttonStyle(.borderedProminent)
+                            }
+                            .padding(16)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(radius: 10)
+                        }
+                        .zIndex(1000)
+                    }
                 }
                 .frame(height: controlsH)
                 .overlay(Divider(), alignment: .top)

@@ -16,12 +16,9 @@ struct BoardView: View {
                       owner: vm.owner,
                       level: vm.level,
                       creatureSymbol: vm.creatureSymbol,
-                      toll: vm.toll
+                      toll: vm.toll,
+                      hp: vm.hp,
+                      hpMax: vm.hpMax
         )
     }
-}
-
-#Preview {
-    BoardView()
-        .padding()
 }

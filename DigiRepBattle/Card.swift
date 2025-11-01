@@ -13,5 +13,6 @@ struct Card: Identifiable, Equatable {
     let id = UUID()
     let kind: CardKind
     let name: String
-    let symbol: String   // SF Symbols 名（spell: sun.max.fill / creature: lizard.fill）
+    let symbol: String
+    var stats: CreatureStats? = nil
 }
