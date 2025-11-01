@@ -37,9 +37,9 @@ final class GameVM: ObservableObject {
     
     // 移動管理
     private var stepsLeft: Int = 0
-
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
+    private let CHECKPOINTS: Set<Int> = [0, 4, 20]
     // 盤（角を重ねた二重スクエア＝31ノード）
     let sideCount: Int = 5
     let tileCount: Int
@@ -62,8 +62,8 @@ final class GameVM: ObservableObject {
 
     // プレイヤー
     @Published var players: [Player] = [
-        Player(name: "You", pos: 0, gold: 500),
-        Player(name: "CPU", pos: 0, gold: 500)
+        Player(name: "You", pos: 0, gold: 300),
+        Player(name: "CPU", pos: 0, gold: 300)
     ]
     @Published var turn: Int = 0                // 0=You, 1=CPU
     @Published var lastRoll: Int = 0
@@ -74,6 +74,13 @@ final class GameVM: ObservableObject {
     @Published var terrain: [TileTerrain] = []
     @Published var inspectTarget: Int? = nil
     @Published var creatureOnTile: [Int: Creature] = [:]
+    @Published var landedOnOpponentTileIndex: Int? = nil
+    @Published var expectBattleCardSelection: Bool = false
+    @Published var logs: [String] = []
+    @Published var battleResult: String? = nil
+    @Published var showCheckpointOverlay: Bool = false
+    @Published var checkpointMessage: String? = nil
+    @Published var lastCheckpointGain: Int = 0
     
     enum Phase { case ready, rolled, moving, branchSelecting, moved }
     enum Dir { case cw, ccw }
@@ -96,11 +103,6 @@ final class GameVM: ObservableObject {
 
     // スペル効果：次のロールを1に固定
     private var forceRollToOneFor: [Bool] = [false, false]
-    // バトル用のUI状態
-    @Published var landedOnOpponentTileIndex: Int? = nil
-    @Published var expectBattleCardSelection: Bool = false
-    @Published var logs: [String] = []
-    @Published var battleResult: String? = nil
     
     init() {
         self.tileCount = 31  // RingBoardView のグラフと一致させる
@@ -361,7 +363,19 @@ final class GameVM: ObservableObject {
     // 料金計算（Lv1=30）
     func toll(at tile: Int) -> Int {
         let lv = level[tile]
-        return lv <= 0 ? 0 : (30 * lv)
+        if lv == 1 {
+            return lv <= 0 ? 0 : (30 * 1)
+        } else if lv == 2 {
+            return lv <= 0 ? 0 : (30 * 2)
+        } else if lv == 3 {
+            return lv <= 0 ? 0 : (30 * 4)
+        } else if lv == 4 {
+            return lv <= 0 ? 0 : (30 * 8)
+        } else if lv == 5 {
+            return lv <= 0 ? 0 : (30 * 16)
+        } else {
+            return lv <= 0 ? 0 : (30 * (16 + lv))
+        }
     }
     
     func placeCreature(from card: Card, at tile: Int, by pid: Int) {
@@ -525,21 +539,7 @@ final class GameVM: ObservableObject {
         let next = nextIndex(for: turn, from: cur)
         players[turn].pos = next
         stepsLeft -= 1
-
-//        // マス5に入り、まだ歩数が残っている場合の分岐
-//        if players[turn].pos == CROSS_NODE, stepsLeft > 0 {
-//            if turn == 0 {
-//                // プレイヤー：UI停止（この時点では方向未確定）
-//                branchSource = CROSS_NODE
-//                branchCandidates = CROSS_CHOICES
-//                phase = .branchSelecting
-//                return
-//            } else {
-//                if let choice = CROSS_CHOICES.randomElement() {
-//                    applyBranchChoice(choice) // ← これでCPU側だけのdirが更新される
-//                }
-//            }
-//        }
+        awardCheckpointIfNeeded(entering: next, pid: turn)
         
         if next == CROSS_NODE, stepsLeft > 0 {
             // 分岐候補（来た方向は禁止）
@@ -703,4 +703,35 @@ final class GameVM: ObservableObject {
     }
 
     func closeInspect() { inspectTarget = nil }
+    
+    private func isCheckpoint(_ index: Int) -> Bool {
+        CHECKPOINTS.contains(index)
+    }
+    
+    private func ownedTileCount(of pid: Int) -> Int {
+        owner.reduce(0) { $0 + (($1 == pid) ? 1 : 0) }
+    }
+
+    // 300 + (自分の設置マス数 × 30)
+    private func checkpointReward(for pid: Int) -> Int {
+        300 + ownedTileCount(of: pid) * 30
+    }
+
+    // タイルに「入った」タイミングで呼ぶ
+    private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
+        guard isCheckpoint(index) else { return }
+        let gain = checkpointReward(for: pid)
+        players[pid].gold += gain
+        if pid == 0 {
+            lastCheckpointGain = gain
+            checkpointMessage = "チェックポイント通過　\(gain) GOLD獲得！"
+            showCheckpointOverlay = true
+        }
+    }
+
+    // ポップアップを閉じる
+    func closeCheckpointOverlay() {
+        showCheckpointOverlay = false
+        checkpointMessage = nil
+    }
 }

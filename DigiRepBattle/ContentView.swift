@@ -46,6 +46,31 @@ struct ContentView: View {
                         .padding(.top, 10)
                         .padding(.trailing, 12)
                     
+                    if vm.showCheckpointOverlay {
+                        ZStack {
+                            Color.black.opacity(0.35).ignoresSafeArea()
+                            VStack(spacing: 12) {
+                                Text(vm.checkpointMessage ?? "チェックポイント通過")
+                                    .font(.headline)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 16)
+                                Button("閉じる") {
+                                    vm.closeCheckpointOverlay()
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(Color(UIColor.systemBackground))
+                                    .shadow(radius: 8)
+                            )
+                            .padding()
+                        }
+                        .transition(.opacity)
+                        .zIndex(999) // 最前面に
+                    }
+                    
                     if let idx = vm.inspectTarget,
                        let iv = vm.makeInspectView(for: idx, viewer: 0) { // 0 = You
                         CreatureInfoPanel(iv: iv, onClose: { vm.closeInspect() })

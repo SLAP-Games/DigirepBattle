@@ -10,5 +10,5 @@ import Foundation
 struct Player {
     var name: String
     var pos: Int = 0        // 外周インデックス（0..15）※表示は+1して「マス1..16」
-    var gold: Int = 500
+    var gold: Int = 300
 }
