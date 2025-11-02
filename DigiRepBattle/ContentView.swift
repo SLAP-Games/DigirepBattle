@@ -18,7 +18,7 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 // ── 上：ボード（右上にCPUバッジ） ──
-                ZStack(alignment: .topTrailing) {
+                ZStack(alignment: .center) {
                     RingBoardView(
                         p1Pos: vm.players[0].pos,
                         p2Pos: vm.players[1].pos,
@@ -41,10 +41,21 @@ struct ContentView: View {
                             .scaledToFill()
                             .ignoresSafeArea()
                     }
-
-                    Badge(player: vm.players[1], active: vm.turn == 1, tint: .red)
-                        .padding(.top, 10)
-                        .padding(.trailing, 12)
+                    .overlay(
+                        Badge(player: vm.players[1], active: vm.turn == 1, tint: .red)
+                            .padding(.top, 10)
+                            .padding(.trailing, 12)
+                            .allowsHitTesting(false),      // ← 盤面タップを邪魔しない
+                        alignment: .topTrailing
+                    )
+                    // ★ ここで貼る：プレイヤーバッジ（左下）
+                    .overlay(
+                        Badge(player: vm.players[0], active: vm.turn == 0, tint: .blue)
+                            .padding(.bottom, 10)
+                            .padding(.leading, 12)
+                            .allowsHitTesting(false),
+                        alignment: .bottomLeading
+                    )
                     
                     if vm.showCheckpointOverlay {
                         ZStack {
@@ -79,6 +90,33 @@ struct ContentView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .zIndex(10)
                     }
+                    
+                    if let sheet = vm.activeSpecialSheet {
+                        // 半透明の背面
+                        Color.black.opacity(0.35)
+                            .ignoresSafeArea()
+                            .onTapGesture { vm.activeSpecialSheet = nil } // 背面タップで閉じる
+
+                        // 中央カード
+                        Group {
+                            switch sheet {
+                            case .levelUp(let tile):
+                                PopupCard {
+                                    LevelUpSheetView(vm: vm, tile: tile)
+                                }
+                            case .moveFrom(let tile):
+                                PopupCard {
+                                    MoveCreatureSheetView(vm: vm, fromTile: tile)
+                                }
+                            case .buySpell:
+                                PopupCard {
+                                    PurchaseSpellSheetView(vm: vm)
+                                }
+                            }
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: vm.activeSpecialSheet)
+                    }
                 }
 
                 // ── 下：操作エリア（自プレイヤー専用） ──
@@ -87,7 +125,6 @@ struct ContentView: View {
                     HStack(alignment: .top, spacing: 12) {
                         // 左：自分バッジの「下に縦並び」でRoll/End/Roll値
                         VStack(alignment: .leading, spacing: 8) {
-                            Badge(player: vm.players[0], active: vm.turn == 0, tint: .blue)
 
                             VStack(alignment: .leading, spacing: 6) {
                                 Button("🎲 Roll") { vm.rollDice() }
@@ -222,7 +259,7 @@ private struct Badge: View {
             }
         }
         .padding(8)
-        .background(active ? tint.opacity(0.15) : .white.opacity(0.8))
+        .background(active ? .white.opacity(0.8) : .white.opacity(0.15))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -240,8 +277,10 @@ private struct CardView: View {
                 .frame(width: 90, height: 130)
 
             VStack(spacing: 6) {
-                Image(systemName: card.symbol)
-                    .font(.system(size: 30))
+                Image(card.symbol)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 60, height: 60)
                 Text(card.kind == .spell ? "スペル" : "クリーチャー")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

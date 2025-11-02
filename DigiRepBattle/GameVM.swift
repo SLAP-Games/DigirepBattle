@@ -30,6 +30,9 @@ struct CreatureInspectView {
 
 @MainActor
 final class GameVM: ObservableObject {
+    enum Phase { case ready, rolled, moving, branchSelecting, moved }
+    enum Dir { case cw, ccw }
+    enum SpecialPendingAction { case pickLevelUpSource, pickMoveSource }
     // 分岐UI用（RingBoardViewへ渡す）
     @Published var branchSource: Int? = nil
     @Published var branchCandidates: [Int] = []
@@ -60,6 +63,7 @@ final class GameVM: ObservableObject {
     @Published var cost: [Int]
     @Published var showSpecialMenu: Bool = false
     @Published var currentSpecialKind: SpecialNodeKind? = nil
+    @Published var toll: [Int]
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
 
@@ -84,11 +88,13 @@ final class GameVM: ObservableObject {
     @Published var showCheckpointOverlay: Bool = false
     @Published var checkpointMessage: String? = nil
     @Published var lastCheckpointGain: Int = 0
+    @Published var activeSpecialSheet: SpecialActionSheet? = nil
+    @Published var specialPending: SpecialPendingAction? = nil
     
-    enum Phase { case ready, rolled, moving, branchSelecting, moved }
-    enum Dir { case cw, ccw }
     private var moveDir: [Dir] = [.cw, .cw]
     private var branchCameFrom: Int? = nil
+    var levelUpCost: [Int: Int] { [2: 100, 3: 250, 4: 500, 5: 900] }
+    private var goldRef: WritableKeyPath<Player, Int> { \.gold }   // Player に gold がある想定
     
     private let nextCW: [Int] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
@@ -122,33 +128,53 @@ final class GameVM: ObservableObject {
         self.rHot = Array(repeating: 0, count: tileCount)
         self.rCold = Array(repeating: 0, count: tileCount)
         self.cost = Array(repeating: 1, count: tileCount)
+        self.toll = Array(repeating: 0, count: tileCount)
         
         self.spellPool = buildSpellPool()
         self.creaturePool = buildCreaturePool()
+        let playerSpells = Array(spellPool.prefix(20))
+        let playerCreatures = makePlayerFixedCreatureCards()
+        decks[0] = (playerSpells + playerCreatures)
+        // ※各ターンのドローは既にランダム抜き取り（drawOne）なので十分ランダム性あり
 
-        // デッキ生成（30枚：spell×10, creature×20）＆シャッフル
+        // CPUのデッキ：今回はプレイヤーと同じにしておく（必要なら変えてOK）
+        let cpuSpells = Array(spellPool.dropFirst(20).prefix(20))
+        let cpuCreatures = makePlayerFixedCreatureCards()
+        decks[1] = (cpuSpells + cpuCreatures)
+
+        // 初期手札3枚
         for pid in 0...1 {
-            var deck: [Card] = []
-            // スペル10枚（全部「次回サイコロ=1」）
-            for i in 1...10 {
-                deck.append(Card(kind: .spell,    name: "固定1（S\(i))", symbol: "sun.max.fill"))
-            }
-            // クリーチャー20枚
-            for i in 1...20 {
-                var c = Card(kind: .creature, name: "トカゲ（C\(i))", symbol: "lizard.fill")
-                c.stats = CreatureStats.defaultLizard
-                deck.append(c)
-            }
-            decks[pid] = deck.shuffled()
-
-            // 初期手札3枚
             for _ in 0..<3 { drawOne(for: pid) }
         }
+
         startTurnIfNeeded()
         self.focusTile = players[turn].pos
         self.terrain = buildFixedTerrain()
     }
     
+    private func makePlayerFixedCreatureCards() -> [Card] {
+        func reptile(_ name: String, _ stats: CreatureStats, _ n: Int) -> [Card] {
+            (0..<n).map { _ in Card(kind: .creature, name: name, symbol: name, stats: stats) }
+            // symbol に画像アセット名を入れる（＝手札＆設置の表示名）
+        }
+
+        return
+            reptile("defaultLizard1",        .defaultLizard,        3) +
+            reptile("defaultGecko1",         .defaultGecko,         3) +
+            reptile("defaultCrocodile1",     .defaultCrocodile,     3) +
+            reptile("defaultSnake1",         .defaultSnake,         3) +
+            reptile("defaultIguana1",        .defaultIguana,        3) +
+            reptile("defaultTurtle1",        .defaultTurtle,        3) +
+            reptile("defaultFrog1",          .defaultFrog,          3) +
+            reptile("defaultBeardedDragon1", .defaultBeardedDragon, 2) +
+            reptile("defaultLeopardGecko1",  .defaultLeopardGecko,  2) +
+            reptile("defaultNileCrocodile1", .defaultNileCrocodile, 1) +
+            reptile("defaultBallPython1",    .defaultBallPython,    1) +
+            reptile("defaultGreenIguana1",   .defaultGreenIguana,   1) +
+            reptile("defaultaStarTurtle1",   .defaultaStarTurtle,   1) +
+            reptile("defaultHornedFrog1",    .defaultHornedFrog,    1)
+    }
+        
     private func buildFixedTerrain() -> [TileTerrain] {
         // 既定は field（ノーマル）
         var arr = Array(
@@ -274,7 +300,7 @@ final class GameVM: ObservableObject {
     // MARK: - サイコロ
     func rollDice() {
         guard turn == 0, phase == .ready else { return }
-        let r = forceRollToOneFor[turn] ? 1 : Int.random(in: 1...6)
+        let r = forceRollToOneFor[turn] ? 4 : Int.random(in: 1...6)
         forceRollToOneFor[turn] = false
         lastRoll = r
         stepsLeft = r
@@ -477,6 +503,7 @@ final class GameVM: ObservableObject {
             stats: s,
             hp: s.hpMax
         )
+        toll[tile] = toll(at: tile)
     }
     
     private func tryPay(_ amount: Int, by pid: Int) -> Bool {
@@ -572,6 +599,7 @@ final class GameVM: ObservableObject {
         if atkHP <= 0 {
             // 攻撃側が倒れ → 通行料
             consumeFromHand(card, for: turn)
+            transferToll(from: turn, to: defOwner, tile: t)
             let before = players[turn].gold
             let fee = toll(at: t)
             players[turn].gold = max(0, before - fee)
@@ -580,6 +608,7 @@ final class GameVM: ObservableObject {
                 : "通行料を奪われた\n\(before)→\(players[turn].gold)"
             canEndTurn = true
         } else {
+            transferToll(from: turn, to: defOwner, tile: t)
             let before = players[turn].gold
             let fee = toll(at: t)
             players[turn].gold = max(0, before - fee)
@@ -691,17 +720,36 @@ final class GameVM: ObservableObject {
         }
     }
 
-    // === 追加: 空実装の機能スタブ ===
+    /// レベルアップ候補を表示
     func actionLevelUpOnSpecialNode() {
-        // TODO: マスレベルUPの処理
+        // 今立っているマス（focusTile）で即実行できるならそのまま
+        if let t = focusTile,
+           owner.indices.contains(t), owner[t] == turn,
+            level.indices.contains(t), level[t] >= 1 {
+            activeSpecialSheet = .levelUp(tile: t)
+            return
+        }
+        // それ以外は「選ばせる」モードへ
+        specialPending = .pickLevelUpSource
+        pushCenterMessage("レベルUPする自分のマスをタップしてください")
     }
 
+    /// クリーチャー移動の移動先選択を表示
     func actionMoveCreatureFromSpecialNode() {
-        // TODO: クリーチャー移動の処理
+        if let t = focusTile,
+           owner.indices.contains(t), owner[t] == turn,
+           level.indices.contains(t), level[t] >= 1,
+           creatureSymbol.indices.contains(t), creatureSymbol[t] != nil {
+            activeSpecialSheet = .moveFrom(tile: t)
+            return
+        }
+        specialPending = .pickMoveSource
+        pushCenterMessage("クリーチャーを移動する元のマスをタップしてください")
     }
 
+    /// スペル購入シートを表示
     func actionPurchaseSkillOnSpecialNode() {
-        // TODO: スキル購入の処理
+        activeSpecialSheet = .buySpell
     }
 
     func actionEndTurnFromSpecialNode() {
@@ -783,12 +831,41 @@ final class GameVM: ObservableObject {
         )
     }
     // タイルタップ時ハンドラ（クリーチャーがいないタイルは無視）
+    // GameVM
     func tapTileForInspect(_ index: Int) {
+        // ← 先に特別アクション選択モードを優先処理
+        if let pending = specialPending {
+            switch pending {
+            case .pickLevelUpSource:
+                // 自分の占有＆設置済(>=1) ならOK
+                if owner.indices.contains(index), owner[index] == turn,
+                   level.indices.contains(index), level[index] >= 1 {
+                    activeSpecialSheet = .levelUp(tile: index)
+                    specialPending = nil
+                    battleResult = nil // さっきの案内を消す
+                }
+                return
+
+            case .pickMoveSource:
+                // 自分の占有＆クリーチャーがいるマス
+                if owner.indices.contains(index), owner[index] == turn,
+                   level.indices.contains(index), level[index] >= 1,
+                   creatureSymbol.indices.contains(index), creatureSymbol[index] != nil {
+                    activeSpecialSheet = .moveFrom(tile: index)
+                    specialPending = nil
+                    battleResult = nil
+                }
+                return
+            }
+        }
+
+        // ↑選択モードではない通常時：既存のInspect動作
         if creatureOnTile[index] == nil, (owner.indices.contains(index) ? owner[index] : nil) == nil {
             return
         }
         inspectTarget = index
     }
+
 
     func closeInspect() { inspectTarget = nil }
     
@@ -822,4 +899,147 @@ final class GameVM: ObservableObject {
         showCheckpointOverlay = false
         checkpointMessage = nil
     }
+
+    // MARK: 実行（シートから確定時に呼ぶ）
+
+    /// レベルアップ確定
+    func confirmLevelUp(tile: Int, to newLevel: Int) {
+        guard owner.indices.contains(tile), owner[tile] == turn else { return }
+        guard level.indices.contains(tile) else { return }
+        let cur = level[tile]
+        guard newLevel >= 2, newLevel <= 5, newLevel > cur else { return }
+        guard let cost = levelUpCost[newLevel] else { return }
+
+        if players[turn][keyPath: goldRef] < cost { return } // 足りない
+
+        players[turn][keyPath: goldRef] -= cost
+        level[tile] = newLevel
+
+        // 通行料などをレベル依存で再計算したい場合
+        if toll.indices.contains(tile) {
+            // 例）基礎100 × レベル
+            toll[tile] = 100 * newLevel
+        }
+
+        // ログやフローティングメッセージ
+        pushCenterMessage("マス\(tile + 1) を Lv\(newLevel) に強化！ -\(cost)G")
+
+        activeSpecialSheet = nil
+        objectWillChange.send()
+    }
+
+    /// クリーチャー移動確定
+    func confirmMoveCreature(from: Int, to: Int) {
+        guard owner.indices.contains(from), owner[from] == turn else { return }
+        guard owner.indices.contains(to), owner[to] == nil else { return }
+        guard !isSpecialNode(to) else { return } // 特別マス禁止（必要なら外せます）
+
+        guard creatureSymbol.indices.contains(from), let sym = creatureSymbol[from] else { return }
+
+        // 付随ステータス一式コピー
+        let fromLv   = level.indices.contains(from) ? level[from] : 0
+        let fromHp   = hp.indices.contains(from) ? hp[from] : 0
+        let fromHpM  = hpMax.indices.contains(from) ? hpMax[from] : 0
+
+        owner[to] = owner[from]
+        level[to] = fromLv
+        creatureSymbol[to] = sym
+        hp[to] = fromHp
+        hpMax[to] = fromHpM
+        // 表示用tollは都度再計算に統一（下 §5 参照）
+        toll[to] = toll(at: to)
+
+        // creatureOnTile も移設
+        if let c = creatureOnTile[from] {
+            creatureOnTile[to] = c
+            creatureOnTile.removeValue(forKey: from)
+        }
+
+        // 元をクリア
+        owner[from] = nil
+        level[from] = 0
+        creatureSymbol[from] = nil
+        hp[from] = 0
+        hpMax[from] = 0
+        toll[from] = 0
+
+        pushCenterMessage("マス\(from + 1)のクリーチャーを マス\(to + 1)へ移動")
+        activeSpecialSheet = nil
+        objectWillChange.send()
+    }
+
+    /// スペル購入確定
+    func confirmPurchaseSpell(_ spell: ShopSpell) {
+        guard players[turn][keyPath: goldRef] >= spell.price else { return }
+        players[turn][keyPath: goldRef] -= spell.price
+
+        // 手札に追加（あなたのカード実装に合わせてここだけ調整）
+        addSpellCardToHand(spellID: spell.id, displayName: spell.name)
+
+        pushCenterMessage("\(spell.name) を購入！ -\(spell.price)G")
+        handleHandOverflowIfNeeded()  // 5枚超の処理があるなら実装済み関数を呼ぶ
+        activeSpecialSheet = nil
+        objectWillChange.send()
+    }
+
+    // MARK: - ユーティリティ（必要に応じて中身を既存実装に接続）
+
+    /// 中央オーバーレイに短文を出す（既存の仕組みに繋いでください）
+    private func pushCenterMessage(_ text: String) {
+        battleResult = text
+        logs.append(text)
+    }
+
+    /// 手札へスペルを追加（あなたの Card/Hand 実装に合わせて置き換え）
+    private func addSpellCardToHand(spellID: String, displayName: String) {
+        let card = Card(kind: .spell, name: displayName, symbol: "sun.max.fill")
+        hands[turn].append(card)
+    }
+
+    /// 手札上限処理（>4 のとき捨てフェーズ等へ）
+    private func handleHandOverflowIfNeeded() {
+        if hands[turn].count > 4 {
+            mustDiscardFor = turn
+        }
+    }
+}
+
+// MARK: - Special Node Actions
+enum SpecialNodeKind { case castle, tower }
+
+private let SPECIAL_NODES: [Int: SpecialNodeKind] = [
+    0: .castle,  // マス1
+    4: .tower,   // マス5
+    20: .tower   // マス21
+]
+
+func specialNodeKind(for index: Int) -> SpecialNodeKind? {
+    SPECIAL_NODES[index]
+}
+
+func isSpecialNode(_ index: Int) -> Bool {
+    SPECIAL_NODES[index] != nil
+}
+
+enum SpecialActionSheet: Equatable {
+    case levelUp(tile: Int)
+    case moveFrom(tile: Int)
+    case buySpell
+}
+
+struct ShopSpell: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let price: Int
+    // 必要なら効果情報などをあとで拡張
+}
+
+extension ShopSpell {
+    static let catalog: [ShopSpell] = [
+        .init(id: "heal_small",  name: "ヒールS",   price: 80),
+        .init(id: "heal_mid",    name: "ヒールM",   price: 150),
+        .init(id: "atk_up",      name: "攻撃アップ", price: 120),
+        .init(id: "def_up",      name: "防御アップ", price: 120),
+        .init(id: "dash",        name: "ダッシュ",   price: 100)
+    ]
 }

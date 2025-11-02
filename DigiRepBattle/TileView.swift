@@ -34,8 +34,8 @@ struct TileView: View {
     }
 
     var body: some View {
-        let hpBarWidth = size * 0.82
-        let hpBarHeight: CGFloat = 6
+//        let hpBarWidth = size * 0.82
+//        let hpBarHeight: CGFloat = 6
 
         ZStack {
             // タイル本体
@@ -69,31 +69,35 @@ struct TileView: View {
 
             // クリーチャー（中央）
             if let sym = creatureSymbol, level > 0 {
-                Image(systemName: sym)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(accent)
+                Image(sym)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 50, height: 50)
+                    .compositingGroup()
+                    .shadow(color: accent.opacity(1), radius: 2, x: 0, y: 0)
+                    .shadow(color: accent.opacity(0.8), radius: 4, x: 0, y: 0)
             }
 
             // 下部：HPバー + Lv/通行料
             VStack(spacing: 4) {
                 Spacer()
 
-                if let hp = hp, let hpMax = hpMax, hpMax > 0, level > 0 {
-                    let ratio = max(0, min(1, CGFloat(hp) / CGFloat(hpMax)))
-
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.black.opacity(0.22))
-                            .frame(width: hpBarWidth, height: hpBarHeight)
-                        Capsule()
-                            .fill(Color.green)
-                            .frame(width: hpBarWidth * ratio, height: hpBarHeight)
-                            .animation(.easeInOut(duration: 0.25), value: ratio)
-                    }
-                    .frame(height: hpBarHeight + 4)
-                    .padding(.horizontal, size * 0.09)
-                    .padding(.bottom, size * 0.08)
-                }
+//                if let hp = hp, let hpMax = hpMax, hpMax > 0, level > 0 {
+//                    let ratio = max(0, min(1, CGFloat(hp) / CGFloat(hpMax)))
+//
+//                    ZStack(alignment: .leading) {
+//                        Capsule()
+//                            .fill(Color.black.opacity(0.22))
+//                            .frame(width: hpBarWidth, height: hpBarHeight)
+//                        Capsule()
+//                            .fill(Color.green)
+//                            .frame(width: hpBarWidth * ratio, height: hpBarHeight)
+//                            .animation(.easeInOut(duration: 0.25), value: ratio)
+//                    }
+//                    .frame(height: hpBarHeight + 4)
+//                    .padding(.horizontal, size * 0.09)
+//                    .padding(.bottom, size * 0.03)
+//                }
 
                 if level > 0 {
                     HStack {

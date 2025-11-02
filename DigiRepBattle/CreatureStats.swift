@@ -42,7 +42,7 @@ struct CreatureStats: Equatable {
         hpMax: 30, affection: 2, power: 9, durability: 8,
         resistDry: 2, resistWater: 3, resistHeat: 4, resistCold: 1, cost: 10
     )
-    static let defaultTutle = CreatureStats(
+    static let defaultTurtle = CreatureStats(
         hpMax: 50, affection: 4, power: 4, durability: 11,
         resistDry: 3, resistWater: 4, resistHeat: 3, resistCold: 3, cost: 10
     )
