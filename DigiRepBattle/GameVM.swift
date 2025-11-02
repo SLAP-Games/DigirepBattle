@@ -90,6 +90,7 @@ final class GameVM: ObservableObject {
     @Published var lastCheckpointGain: Int = 0
     @Published var activeSpecialSheet: SpecialActionSheet? = nil
     @Published var specialPending: SpecialPendingAction? = nil
+    @Published var presentingCard: Card? = nil
     
     private var moveDir: [Dir] = [.cw, .cw]
     private var branchCameFrom: Int? = nil
@@ -295,6 +296,25 @@ final class GameVM: ObservableObject {
             hands[pid].remove(at: idx)
         }
         mustDiscardFor = nil
+    }
+    
+    func openCard(_ card: Card) {
+        presentingCard = card
+    }
+
+    func closeCardPopup() {
+        presentingCard = nil
+    }
+
+    /// スペル説明（暫定）
+    /// ※ カード名に応じて説明文を返す。未定義はプレースホルダ。
+    func spellDescription(for card: Card) -> String {
+        guard card.kind == .spell else { return "" }
+        switch card.name {
+        case "次回ロール固定(1)": return "次のサイコロを 1 に固定して振る。使用後は自動でロール。"
+        case "次回ロール固定(6)": return "次のサイコロを 6 に固定して振る。使用後は自動でロール。"
+        default: return "このスペルの効果説明は未設定です。"
+        }
     }
 
     // MARK: - サイコロ
