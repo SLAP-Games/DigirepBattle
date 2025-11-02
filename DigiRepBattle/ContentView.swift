@@ -259,7 +259,7 @@ private struct Badge: View {
             }
         }
         .padding(8)
-        .background(active ? .white.opacity(0.8) : .white.opacity(0.15))
+        .background(active ? .yellow.opacity(0.8) : .white.opacity(0.8))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }

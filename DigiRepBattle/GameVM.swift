@@ -93,6 +93,7 @@ final class GameVM: ObservableObject {
     
     private var moveDir: [Dir] = [.cw, .cw]
     private var branchCameFrom: Int? = nil
+    private var nextForcedRoll: [Int?] = [nil, nil]
     var levelUpCost: [Int: Int] { [2: 100, 3: 250, 4: 500, 5: 900] }
     private var goldRef: WritableKeyPath<Player, Int> { \.gold }   // Player に gold がある想定
     
@@ -130,15 +131,14 @@ final class GameVM: ObservableObject {
         self.cost = Array(repeating: 1, count: tileCount)
         self.toll = Array(repeating: 0, count: tileCount)
         
-        self.spellPool = buildSpellPool()
+        self.spellPool = buildFixedForceRollSpells()
         self.creaturePool = buildCreaturePool()
-        let playerSpells = Array(spellPool.prefix(20))
+        let playerSpells = spellPool
         let playerCreatures = makePlayerFixedCreatureCards()
         decks[0] = (playerSpells + playerCreatures)
         // ※各ターンのドローは既にランダム抜き取り（drawOne）なので十分ランダム性あり
 
-        // CPUのデッキ：今回はプレイヤーと同じにしておく（必要なら変えてOK）
-        let cpuSpells = Array(spellPool.dropFirst(20).prefix(20))
+        let cpuSpells = buildFixedForceRollSpells()
         let cpuCreatures = makePlayerFixedCreatureCards()
         decks[1] = (cpuSpells + cpuCreatures)
 
@@ -300,7 +300,7 @@ final class GameVM: ObservableObject {
     // MARK: - サイコロ
     func rollDice() {
         guard turn == 0, phase == .ready else { return }
-        let r = forceRollToOneFor[turn] ? 4 : Int.random(in: 1...6)
+        let r = nextForcedRoll[turn] ?? Int.random(in: 1...6)
         forceRollToOneFor[turn] = false
         lastRoll = r
         stepsLeft = r
@@ -376,13 +376,26 @@ final class GameVM: ObservableObject {
 
     // MARK: - カード使用（プレイヤー）
     func useSpellPreRoll(_ card: Card) {
-        // 前ロール専用：スペルのみ
         guard turn == 0, phase == .ready, card.kind == .spell else { return }
+
+        if let effect = card.spell {
+            switch effect {
+            case .fixNextRoll(let n):
+                guard (1...6).contains(n) else { break }
+                nextForcedRoll[0] = n
+
+            // ここに将来のスペル分岐を追記していく:
+            // case .buffPower(let v): ...
+            // case .moveRelative(let d): ...
+            default:
+                break
+            }
+        }
+
         consumeFromHand(card, for: 0)
-        forceRollToOneFor[0] = true
-        // スペル後は自動でロール→移動
-        rollDice()
+        rollDice()  // 前ロール専用：使ったら直ちにロール
     }
+
 
     func useCardAfterMove(_ card: Card) {
         guard turn == 0, phase == .moved else { return }
@@ -417,14 +430,16 @@ final class GameVM: ObservableObject {
             if self.hands[1].count > 4 {
                 if let c = self.hands[1].randomElement() { self.discard(c, for: 1) }
             }
-            // 前ロール：スペルがあれば1枚使う
-            if let spell = self.hands[1].first(where: { $0.kind == .spell }) {
-                self.consumeFromHand(spell, for: 1)
-                self.forceRollToOneFor[1] = true
-            }
             
+            if let idx = self.hands[1].firstIndex(where: { $0.kind == .spell && $0.spell == .fixNextRoll(1) }) {
+                // ※ 1に限らず何でもOKにしたいなら where の条件を「fixNextRoll」を含むかどうかのチェックに変更
+                let spell = self.hands[1].remove(at: idx)
+                if case let .fixNextRoll(n) = spell.spell, (1...6).contains(n) {
+                    self.nextForcedRoll[1] = n
+                }
+            }
             // ロール→自動移動
-            self.lastRoll = self.forceRollToOneFor[1] ? 1 : Int.random(in: 1...6)
+            self.lastRoll = self.nextForcedRoll[1] ?? Int.random(in: 1...6)
             self.forceRollToOneFor[1] = false
             self.stepsLeft = self.lastRoll
             // ★ CPUがマス5開始＆動くなら、先にランダム分岐を適用
@@ -1001,6 +1016,28 @@ final class GameVM: ObservableObject {
         if hands[turn].count > 4 {
             mustDiscardFor = turn
         }
+    }
+    
+    private func buildFixedForceRollSpells() -> [Card] {
+        var result: [Card] = []
+        // 1と6は4枚、それ以外は3枚ずつ → 合計20枚
+        let spec: [(num: Int, count: Int)] = [
+            (1, 4), (2, 3), (3, 3), (4, 3), (5, 3), (6, 4)
+        ]
+        for (n, c) in spec {
+            for _ in 0..<c {
+                result.append(
+                    Card(
+                        kind: .spell,
+                        name: "次回ロール固定：\(n)",
+                        symbol: "die.face.\(n).fill",  // 無ければ任意のアセット名でOK
+                        stats: nil,
+                        spell: .fixNextRoll(n)
+                    )
+                )
+            }
+        }
+        return result
     }
 }
 
