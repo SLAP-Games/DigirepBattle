@@ -10,12 +10,9 @@ import Foundation
 import Combine
 
 struct CreatureInspectView {
-    // マップ
     let tileIndex: Int
     let mapImageName: String
-    let mapAttribute: String  // 表示用（日本語化など）
-
-    // クリーチャー
+    let mapAttribute: String
     let owner: Int
     let imageName: String
     let hpText: String
@@ -33,24 +30,13 @@ final class GameVM: ObservableObject {
     enum Phase { case ready, rolled, moving, branchSelecting, moved }
     enum Dir { case cw, ccw }
     enum SpecialPendingAction { case pickLevelUpSource, pickMoveSource }
-    // 分岐UI用（RingBoardViewへ渡す）
+    
     @Published var branchSource: Int? = nil
     @Published var branchCandidates: [Int] = []
     @Published var focusTile: Int? = nil
-    
-    // 移動管理
-    private var stepsLeft: Int = 0
-    private let CROSS_NODE = 4
-    private let CROSS_CHOICES = [3, 5, 27, 28]
-    private let CHECKPOINTS: Set<Int> = [0, 4, 20]
-    // 盤（角を重ねた二重スクエア＝31ノード）
-    let sideCount: Int = 5
-    let tileCount: Int
-
-    // マス占領状態
-    @Published var owner: [Int?]      // nil=未占領, 0=You, 1=CPU
-    @Published var level: [Int]       // 0=未設置, 設置時は1
-    @Published var creatureSymbol: [String?] // "lizard.fill" など
+    @Published var owner: [Int?]
+    @Published var level: [Int]
+    @Published var creatureSymbol: [String?]
     @Published var hp: [Int]
     @Published var hpMax: [Int]
     @Published var aff: [Int]
@@ -64,18 +50,14 @@ final class GameVM: ObservableObject {
     @Published var showSpecialMenu: Bool = false
     @Published var currentSpecialKind: SpecialNodeKind? = nil
     @Published var toll: [Int]
-    private var spellPool: [Card] = []
-    private var creaturePool: [Card] = []
-
-    // プレイヤー
     @Published var players: [Player] = [
         Player(name: "You", pos: 0, gold: 300),
         Player(name: "CPU", pos: 0, gold: 300)
     ]
-    @Published var turn: Int = 0                // 0=You, 1=CPU
+    @Published var turn: Int = 0
     @Published var lastRoll: Int = 0
-    @Published var phase: Phase = .ready        // .ready(前) → .rolled(後) → .moved(後処理)
-    @Published var mustDiscardFor: Int? = nil   // 捨てる必要がある手番（0 or 1）: UI表示用
+    @Published var phase: Phase = .ready
+    @Published var mustDiscardFor: Int? = nil
     @Published var showLogOverlay: Bool = false
     @Published var canEndTurn: Bool = true
     @Published var terrain: [TileTerrain] = []
@@ -91,13 +73,20 @@ final class GameVM: ObservableObject {
     @Published var activeSpecialSheet: SpecialActionSheet? = nil
     @Published var specialPending: SpecialPendingAction? = nil
     @Published var presentingCard: Card? = nil
+    @Published var passedCP1: [Bool] = [false, false]
+    @Published var passedCP2: [Bool] = [false, false]
     
+    private var spellPool: [Card] = []
+    private var creaturePool: [Card] = []
     private var moveDir: [Dir] = [.cw, .cw]
     private var branchCameFrom: Int? = nil
     private var nextForcedRoll: [Int?] = [nil, nil]
-    var levelUpCost: [Int: Int] { [2: 100, 3: 250, 4: 500, 5: 900] }
-    private var goldRef: WritableKeyPath<Player, Int> { \.gold }   // Player に gold がある想定
-    
+    private var stepsLeft: Int = 0
+    private var goldRef: WritableKeyPath<Player, Int> { \.gold }
+    private var forceRollToOneFor: [Bool] = [false, false]
+    private let CROSS_NODE = 4
+    private let CROSS_CHOICES = [3, 5, 27, 28]
+    private let CHECKPOINTS: Set<Int> = [0, 4, 20]
     private let nextCW: [Int] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 4, 29, 30, 16
@@ -107,13 +96,18 @@ final class GameVM: ObservableObject {
         15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
         30, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 4, 28, 29
     ]
+    
+    // チェックポイントのマスid指定
+    private let HOME_NODE = 0
+    private let CP1_NODE  = 4
+    private let CP2_NODE  = 20
+    
+    let sideCount: Int = 5
+    let tileCount: Int
+    var levelUpCost: [Int: Int] { [2: 100, 3: 250, 4: 500, 5: 900] }
 
-    // デッキ＆手札
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
-
-    // スペル効果：次のロールを1に固定
-    private var forceRollToOneFor: [Bool] = [false, false]
     
     init() {
         self.tileCount = 31  // RingBoardView のグラフと一致させる
@@ -134,11 +128,10 @@ final class GameVM: ObservableObject {
         
         self.spellPool = buildFixedForceRollSpells()
         self.creaturePool = buildCreaturePool()
+        
         let playerSpells = spellPool
         let playerCreatures = makePlayerFixedCreatureCards()
         decks[0] = (playerSpells + playerCreatures)
-        // ※各ターンのドローは既にランダム抜き取り（drawOne）なので十分ランダム性あり
-
         let cpuSpells = buildFixedForceRollSpells()
         let cpuCreatures = makePlayerFixedCreatureCards()
         decks[1] = (cpuSpells + cpuCreatures)
@@ -464,7 +457,14 @@ final class GameVM: ObservableObject {
             self.stepsLeft = self.lastRoll
             // ★ CPUがマス5開始＆動くなら、先にランダム分岐を適用
             if self.players[1].pos == self.CROSS_NODE, self.stepsLeft > 0 {
-                if let choice = self.CROSS_CHOICES.randomElement() {
+                // passedCP2 が未達なら 28/29（= 0始まり 27/28）に限定
+                let choices: [Int]
+                if self.passedCP2.indices.contains(1), self.passedCP2[1] == false {
+                    choices = [27, 28]   // マス28, マス29へ誘導
+                } else {
+                    choices = self.CROSS_CHOICES
+                }
+                if let choice = choices.randomElement() {
                     self.applyBranchChoice(choice)
                 }
             }
@@ -905,7 +905,7 @@ final class GameVM: ObservableObject {
     func closeInspect() { inspectTarget = nil }
     
     private func isCheckpoint(_ index: Int) -> Bool {
-        CHECKPOINTS.contains(index)
+        return index == CP1_NODE || index == CP2_NODE
     }
     
     private func ownedTileCount(of pid: Int) -> Int {
@@ -919,13 +919,43 @@ final class GameVM: ObservableObject {
 
     // タイルに「入った」タイミングで呼ぶ
     private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
-        guard isCheckpoint(index) else { return }
-        let gain = checkpointReward(for: pid)
-        players[pid].gold += gain
-        if pid == 0 {
-            lastCheckpointGain = gain
-            checkpointMessage = "チェックポイント通過　\(gain) GOLD獲得！"
-            showCheckpointOverlay = true
+        // 1) CP通過フラグの更新（CP1/CP2それぞれ）
+        if index == CP1_NODE {
+            passedCP1[pid] = true
+            if pid == 0 {
+                // GOLDはまだ付与しないが、通過ポップアップは出す
+                lastCheckpointGain = 0
+                checkpointMessage = "チェックポイント通過（CP1）"
+                showCheckpointOverlay = true
+            }
+            return
+        }
+        if index == CP2_NODE {
+            passedCP2[pid] = true
+            if pid == 0 {
+                lastCheckpointGain = 0
+                checkpointMessage = "チェックポイント通過（CP2）"
+                showCheckpointOverlay = true
+            }
+            return
+        }
+
+        // 2) ホーム通過時：両方trueならGOLD付与してフラグをリセット
+        if index == HOME_NODE {
+            if passedCP1[pid] && passedCP2[pid] {
+                let gain = checkpointReward(for: pid)
+                players[pid].gold += gain
+                passedCP1[pid] = false
+                passedCP2[pid] = false
+
+                if pid == 0 {
+                    lastCheckpointGain = gain
+                    checkpointMessage = "ホーム到達！チェックポイント達成報酬 \(gain) GOLD獲得！"
+                    showCheckpointOverlay = true
+                }
+            } else {
+                // どちらか未達 → 何もしない（ポップアップも出さない）
+            }
         }
     }
 
