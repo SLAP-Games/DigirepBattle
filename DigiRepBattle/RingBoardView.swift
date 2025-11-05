@@ -136,7 +136,6 @@ struct RingBoardView: View {
                                 Image(systemName: "arrowtriangle.forward.fill")
                                     .rotationEffect(angle(from: srcPos, to: targetPos))
                                     .font(.system(size: 16, weight: .bold))
-                                Text("\(cand + 1)").font(.caption2).bold()
                             }
                             .padding(8)
                             .background(.ultraThinMaterial, in: Capsule())

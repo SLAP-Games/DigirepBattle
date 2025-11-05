@@ -42,18 +42,62 @@ struct ContentView: View {
                             .ignoresSafeArea()
                     }
                     .overlay(
-                        Badge(player: vm.players[1], active: vm.turn == 1, tint: .red)
-                            .padding(.top, 10)
-                            .padding(.trailing, 12)
-                            .allowsHitTesting(false),      // ← 盤面タップを邪魔しない
+                        VStack(alignment: .trailing, spacing: 6) {
+                            // CPUバッジ
+                            Badge(player: vm.players[1],
+                                  active: vm.turn == 1,
+                                  tint: .red,
+                                  total: vm.totalAssets(for: 1)
+                            )
+
+                            // CPスター（CP1・CP2）
+                            HStack(spacing: 6) {
+                                let cp1CPU = vm.passedCP1.indices.contains(1) && vm.passedCP1[1]
+                                let cp2CPU = vm.passedCP2.indices.contains(1) && vm.passedCP2[1]
+
+                                Image(systemName: cp1CPU ? "star.fill" : "star")
+                                    .foregroundStyle(cp1CPU ? .yellow : .gray)
+                                Image(systemName: cp2CPU ? "star.fill" : "star")
+                                    .foregroundStyle(cp2CPU ? .yellow : .gray)
+                            }
+                            .font(.caption) // 大きさはお好みで
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .padding(.top, 10)
+                        .padding(.trailing, 12)
+                        .allowsHitTesting(false),            // 盤面タップの邪魔をしない
                         alignment: .topTrailing
                     )
+
                     // ★ ここで貼る：プレイヤーバッジ（左下）
                     .overlay(
-                        Badge(player: vm.players[0], active: vm.turn == 0, tint: .blue)
-                            .padding(.bottom, 10)
-                            .padding(.leading, 12)
-                            .allowsHitTesting(false),
+                        VStack(alignment: .trailing, spacing: 6) {
+                            // CPスター（CP1・CP2）
+                            HStack(spacing: 6) {
+                                let cp1Player = vm.passedCP1.indices.contains(0) && vm.passedCP1[0]
+                                let cp2Player = vm.passedCP2.indices.contains(0) && vm.passedCP2[0]
+
+                                Image(systemName: cp1Player ? "star.fill" : "star")
+                                    .foregroundStyle(cp1Player ? .yellow : .gray)
+                                Image(systemName: cp2Player ? "star.fill" : "star")
+                                    .foregroundStyle(cp2Player ? .yellow : .gray)
+                            }
+                            .font(.caption) // 大きさはお好みで
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            
+                            Badge(player: vm.players[0],
+                                  active: vm.turn == 0,
+                                  tint: .blue,
+                                  total: vm.totalAssets(for: 0)
+                            )
+                        }
+                        .padding(.bottom, 10)
+                        .padding(.leading, 12)
+                        .allowsHitTesting(false),
                         alignment: .bottomLeading
                     )
                     
@@ -95,7 +139,9 @@ struct ContentView: View {
                         // 半透明の背面
                         Color.black.opacity(0.35)
                             .ignoresSafeArea()
-                            .onTapGesture { vm.activeSpecialSheet = nil } // 背面タップで閉じる
+                            .onTapGesture {
+                                vm.activeSpecialSheet = nil
+                            } // 背面タップで閉じる
 
                         // 中央カード
                         Group {
@@ -126,6 +172,15 @@ struct ContentView: View {
                         )
                         .transition(.opacity.combined(with: .scale))
                         .zIndex(900) // 重要UIの上に
+                    }
+                    
+                    if vm.mustDiscardFor == 0 {
+                        ZStack {
+                            Color.black.opacity(0.35)
+                                .ignoresSafeArea()
+                            Text("手札がいっぱいです\nカードを捨ててください")
+                                .foregroundColor(.white)
+                        }
                     }
                 }
 
@@ -165,8 +220,25 @@ struct ContentView: View {
                             .padding(.vertical, 8)
                         }
                         .frame(maxHeight: controlsH * 0.9)
+                            
                     }
                     .padding(.horizontal)
+                    
+                    if vm.showCreatureMenu, let t = vm.creatureMenuTile {
+                        ZStack{
+                            Color.yellow
+                            CreatureMenuView(
+                                vm: vm,
+                                tile: t,
+                                onClose: {
+                                    vm.showCreatureMenu = false
+                                    vm.creatureMenuTile = nil
+                                }
+                            )
+                            .frame(height: controlsH)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
                     
                     if vm.showSpecialMenu {
                         ZStack{
@@ -190,10 +262,10 @@ struct ContentView: View {
                         ZStack{
                             Color.yellow
                             HStack(spacing: 12) {
-                                Text("相手のマス（\(t+1)）です。どうする？").bold()
+                                Text("相手の領地です。").bold()
                                 Button("戦闘する") { vm.chooseBattle() }
                                     .buttonStyle(.borderedProminent)
-                                Button("戦闘しない（通行料を払う）") { vm.payTollAndEndChoice() }
+                                Button("通行料を払う") { vm.payTollAndEndChoice() }
                                     .buttonStyle(.bordered)
                             }
                             .padding(8)
@@ -236,13 +308,18 @@ private struct Badge: View {
     let player: Player
     let active: Bool
     let tint: Color
+    let total: Int
+    
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "person.fill")
                 .foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.name).bold()
-                Text("Gold: \(player.gold)").font(.caption)
+                Text("Gold: \(player.gold)")
+                    .font(.caption)
+                Text("TOTAL: \(total)")
+                    .font(.caption)
             }
         }
         .padding(8)
@@ -277,6 +354,145 @@ private struct CardView: View {
     }
 }
 
+struct CreatureMenuView: View {
+    @ObservedObject var vm: GameVM
+    let tile: Int
+    let onClose: () -> Void
+
+    private enum LocalMode { case menu, exchange }
+    @State private var mode: LocalMode = .menu
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // ヘッダー
+            HStack {
+                Text("マス\(tile + 1)：自軍クリーチャー")
+                    .font(.headline)
+                Spacer()
+                Button("閉じる", action: onClose)
+                    .buttonStyle(.bordered)
+            }
+
+            Group {
+                switch mode {
+                case .menu:
+                    menuButtons
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                case .exchange:
+                    exchangeList
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.ultraThinMaterial)
+        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: mode)
+    }
+
+    // MARK: - メニュー（横並び：レベルアップ / デジレプ交換）
+    private var menuButtons: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                // レベルアップ（+1）
+                if vm.level.indices.contains(tile),
+                   vm.level[tile] >= 1, vm.level[tile] < 5 {
+                    let nextLv = vm.level[tile] + 1
+                    let need = vm.levelUpCost[nextLv] ?? 0
+                    Button {
+                        vm.confirmLevelUp(tile: tile, to: nextLv)
+                    } label: {
+                        VStack(spacing: 4) {
+                            Text("レベルアップ").bold()
+                            Text("→ Lv.\(nextLv)（\(need)G）")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .disabled(vm.players[vm.turn].gold < need)
+                    .buttonStyle(.borderedProminent)
+                }
+
+                // デジレプ交換 → 交換ビューに遷移
+                Button {
+                    withAnimation { mode = .exchange }
+                } label: {
+                    VStack(spacing: 4) {
+                        Text("デジレプ交換").bold()
+                        Text("交換")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    // MARK: - 交換ビュー（スクロール＋戻る）
+    private var exchangeList: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Button {
+                    withAnimation { mode = .menu }
+                } label: {
+                    Label("戻る", systemImage: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Text("手札のデジレプを選んで交換")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(Array(vm.hands[vm.turn].enumerated()), id: \.offset) { (idx, c) in
+                        if c.kind == .creature {
+                            let price = c.stats?.cost ?? 0
+                            VStack(spacing: 6) {
+                                Image(c.symbol)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 60, height: 60)
+                                Text(c.name)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                Text("\(price)G").font(.caption2)
+
+                                Button("交換") {
+                                    _ = vm.swapCreature(withHandIndex: idx)
+                                }
+                                .disabled(!vm.canSwapCreature(withHandIndex: idx))
+                                .buttonStyle(.bordered)
+                            }
+                            .padding(8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(.thinMaterial)
+                            )
+                        }
+                    }
+
+                    // 手札に交換候補がない場合のダミー表示
+                    if vm.hands[vm.turn].allSatisfy({ $0.kind != .creature }) {
+                        Text("デジレプが手札にありません")
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+}
+
 struct SpecialNodeMenu: View {
     let kind: SpecialNodeKind?
     let levelUp: () -> Void
@@ -286,8 +502,8 @@ struct SpecialNodeMenu: View {
 
     var title: String {
         switch kind {
-        case .some(.castle): return "城（特別マス）"
-        case .some(.tower):  return "塔（特別マス）"
+        case .some(.castle): return "城"
+        case .some(.tower):  return "塔"
         case .none:          return "特別マス"
         }
     }
@@ -298,10 +514,10 @@ struct SpecialNodeMenu: View {
                 .font(.headline)
 
             HStack(spacing: 12) {
-                Button("マスレベルUP", action: levelUp)
+                Button("領地強化", action: levelUp)
                     .buttonStyle(.borderedProminent)
 
-                Button("クリーチャー移動", action: moveCreature)
+                Button("デジレプ転送", action: moveCreature)
                     .buttonStyle(.bordered)
 
                 Button("スキル購入", action: buySkill)
@@ -326,21 +542,21 @@ private struct CardDetailOverlay: View {
     private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
         // 1) 捨てフェーズ
         if vm.mustDiscardFor == 0 {
-            return ("このカードを捨てる", { vm.discard(card, for: 0); onClose() }, true)
+            return ("捨てる", { vm.discard(card, for: 0); onClose() }, true)
         }
 
         // 2) 準備フェーズ（サイコロ前）：スペルのみ使用可
         if vm.phase == .ready && card.kind == .spell {
-            return ("このスペルを使う（→自動でロール）", { vm.useSpellPreRoll(card); onClose() }, vm.turn == 0)
+            return ("スペル使用", { vm.useSpellPreRoll(card); onClose() }, vm.turn == 0)
         }
 
         // 3) 移動後フェーズ
         if vm.turn == 0 && vm.phase == .moved {
             if vm.expectBattleCardSelection && card.kind == .creature {
-                return ("このクリーチャーで戦闘する", { vm.startBattle(with: card); onClose() }, true)
+                return ("戦闘する", { vm.startBattle(with: card); onClose() }, true)
             } else {
                 // クリーチャー設置やスペル等、移動後に許されている使用
-                return ("このカードを使う", { vm.useCardAfterMove(card); onClose() }, true)
+                return ("カードを使用", { vm.useCardAfterMove(card); onClose() }, true)
             }
         }
 
@@ -408,11 +624,11 @@ private struct CardDetailOverlay: View {
     private var creatureSection: some View {
         if let s = card.stats {
             VStack(alignment: .leading, spacing: 6) {
-                Text("タイプ：クリーチャー").font(.caption).foregroundStyle(.secondary)
+                Text("タイプ：デジレプ").font(.caption).foregroundStyle(.secondary)
                 Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                     GridRow {
                         statRow(title: "HP", value: "\(s.hpMax)")
-                        statRow(title: "なつき", value: "\(s.affection)")
+                        statRow(title: "なつき度", value: "\(s.affection)")
                     }
                     GridRow {
                         statRow(title: "戦闘力", value: "\(s.power)")

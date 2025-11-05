@@ -75,6 +75,8 @@ final class GameVM: ObservableObject {
     @Published var presentingCard: Card? = nil
     @Published var passedCP1: [Bool] = [false, false]
     @Published var passedCP2: [Bool] = [false, false]
+    @Published var showCreatureMenu: Bool = false
+    @Published var creatureMenuTile: Int? = nil
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -104,7 +106,7 @@ final class GameVM: ObservableObject {
     
     let sideCount: Int = 5
     let tileCount: Int
-    var levelUpCost: [Int: Int] { [2: 100, 3: 250, 4: 500, 5: 900] }
+    var levelUpCost: [Int: Int] { [2: 30, 3: 60, 4: 140, 5: 300] }
 
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
@@ -216,7 +218,7 @@ final class GameVM: ObservableObject {
 
     private func buildCreaturePool() -> [Card] {
         (1...60).map { i in
-            let name = String(format: "クリーチャー（C%02d）", i)
+            let name = String(format: "デジレプ（C%02d）", i)
             var c = Card(kind: .creature, name: name, symbol: "lizard.fill")
             c.stats = .defaultLizard
             return c
@@ -237,8 +239,8 @@ final class GameVM: ObservableObject {
         guard phase == .ready else { return }
         // 手番のドロー
         drawOne(for: turn)
-        // 5枚超過なら捨てフェーズ
-        if hands[turn].count > 4 { mustDiscardFor = turn }
+        // 6枚超過なら捨てフェーズ
+        if hands[turn].count > 5 { mustDiscardFor = turn }
     }
 
     func endTurn() {
@@ -247,15 +249,14 @@ final class GameVM: ObservableObject {
         phase = .ready
         lastRoll = 0
         startTurnIfNeeded()
-        
         healOnBoard()
-        
         focusTile = players[turn].pos
         if turn == 1 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.runCpuAuto()
             }
         }
+        showSpecialMenu = false
     }
     
     private func healOnBoard() {
@@ -304,9 +305,13 @@ final class GameVM: ObservableObject {
     func spellDescription(for card: Card) -> String {
         guard card.kind == .spell else { return "" }
         switch card.name {
-        case "次回ロール固定(1)": return "次のサイコロを 1 に固定して振る。使用後は自動でロール。"
-        case "次回ロール固定(6)": return "次のサイコロを 6 に固定して振る。使用後は自動でロール。"
-        default: return "このスペルの効果説明は未設定です。"
+        case "Dice1": return "次のサイコロを 1 に固定。"
+        case "Dice2": return "次のサイコロを 2 に固定。"
+        case "Dice3": return "次のサイコロを 3 に固定。"
+        case "Dice4": return "次のサイコロを 4 に固定。"
+        case "Dice5": return "次のサイコロを 5 に固定。"
+        case "Dice6": return "次のサイコロを 6 に固定。"
+        default: return "不明"
         }
     }
 
@@ -350,8 +355,8 @@ final class GameVM: ObservableObject {
             // ★ 強制通行料（プレイヤー/CPU共通）
             transferToll(from: turn, to: own, tile: t)
             battleResult = (turn == 1)
-                ? "通行料を奪った（マス\(t+1)）"      // CPUが払ってあなたが受取
-                : "通行料を奪われた（マス\(t+1)）"   // あなたが支払い
+                ? "通行料を奪った"      // CPUが払ってあなたが受取
+                : "通行料を奪われた"   // あなたが支払い
             landedOnOpponentTileIndex = nil
             expectBattleCardSelection = false
             canEndTurn = true
@@ -417,6 +422,7 @@ final class GameVM: ObservableObject {
             // 次回ロール固定
             consumeFromHand(card, for: 0)
             forceRollToOneFor[0] = true
+            didStop(at: players[turn].pos, isYou: turn == 0)
         case .creature:
             // 戦闘選択中なら「このカードで戦闘」
             if expectBattleCardSelection, landedOnOpponentTileIndex != nil {
@@ -444,13 +450,8 @@ final class GameVM: ObservableObject {
                 if let c = self.hands[1].randomElement() { self.discard(c, for: 1) }
             }
             
-            if let idx = self.hands[1].firstIndex(where: { $0.kind == .spell && $0.spell == .fixNextRoll(1) }) {
-                // ※ 1に限らず何でもOKにしたいなら where の条件を「fixNextRoll」を含むかどうかのチェックに変更
-                let spell = self.hands[1].remove(at: idx)
-                if case let .fixNextRoll(n) = spell.spell, (1...6).contains(n) {
-                    self.nextForcedRoll[1] = n
-                }
-            }
+            self.cpuUseRandomDiceFixSpellIfAvailable()
+
             // ロール→自動移動
             self.lastRoll = self.nextForcedRoll[1] ?? Int.random(in: 1...6)
             self.forceRollToOneFor[1] = false
@@ -461,6 +462,8 @@ final class GameVM: ObservableObject {
                 let choices: [Int]
                 if self.passedCP2.indices.contains(1), self.passedCP2[1] == false {
                     choices = [27, 28]   // マス28, マス29へ誘導
+                } else if self.passedCP2.indices.contains(1), self.passedCP2[1] == true {
+                    choices = [3, 5]
                 } else {
                     choices = self.CROSS_CHOICES
                 }
@@ -470,9 +473,22 @@ final class GameVM: ObservableObject {
             }
             self.phase = .moving
             self.continueMove()
+            let t = self.players[1].pos
+
+            // ★追加：自分のマスなら1レベルだけ自動で上げる（Lv1→Lv2…最大Lv5）
+            if self.owner.indices.contains(t),
+               self.owner[t] == 1,
+               self.level.indices.contains(t),
+               self.level[t] >= 1,
+               self.level[t] < 5 {
+                let cur = self.level[t]
+                let nextLv = cur + 1
+                if self.players[1].gold >= (self.levelUpCost[nextLv] ?? .max) {
+                    self.confirmLevelUp(tile: t, to: nextLv)
+                }
+            }
 
             // 移動後：空き地ならクリーチャーを1枚置く
-            let t = self.players[1].pos
             if self.owner[t] == nil,
                self.canPlaceCreature(at: t),
                let creature = self.hands[1].first(where: { $0.kind == .creature }) {
@@ -486,22 +502,82 @@ final class GameVM: ObservableObject {
             }
         }
     }
+    
+    private func cpuUseRandomDiceFixSpellIfAvailable() {
+        // hands[1] から fixNextRoll(n) を集めてランダムに1枚使う
+        let candidates: [(idx: Int, n: Int)] = hands[1].enumerated().compactMap { (i, c) in
+            guard c.kind == .spell else { return nil }
+            if case let .fixNextRoll(n)? = c.spell, (1...6).contains(n) {
+                return (i, n)
+            }
+            return nil
+        }
 
-    // 料金計算（Lv1=30）
+        guard let pick = candidates.randomElement() else { return }
+        // 使ったカードを取り除き、次のサイコロ値を固定
+        let (idx, n) = pick
+        _ = hands[1].remove(at: idx)
+        nextForcedRoll[1] = n
+    }
+
+    // 料金計算（レベル基礎 × セットボーナス）
     func toll(at tile: Int) -> Int {
+        guard level.indices.contains(tile) else { return 0 }
         let lv = level[tile]
-        if lv == 1 {
-            return lv <= 0 ? 0 : (30 * 1)
-        } else if lv == 2 {
-            return lv <= 0 ? 0 : (30 * 2)
-        } else if lv == 3 {
-            return lv <= 0 ? 0 : (30 * 4)
-        } else if lv == 4 {
-            return lv <= 0 ? 0 : (30 * 8)
-        } else if lv == 5 {
-            return lv <= 0 ? 0 : (30 * 16)
-        } else {
-            return lv <= 0 ? 0 : (30 * (16 + lv))
+
+        // 基礎額（あなたの元の係数に揃えています）
+        let base: Int
+        switch lv {
+        case ..<1: base = 0
+        case 1:    base = 30
+        case 2:    base = 60
+        case 3:    base = 120
+        case 4:    base = 240
+        case 5:    base = 480
+        default:   base = 30 * (16 + lv)   // 既存の拡張ロジックを踏襲
+        }
+
+        // オーナー不在なら倍率なし
+        guard owner.indices.contains(tile), let pid = owner[tile] else {
+            return base
+        }
+
+        // 同属性セット数 → 倍率
+        let attr = attribute(of: tile)
+        let n = sameAttributeCount(for: pid, attr: attr)   // 例: 1なら1.0倍, 2なら1.2倍...
+        let mult = setBonusMultiplier(for: n)
+
+        // 四捨五入で整数化（必要に応じて切り捨てに変更可）
+        return Int((Double(base) * mult).rounded())
+    }
+    
+    // 属性取得（未設定は .normal 扱い）
+    private func attribute(of index: Int) -> TileAttribute {
+        guard terrain.indices.contains(index) else { return .normal }
+        return terrain[index].attribute
+    }
+
+    // 指定プレイヤーが所有する「同じ属性」の土地数
+    private func sameAttributeCount(for pid: Int, attr: TileAttribute) -> Int {
+        var count = 0
+        for i in 0..<tileCount {
+            if owner.indices.contains(i),
+               owner[i] == pid,
+               attribute(of: i) == attr {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    // セットボーナス倍率（1: 1.0, 2: 1.2, 3: 1.3, 4以上: 1.5）
+    private func setBonusMultiplier(for sameAttrCount: Int) -> Double {
+        switch sameAttrCount {
+        case 2:      return 1.2
+        case 3:      return 1.3
+        case 4:      return 1.4
+        case 5...:   return 1.5
+        default:     return 1.0
         }
     }
     
@@ -513,7 +589,7 @@ final class GameVM: ObservableObject {
         guard tryPay(price, by: pid) else {
             if pid == 0 {
                 // プレイヤーにはメッセージ（CPUは不要なら表示しない）
-                battleResult = "GOLD不足で設置できません（必要: \(price)）"
+                battleResult = "GOLD不足（必要: \(price)）"
             }
             return
         }
@@ -571,8 +647,8 @@ final class GameVM: ObservableObject {
         guard let t = landedOnOpponentTileIndex, let own = owner[t] else { return }
         transferToll(from: turn, to: own, tile: t)
         battleResult = (turn == 1)
-            ? "通行料を奪った（マス\(t+1)）"      // CPUが支払ってあなたが受け取り
-            : "通行料を奪われた（マス\(t+1)）"   // あなたが支払い
+            ? "通行料を奪った"      // CPUが支払ってあなたが受け取り
+            : "通行料を奪われた"   // あなたが支払い
         landedOnOpponentTileIndex = nil
         expectBattleCardSelection = false
         canEndTurn = true
@@ -615,8 +691,8 @@ final class GameVM: ObservableObject {
             placeCreature(from: card, at: t, by: turn)
             consumeFromHand(card, for: turn)
             battleResult = attackerIsCPU
-                ? "土地を奪われた（マス\(t+1)）"
-                : "土地を奪い取った（マス\(t+1)）"
+                ? "土地を奪われた"
+                : "土地を奪い取った"
             canEndTurn = true
             landedOnOpponentTileIndex = nil
             expectBattleCardSelection = false
@@ -753,6 +829,21 @@ final class GameVM: ObservableObject {
             currentSpecialKind = nil
             showSpecialMenu = false
         }
+        
+        // 追加：自分のクリーチャーが置いてあるマスなら CreatureMenu を出す
+        if isYou,
+           owner.indices.contains(index),
+           owner[index] == turn,
+           level.indices.contains(index),
+           level[index] >= 1,                          // 設置済み
+           creatureSymbol.indices.contains(index),
+           creatureSymbol[index] != nil {
+            creatureMenuTile = index
+            showCreatureMenu = true
+        } else {
+            creatureMenuTile = nil
+            showCreatureMenu = false
+        }
     }
 
     /// レベルアップ候補を表示
@@ -766,7 +857,7 @@ final class GameVM: ObservableObject {
         }
         // それ以外は「選ばせる」モードへ
         specialPending = .pickLevelUpSource
-        pushCenterMessage("レベルUPする自分のマスをタップしてください")
+        pushCenterMessage("レベルUPする土地を選択")
     }
 
     /// クリーチャー移動の移動先選択を表示
@@ -779,7 +870,7 @@ final class GameVM: ObservableObject {
             return
         }
         specialPending = .pickMoveSource
-        pushCenterMessage("クリーチャーを移動する元のマスをタップしてください")
+        pushCenterMessage("移動するデジレプを選択")
     }
 
     /// スペル購入シートを表示
@@ -925,7 +1016,7 @@ final class GameVM: ObservableObject {
             if pid == 0 {
                 // GOLDはまだ付与しないが、通過ポップアップは出す
                 lastCheckpointGain = 0
-                checkpointMessage = "チェックポイント通過（CP1）"
+                checkpointMessage = "CP1通過"
                 showCheckpointOverlay = true
             }
             return
@@ -934,7 +1025,7 @@ final class GameVM: ObservableObject {
             passedCP2[pid] = true
             if pid == 0 {
                 lastCheckpointGain = 0
-                checkpointMessage = "チェックポイント通過（CP2）"
+                checkpointMessage = "CP2通過"
                 showCheckpointOverlay = true
             }
             return
@@ -950,7 +1041,7 @@ final class GameVM: ObservableObject {
 
                 if pid == 0 {
                     lastCheckpointGain = gain
-                    checkpointMessage = "ホーム到達！チェックポイント達成報酬 \(gain) GOLD獲得！"
+                    checkpointMessage = "帰還しました。CP達成報酬 \(gain) GOLD"
                     showCheckpointOverlay = true
                 }
             } else {
@@ -987,7 +1078,7 @@ final class GameVM: ObservableObject {
         }
 
         // ログやフローティングメッセージ
-        pushCenterMessage("マス\(tile + 1) を Lv\(newLevel) に強化！ -\(cost)G")
+        pushCenterMessage("土地を Lv\(newLevel) に強化 -\(cost)G")
 
         activeSpecialSheet = nil
         objectWillChange.send()
@@ -1028,7 +1119,7 @@ final class GameVM: ObservableObject {
         hpMax[from] = 0
         toll[from] = 0
 
-        pushCenterMessage("マス\(from + 1)のクリーチャーを マス\(to + 1)へ移動")
+        pushCenterMessage("デジレプを移動")
         activeSpecialSheet = nil
         objectWillChange.send()
     }
@@ -1041,10 +1132,72 @@ final class GameVM: ObservableObject {
         // 手札に追加（あなたのカード実装に合わせてここだけ調整）
         addSpellCardToHand(spellID: spell.id, displayName: spell.name)
 
-        pushCenterMessage("\(spell.name) を購入！ -\(spell.price)G")
-        handleHandOverflowIfNeeded()  // 5枚超の処理があるなら実装済み関数を呼ぶ
+        pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
+        handleHandOverflowIfNeeded()  // 6枚超の処理があるなら実装済み関数を呼ぶ
         activeSpecialSheet = nil
         objectWillChange.send()
+    }
+    
+    func canSwapCreature(withHandIndex idx: Int) -> Bool {
+        guard let t = creatureMenuTile else { return false }
+        guard owner.indices.contains(t), owner[t] == turn else { return false }
+        guard hands.indices.contains(turn),
+              hands[turn].indices.contains(idx),
+              hands[turn][idx].kind == .creature else { return false }
+        let costNeed = hands[turn][idx].stats?.cost ?? 0
+        return players[turn].gold >= costNeed
+    }
+
+    @discardableResult
+    func swapCreature(withHandIndex idx: Int) -> Bool {
+        guard let t = creatureMenuTile else { return false }
+        guard canSwapCreature(withHandIndex: idx) else { return false }
+
+        // 支払い
+        let newCard = hands[turn][idx]
+        let price = max(0, newCard.stats?.cost ?? 0)
+        guard tryPay(price, by: turn) else { return false }
+
+        // 既存カードを“手札に戻す”
+        if let oldSym = creatureSymbol[t] {
+            // 旧ステの再構築（簡易）：画像名だけ既存、ステは配列から復元
+            let oldStats = CreatureStats(
+                hpMax: hpMax[t],
+                affection: aff[t],
+                power: pow[t],
+                durability: dur[t],
+                resistDry: rDry[t],
+                resistWater: rWat[t],
+                resistHeat: rHot[t],
+                resistCold: rCold[t],
+                cost: cost[t]
+            )
+            let oldCard = Card(kind: .creature, name: oldSym, symbol: oldSym, stats: oldStats)
+            hands[turn].append(oldCard)
+        }
+
+        // 新カードで上書き（HPは全快で置き直し）
+        let s = newCard.stats ?? .defaultLizard
+        creatureSymbol[t] = newCard.symbol
+        hpMax[t] = s.hpMax
+        hp[t] = s.hpMax
+        aff[t] = s.affection
+        pow[t] = s.power
+        dur[t] = s.durability
+        rDry[t] = s.resistDry
+        rWat[t] = s.resistWater
+        rHot[t] = s.resistHeat
+        rCold[t] = s.resistCold
+        cost[t] = s.cost
+        toll[t] = toll(at: t)
+        creatureOnTile[t] = Creature(id: UUID().uuidString, owner: turn, imageName: newCard.symbol, stats: s, hp: s.hpMax)
+
+        // 新カードを手札から除去
+        hands[turn].remove(at: idx)
+
+        // 見た目更新
+        hp = hp
+        return true
     }
 
     // MARK: - ユーティリティ（必要に応じて中身を既存実装に接続）
@@ -1061,9 +1214,9 @@ final class GameVM: ObservableObject {
         hands[turn].append(card)
     }
 
-    /// 手札上限処理（>4 のとき捨てフェーズ等へ）
+    /// 手札上限処理（>5 のとき捨てフェーズ等へ）
     private func handleHandOverflowIfNeeded() {
-        if hands[turn].count > 4 {
+        if hands[turn].count > 5 {
             mustDiscardFor = turn
         }
     }
@@ -1079,7 +1232,7 @@ final class GameVM: ObservableObject {
                 result.append(
                     Card(
                         kind: .spell,
-                        name: "次回ロール固定：\(n)",
+                        name: "Dice\(n)",
                         symbol: "die.face.\(n).fill",  // 無ければ任意のアセット名でOK
                         stats: nil,
                         spell: .fixNextRoll(n)
@@ -1088,6 +1241,18 @@ final class GameVM: ObservableObject {
             }
         }
         return result
+    }
+    
+    func totalAssets(for pid: Int) -> Int {
+        let gold = players.indices.contains(pid) ? players[pid].gold : 0
+        var sumToll = 0
+        for i in 0..<tileCount {
+            if owner.indices.contains(i), owner[i] == pid {
+                // 現在レベルから都度算出（配列tollを参照せず最新を反映）
+                sumToll += toll(at: i)
+            }
+        }
+        return gold + sumToll
     }
 }
 
@@ -1123,10 +1288,11 @@ struct ShopSpell: Identifiable, Equatable {
 
 extension ShopSpell {
     static let catalog: [ShopSpell] = [
-        .init(id: "heal_small",  name: "ヒールS",   price: 80),
-        .init(id: "heal_mid",    name: "ヒールM",   price: 150),
-        .init(id: "atk_up",      name: "攻撃アップ", price: 120),
-        .init(id: "def_up",      name: "防御アップ", price: 120),
-        .init(id: "dash",        name: "ダッシュ",   price: 100)
+        .init(id: "heal_small",  name: "薬小",   price: 30),
+        .init(id: "heal_mid",    name: "薬大",   price: 60),
+        .init(id: "atk_up",      name: "赤プロテイン小", price: 60),
+        .init(id: "atk_up_big",      name: "赤プロテイン大", price: 200),
+        .init(id: "def_up",      name: "青プロテイン小", price: 60),
+        .init(id: "def_up_big",      name: "青プロテイン大", price: 200)
     ]
 }

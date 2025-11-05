@@ -24,31 +24,31 @@ struct CreatureStats: Equatable {
 
     static let defaultLizard = CreatureStats(
         hpMax: 20, affection: 2, power: 8, durability: 6,
-        resistDry: 3, resistWater: 2, resistHeat: 3, resistCold: 2, cost: 20
+        resistDry: 3, resistWater: 2, resistHeat: 3, resistCold: 2, cost: 30
     )
     static let defaultGecko = CreatureStats(
         hpMax: 30, affection: 4, power: 7, durability: 7,
-        resistDry: 3, resistWater: 4, resistHeat: 3, resistCold: 3, cost: 20
+        resistDry: 3, resistWater: 4, resistHeat: 3, resistCold: 3, cost: 30
     )
     static let defaultCrocodile = CreatureStats(
         hpMax: 40, affection: 0, power: 11, durability: 6,
-        resistDry: 1, resistWater: 4, resistHeat: 3, resistCold: 2, cost: 30
+        resistDry: 1, resistWater: 4, resistHeat: 3, resistCold: 2, cost: 40
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 6, durability: 6,
-        resistDry: 4, resistWater: 4, resistHeat: 4, resistCold: 5, cost: 20
+        resistDry: 4, resistWater: 4, resistHeat: 4, resistCold: 5, cost: 30
     )
     static let defaultIguana = CreatureStats(
         hpMax: 30, affection: 2, power: 9, durability: 8,
-        resistDry: 2, resistWater: 3, resistHeat: 4, resistCold: 1, cost: 20
+        resistDry: 2, resistWater: 3, resistHeat: 4, resistCold: 1, cost: 30
     )
     static let defaultTurtle = CreatureStats(
         hpMax: 50, affection: 4, power: 4, durability: 11,
-        resistDry: 3, resistWater: 4, resistHeat: 3, resistCold: 3, cost: 20
+        resistDry: 3, resistWater: 4, resistHeat: 3, resistCold: 3, cost: 30
     )
     static let defaultFrog = CreatureStats(
         hpMax: 20, affection: 4, power: 4, durability: 4,
-        resistDry: 1, resistWater: 6, resistHeat: 2, resistCold: 4, cost: 15
+        resistDry: 1, resistWater: 6, resistHeat: 2, resistCold: 4, cost: 20
     )
     static let defaultBeardedDragon = CreatureStats(
         hpMax: 50, affection: 5, power: 12, durability: 10,

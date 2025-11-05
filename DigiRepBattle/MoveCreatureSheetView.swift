@@ -19,11 +19,11 @@ struct MoveCreatureSheetView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("マス\(fromTile + 1) から移動先を選択").font(.headline)
+            Text("移動先を選択").font(.headline)
             ScrollView {
                 LazyVGrid(columns: [.init(.adaptive(minimum: 80))]) {
                     ForEach(emptyTiles, id: \.self) { idx in
-                        Button("マス\(idx + 1)") {
+                        Button("移動する") {
                             vm.confirmMoveCreature(from: fromTile, to: idx)
                         }
                         .buttonStyle(.bordered)
