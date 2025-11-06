@@ -77,6 +77,10 @@ final class GameVM: ObservableObject {
     @Published var passedCP2: [Bool] = [false, false]
     @Published var showCreatureMenu: Bool = false
     @Published var creatureMenuTile: Int? = nil
+    @Published var isForcedSaleMode: Bool = false      // You(=0) がマイナスの間 true
+    @Published var debtAmount: Int = 0                 // 現在のマイナス額（例: 100）
+    @Published var sellConfirmTile: Int? = nil         // 売却確認ポップ対象タイル
+    @Published var sellPreviewAfterGold: Int = 0       // 売却後の所持金プレビュー
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -662,7 +666,6 @@ final class GameVM: ObservableObject {
         logs = [message]          // ← 配列を丸ごと置き換え（過去分を消す）
         showLogOverlay = true
     }
-    
 
     func startBattle(with card: Card) {
         guard let t = landedOnOpponentTileIndex,
@@ -711,21 +714,11 @@ final class GameVM: ObservableObject {
             // 攻撃側が倒れ → 通行料
             consumeFromHand(card, for: turn)
             transferToll(from: turn, to: defOwner, tile: t)
-            let before = players[turn].gold
-            let fee = toll(at: t)
-            players[turn].gold = max(0, before - fee)
-            battleResult = attackerIsCPU
-                ? "通行料を奪った"
-                : "通行料を奪われた\n\(before)→\(players[turn].gold)"
+            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
             canEndTurn = true
         } else {
             transferToll(from: turn, to: defOwner, tile: t)
-            let before = players[turn].gold
-            let fee = toll(at: t)
-            players[turn].gold = max(0, before - fee)
-            battleResult = attackerIsCPU
-                ? "通行料を奪った"
-                : "通行料を奪われた\n\(before)→\(players[turn].gold)"
+            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
             canEndTurn = true
         }
 
@@ -735,9 +728,7 @@ final class GameVM: ObservableObject {
     
     private func transferToll(from payer: Int, to ownerPid: Int, tile: Int) {
         let fee = toll(at: tile)
-        let before = players[payer].gold
-        players[payer].gold = max(0, before - fee)
-        players[ownerPid].gold += fee
+        payToll(payer: payer, to: ownerPid, amount: fee)
     }
     
     func clearBattleResult() {
@@ -767,10 +758,11 @@ final class GameVM: ObservableObject {
         players[turn].pos = next
         stepsLeft -= 1
         awardCheckpointIfNeeded(entering: next, pid: turn)
-        
+
+        // 分岐ノードに入った & まだ動けるなら分岐処理
         if next == CROSS_NODE, stepsLeft > 0 {
-            // 分岐候補（来た方向は禁止）
             let cameFrom = cur
+            // Uターン禁止（来た方向は候補から外す）
             let filtered = CROSS_CHOICES.filter { $0 != cameFrom }
 
             if turn == 0 {
@@ -781,11 +773,26 @@ final class GameVM: ObservableObject {
                 phase = .branchSelecting
                 return
             } else {
-                // CPU: その場でランダム選択→即適用（1歩消費して選択先へ）
-                if let choice = filtered.randomElement() {
+                // CPU: passedCP2 の状態に応じて優先方向を絞る
+                var base = filtered
+                if passedCP2.indices.contains(1) {
+                    if passedCP2[1] == false {
+                        // まだCP2未通過 → 28/29 方向を優先（0始まりで 27/28）
+                        let prefer: Set<Int> = [27, 28]
+                        let narrowed = base.filter { prefer.contains($0) }
+                        if !narrowed.isEmpty { base = narrowed }
+                    } else {
+                        // CP2通過済み → 3/5 方向を優先
+                        let prefer: Set<Int> = [3, 5]
+                        let narrowed = base.filter { prefer.contains($0) }
+                        if !narrowed.isEmpty { base = narrowed }
+                    }
+                }
+                // 最終候補からランダム選択→即適用（1歩消費して選択先へ）
+                if let choice = base.randomElement() {
                     applyBranchChoice(choice)
                 }
-                // CPUは止めずに続行（stepsLeftが0または分岐で0ならループで止まる）
+                // CPUは停止せず続行（stepsLeft が 0 になるか、以降の処理で停止）
             }
         }
     }
@@ -1068,7 +1075,7 @@ final class GameVM: ObservableObject {
 
         if players[turn][keyPath: goldRef] < cost { return } // 足りない
 
-        players[turn][keyPath: goldRef] -= cost
+        addGold(-cost, to: turn)
         level[tile] = newLevel
 
         // 通行料などをレベル依存で再計算したい場合
@@ -1127,7 +1134,7 @@ final class GameVM: ObservableObject {
     /// スペル購入確定
     func confirmPurchaseSpell(_ spell: ShopSpell) {
         guard players[turn][keyPath: goldRef] >= spell.price else { return }
-        players[turn][keyPath: goldRef] -= spell.price
+        addGold(-spell.price, to: turn)
 
         // 手札に追加（あなたのカード実装に合わせてここだけ調整）
         addSpellCardToHand(spellID: spell.id, displayName: spell.name)
@@ -1254,6 +1261,117 @@ final class GameVM: ObservableObject {
         }
         return gold + sumToll
     }
+    
+    // 売却額（＝現行の通行料を売値にする）
+    func saleValue(for tile: Int) -> Int {
+        return max(0, toll(at: tile))
+    }
+
+    // 所持金の増減は必ずここを通す
+    func addGold(_ amount: Int, to player: Int) {
+        guard players.indices.contains(player) else { return }
+        let before = players[player].gold
+        players[player].gold += amount
+        logs.append("GOLD[\(player)] \(before) -> \(players[player].gold) (\(amount >= 0 ? "+" : "")\(amount))")
+        if players[player].gold < 0 {
+            startForcedSaleIfNeeded(for: player)
+        }
+    }
+
+    // マイナスなら売却フロー開始（Youは手動、CPUは自動）
+    func startForcedSaleIfNeeded(for player: Int) {
+        guard players.indices.contains(player) else { return }
+        let deficit = -players[player].gold
+        guard deficit > 0 else { return }
+
+        if player == 0 {
+            // プレイヤー手動
+            isForcedSaleMode = true
+            debtAmount = deficit
+        } else {
+            // CPU 自動（最小合計で赤字解消）
+            autoLiquidateCPU(target: deficit)
+        }
+    }
+
+    // ▼ プレイヤー売却フロー：自軍タイルをタップ → 確認ポップ
+    func requestSell(tile idx: Int) {
+        guard isForcedSaleMode,
+              owner.indices.contains(idx),
+              owner[idx] == 0 else { return }
+        let v = saleValue(for: idx)
+        sellPreviewAfterGold = players[0].gold + v
+        sellConfirmTile = idx
+    }
+
+    func confirmSellTile() {
+        guard let t = sellConfirmTile else { return }
+        performSell(tile: t, for: 0)
+        sellConfirmTile = nil
+        if players[0].gold < 0 {
+            debtAmount = -players[0].gold
+        } else {
+            isForcedSaleMode = false
+            debtAmount = 0
+        }
+    }
+
+    func cancelSellTile() {
+        sellConfirmTile = nil
+    }
+
+    // ▼ 売却の実処理（共通）: 所有解除・レベル/通行料/シンボル初期化
+    private func performSell(tile idx: Int, for player: Int) {
+        let v = saleValue(for: idx)
+        if players.indices.contains(player) {
+            players[player].gold += v
+        }
+        if owner.indices.contains(idx) { owner[idx] = nil }
+        if level.indices.contains(idx) { level[idx] = 0 }
+        if toll.indices.contains(idx)  { toll[idx]  = 0 }
+        if creatureSymbol.indices.contains(idx) { creatureSymbol[idx] = nil }
+
+        // TOTAL 表示がある場合はここで再計算を呼ぶ
+        // recalcTotal(for: player)
+    }
+
+    // ▼ CPU：最小売却の自動実行（合計が赤字額以上になる最小合計を選ぶ）
+    private func autoLiquidateCPU(target deficit: Int) {
+        let p = 1
+        let myTiles: [Int] = owner.enumerated().compactMap { (i, o) in (o == p) ? i : nil }
+        let values: [(idx: Int, val: Int)] = myTiles.map { ($0, saleValue(for: $0)) }.filter { $0.val > 0 }
+        guard !values.isEmpty else { return } // 売れる土地が無い → 別途ゲームオーバー等の検討箇所
+
+        // 簡易DP：sums[合計]=タイル配列、から「合計>=deficitの最小」を選ぶ
+        var sums: [Int: [Int]] = [0: []]
+        let cap = values.map(\.val).reduce(0, +)
+        let limit = max(0, deficit)
+        for (idx, val) in values {
+            let snap = sums
+            for (s, arr) in snap {
+                let ns = s + val
+                if ns > cap { continue }
+                if sums[ns] == nil || (sums[ns]!.count > arr.count + 1) {
+                    sums[ns] = arr + [idx]
+                }
+            }
+        }
+        if let bestSum = sums.keys.filter({ $0 >= limit }).min(),
+           let sellSet = sums[bestSum] {
+            for t in sellSet { performSell(tile: t, for: p) }
+        } else {
+            // どう組んでも足りない → すべて売却（フォールバック）
+            for t in values.sorted(by: { $0.val < $1.val }).map(\.idx) { performSell(tile: t, for: p) }
+        }
+    }
+
+    // ▼ 通行料支払いの共通口（最後にこれを呼ぶよう統一）
+    func payToll(payer: Int, to ownerPlayer: Int, amount: Int) {
+        addGold(-amount, to: payer)
+        addGold(+amount, to: ownerPlayer)
+        // addGold 内で必要なら強制売却フローが自動起動
+    }
+
 }
 
 // MARK: - Special Node Actions

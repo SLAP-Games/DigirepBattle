@@ -31,7 +31,13 @@ struct ContentView: View {
                         branchSource: vm.branchSource,
                         branchCandidates: vm.branchCandidates,
                         onPickBranch: { vm.pickBranch($0) },
-                        onTapTile: { vm.tapTileForInspect($0) },
+                        onTapTile: { idx in
+                            if vm.isForcedSaleMode && vm.turn == 0 {
+                                vm.requestSell(tile: idx)        // 自軍タイルなら売却ポップへ（ガードは中で実施）
+                            } else {
+                                vm.tapTileForInspect(idx)        // 既存動作：インスペクト
+                            }
+                        },
                         focusTile: vm.focusTile
                     )
                     .frame(height: boardH)
@@ -182,6 +188,35 @@ struct ContentView: View {
                                 .foregroundColor(.white)
                         }
                     }
+                    
+                    if let t = vm.sellConfirmTile {
+                        ZStack {
+                            Color.black.opacity(0.35).ignoresSafeArea()
+                            VStack(spacing: 12) {
+                                let before = vm.players[0].gold
+                                let add    = vm.saleValue(for: t)
+                                let after  = vm.sellPreviewAfterGold   // = before + add
+
+                                Text("売却しますか？").font(.headline)
+                                Text("-\(max(0, -before)) GOLD → \(after) GOLD").font(.subheadline)
+
+                                HStack {
+                                    Button("キャンセル") { vm.cancelSellTile() }
+                                    Spacer().frame(width: 12)
+                                    Button("OK") { vm.confirmSellTile() }.bold()
+                                }
+                                .padding(.top, 8)
+                            }
+                            .padding(16)
+                            .frame(maxWidth: 300)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(12)
+                            .shadow(radius: 10)
+                        }
+                        .transition(.opacity)
+                        .animation(.easeInOut, value: vm.sellConfirmTile != nil)
+                    }
+
                 }
 
                 // ── 下：操作エリア（自プレイヤー専用） ──
@@ -293,6 +328,14 @@ struct ContentView: View {
                             .shadow(radius: 10)
                         }
                         .zIndex(1000)
+                    }
+                    if vm.isForcedSaleMode && vm.turn == 0 {
+                        Text("売却する土地を選んでください\n現在のマイナス \(vm.debtAmount) GOLD")
+                            .multilineTextAlignment(.center)
+                            .padding(8)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.yellow.opacity(0.2))
+                            .cornerRadius(8)
                     }
                 }
                 .frame(height: controlsH)
