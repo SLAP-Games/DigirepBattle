@@ -73,8 +73,10 @@ struct RingBoardView: View {
             let (minX, maxX, minY, maxY) = bounds(graph.map { $0.grid })
             let spanX = CGFloat(maxX - minX)
             let spanY = CGFloat(maxY - minY)
-            let boardSize = CGSize(width: (spanX + 1) * step, height: (spanY + 1) * step)
-
+            let boardSize   = CGSize(width: (spanX + 1) * step,
+                                     height: (spanY + 1) * step)
+            let boardCenter = CGPoint(x: boardSize.width / 2,
+                                      y: boardSize.height / 2)
             // 既存の“中央配置”はやめ、原点(0,0) から描画。
             // 中央寄せは offset/scale で行う（=カメラ方式）。
             ZStack {
@@ -149,7 +151,7 @@ struct RingBoardView: View {
             }
             .frame(width: boardSize.width, height: boardSize.height, alignment: .topLeading)
             // ★ ここで“疑似カメラ”を適用
-            .scaleEffect(scale * gestureScale, anchor: .topLeading)
+            .scaleEffect(scale * gestureScale, anchor: .center)
             .offset(x: offset.width + gestureOffset.width,
                     y: offset.height + gestureOffset.height)
             .contentShape(Rectangle()) // ヒット領域
@@ -157,14 +159,41 @@ struct RingBoardView: View {
             .gesture(
                 MagnificationGesture()
                     .onChanged { value in
+                        // 拡大率の候補（まだ確定はしない）
+                        let newS = min(max(scale * value, 0.6), 2.5)
+
+                        // ピンチ開始時点の「画面中央にある盤上の点」を旧スケールで逆算
+                        let pivot = boardPointAtScreenCenter(viewSize: geo.size,
+                                                             boardCenter: boardCenter,
+                                                             s: scale)
+
+                        // その点が newS 後も画面中央に居続けるための "新しいoffset"
+                        let newOffset = offsetForCentering(point: pivot,
+                                                           viewSize: geo.size,
+                                                           boardCenter: boardCenter,
+                                                           s: newS)
+
+                        // 描画中は gestureScale / gestureOffset で見かけを更新
                         gestureScale = value
+                        gestureOffset = CGSize(width: newOffset.width  - offset.width,
+                                               height: newOffset.height - offset.height)
                     }
                     .onEnded { value in
-                        let newScale = min(max(scale * value, 0.6), 2.5)
-                        // 拡大縮小の中心がずれ過ぎないよう、端的にスケールだけ確定
-                        scale = newScale
-                        gestureScale = 1.0
-                        // 必要ならここで offset の再調整も可能
+                        // 確定
+                        let newS = min(max(scale * value, 0.6), 2.5)
+                        let pivot = boardPointAtScreenCenter(viewSize: geo.size,
+                                                             boardCenter: boardCenter,
+                                                             s: scale)
+                        let newOffset = offsetForCentering(point: pivot,
+                                                           viewSize: geo.size,
+                                                           boardCenter: boardCenter,
+                                                           s: newS)
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            scale = newS
+                            offset = newOffset
+                            gestureScale = 1.0
+                            gestureOffset = .zero
+                        }
                     }
             )
             // ★ ドラッグ（平行移動）
@@ -187,6 +216,7 @@ struct RingBoardView: View {
                 if let idx = focusTile {
                     centerOnTile(idx,
                                  in: geo.size,
+                                 boardCenter: boardCenter,
                                  minX: minX, minY: minY,
                                  step: step, tileSize: tileSize,
                                  animated: false)
@@ -198,6 +228,7 @@ struct RingBoardView: View {
                 DispatchQueue.main.async {
                     centerOnTile(idx,
                                  in: geo.size,
+                                 boardCenter: boardCenter,
                                  minX: minX, minY: minY,
                                  step: step, tileSize: tileSize)
                 }
@@ -210,6 +241,7 @@ struct RingBoardView: View {
     // === 中央寄せ（疑似カメラ）：盤座標→画面中央へくるよう offset を決める ===
     private func centerOnTile(_ idx: Int,
                               in viewSize: CGSize,
+                              boardCenter: CGPoint,
                               minX: Int, minY: Int,
                               step: CGFloat, tileSize: CGFloat,
                               animated: Bool = true)
@@ -221,9 +253,13 @@ struct RingBoardView: View {
         // “今の（確定済み）スケール”を使ってオフセットを計算（ジェスチャー中でない前提）
         let s = scale
 
-        // 変換式: screenPoint = p*s + offset → offset = viewCenter - p*s
-        let target = CGSize(width: viewCenter.x - p.x * s,
-                            height: viewCenter.y - p.y * s)
+        // centerアンカーの変換:
+        // screen = (p - boardCenter)*s + boardCenter + offset
+        // → offset = viewCenter - [(p - boardCenter)*s + boardCenter]
+        let target = CGSize(
+            width:  viewCenter.x - ((p.x - boardCenter.x) * s + boardCenter.x),
+            height: viewCenter.y - ((p.y - boardCenter.y) * s + boardCenter.y)
+        )
 
         // ついでに、ちょっと寄りのズーム（任意）：見やすい倍率に穏やかに調整
         let targetScale = (s < 1.2) ? 1.2 : min(s, 2.0)
@@ -248,6 +284,33 @@ struct RingBoardView: View {
         let y = CGFloat(g.y - minY) * step + tileSize / 2
         return CGPoint(x: x, y: y)
     }
+    
+    // 画面中央にある盤上の点（board座標）を、現在の scale と offset から逆算
+    private func boardPointAtScreenCenter(viewSize: CGSize,
+                                          boardCenter: CGPoint,
+                                          s: CGFloat) -> CGPoint {
+        let vc = CGPoint(x: viewSize.width/2, y: viewSize.height/2)
+        // centerアンカーの順変換: screen = (p - boardCenter)*s + boardCenter + offset
+        // 逆算: p = ((screen - offset - boardCenter) / s) + boardCenter
+        return CGPoint(
+            x: ((vc.x - offset.width  - boardCenter.x) / s) + boardCenter.x,
+            y: ((vc.y - offset.height - boardCenter.y) / s) + boardCenter.y
+        )
+    }
+
+    // 指定した盤上点 p を画面中央に置くための offset を計算
+    private func offsetForCentering(point p: CGPoint,
+                                    viewSize: CGSize,
+                                    boardCenter: CGPoint,
+                                    s: CGFloat) -> CGSize {
+        let vc = CGPoint(x: viewSize.width/2, y: viewSize.height/2)
+        // offset = viewCenter - [(p - boardCenter)*s + boardCenter]
+        return CGSize(
+            width:  vc.x - ((p.x - boardCenter.x) * s + boardCenter.x),
+            height: vc.y - ((p.y - boardCenter.y) * s + boardCenter.y)
+        )
+    }
+
 }
 
 // MARK: - グラフ生成：角を重ねた正方リング×2
