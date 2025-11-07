@@ -133,7 +133,7 @@ final class GameVM: ObservableObject {
         self.toll = Array(repeating: 0, count: tileCount)
         
         self.spellPool = buildFixedForceRollSpells()
-        self.creaturePool = buildCreaturePool()
+//        self.creaturePool = buildCreaturePool()
         
         let playerSpells = spellPool
         let playerCreatures = makePlayerFixedCreatureCards()
@@ -152,6 +152,8 @@ final class GameVM: ObservableObject {
         self.terrain = buildFixedTerrain()
     }
     
+    // MARK: - 各種セット関数
+
     private func makePlayerFixedCreatureCards() -> [Card] {
         func reptile(_ name: String, _ stats: CreatureStats, _ n: Int) -> [Card] {
             (0..<n).map { _ in Card(kind: .creature, name: name, symbol: name, stats: stats) }
@@ -174,78 +176,32 @@ final class GameVM: ObservableObject {
             reptile("defaultaStarTurtle1",   .defaultaStarTurtle,   1) +
             reptile("defaultHornedFrog1",    .defaultHornedFrog,    1)
     }
+    
+    // ポップアップを閉じる
+    func closeCheckpointOverlay() {
+        showCheckpointOverlay = false
+        checkpointMessage = nil
+    }
         
-    private func buildFixedTerrain() -> [TileTerrain] {
-        // 既定は field（ノーマル）
-        var arr = Array(
-            repeating: TileTerrain(imageName: "field", attribute: .normal),
-            count: tileCount
-        )
-
-        // 1始まり → 配列index（0始まり）に変換して代入するヘルパ
-        func setRange(_ startTile: Int, _ endTile: Int, image: String, attr: TileAttribute) {
-            let s = max(1, startTile)
-            let e = min(tileCount, endTile)
-            guard s <= e else { return }
-            for t in s...e {
-                let i = t - 1   // 1始まり → 0始まり
-                arr[i] = TileTerrain(imageName: image, attribute: attr)
-            }
-        }
-
-        // ご指定の固定割り当て（タイル番号は 1..31）
-        setRange( 2,  4, image: "field",  attr: .normal) // 2〜4
-        setRange( 6,  9, image: "desert", attr: .dry)    // 6〜9
-        setRange(10, 13, image: "water",  attr: .water)  // 10〜13
-        setRange(14, 16, image: "field",  attr: .normal) // 14〜16
-        setRange(17, 20, image: "fire",   attr: .heat)   // 17〜20
-        setRange(22, 25, image: "snow",   attr: .cold)   // 22〜25
-        setRange(26, 31, image: "field",  attr: .normal) // 26〜31
-
-        // 指定が無い 1,5,21（＝チェックポイント）は既定の field のまま
-        return arr
-    }
-    
-    private func nextIndex(for pid: Int, from cur: Int) -> Int {
-        switch moveDir[pid] {
-        case .cw:  return nextCW[cur]
-        case .ccw: return nextCCW[cur]
-        }
-    }
-    
-    private func buildSpellPool() -> [Card] {
-        (1...30).map { i in
-            let name = String(format: "スペル（S%02d）", i)
-            return Card(kind: .spell, name: name, symbol: "sun.max.fill")
-        }
-    }
-
-    private func buildCreaturePool() -> [Card] {
-        (1...60).map { i in
-            let name = String(format: "デジレプ（C%02d）", i)
-            var c = Card(kind: .creature, name: name, symbol: "lizard.fill")
-            c.stats = .defaultLizard
-            return c
-        }
-    }
-
-    /// 固定50枚（順序固定）。※シャッフルしない
-    private func makeFixedDeck() -> [Card] {
-        let spells = Array(spellPool.prefix(20))       // S01..S20
-        let creatures = Array(creaturePool.prefix(30)) // C01..C30
-        // 既存が popLast() なら、末尾が「山札の上」だが、
-        // 今回はドロー時にランダム化するのでそのままでOK
-        return spells + creatures
-    }
+//    private func buildCreaturePool() -> [Card] {
+//        (1...60).map { i in
+//            let name = String(format: "デジレプ（C%02d）", i)
+//            var c = Card(kind: .creature, name: name, symbol: "lizard.fill")
+//            c.stats = .defaultLizard
+//            return c
+//        }
+//    }
+//
+//    /// 固定50枚（順序固定）。※シャッフルしない
+//    private func makeFixedDeck() -> [Card] {
+//        let spells = Array(spellPool.prefix(20))       // S01..S20
+//        let creatures = Array(creaturePool.prefix(30)) // C01..C30
+//        // 既存が popLast() なら、末尾が「山札の上」だが、
+//        // 今回はドロー時にランダム化するのでそのままでOK
+//        return spells + creatures
+//    }
 
     // MARK: - ターン管理
-    func startTurnIfNeeded() {
-        guard phase == .ready else { return }
-        // 手番のドロー
-        drawOne(for: turn)
-        // 6枚超過なら捨てフェーズ
-        if hands[turn].count > 5 { mustDiscardFor = turn }
-    }
 
     func endTurn() {
         guard phase == .moved else { return }
@@ -263,11 +219,12 @@ final class GameVM: ObservableObject {
         showSpecialMenu = false
     }
     
+    // 毎ターンなつき度分回復
     private func healOnBoard() {
         var touched = false
         for i in 0..<tileCount {
             guard owner[i] != nil, hpMax[i] > 0, hp[i] < hpMax[i] else { continue }
-            let heal = max(0, aff[i] / 2)
+            let heal = max(0, aff[i])
             let newHP = min(hpMax[i], hp[i] + heal)
             if newHP != hp[i] {
                 hp[i] = newHP
@@ -280,13 +237,59 @@ final class GameVM: ObservableObject {
         }
         if touched { hp = hp } // ← 再描画トリガ
     }
+    
+    func actionEndTurnFromSpecialNode() {
+        // TODO: ターン終了の処理
+        showSpecialMenu = false
+        currentSpecialKind = nil
+        endTurn()
+        // ここで既存のターン終了ハンドラを呼ぶ等
+    }
 
     // MARK: - 山札・手札
+    func startTurnIfNeeded() {
+        guard phase == .ready else { return }
+        // 手番のドロー
+        drawOne(for: turn)
+        // 6枚超過なら捨てフェーズ
+        if hands[turn].count > 5 { mustDiscardFor = turn }
+    }
+    
+    /// テスト用のサイコロスペル割振
+    private func buildFixedForceRollSpells() -> [Card] {
+        var result: [Card] = []
+        // 1と6は4枚、それ以外は3枚ずつ → 合計20枚
+        let spec: [(num: Int, count: Int)] = [
+            (1, 4), (2, 3), (3, 3), (4, 3), (5, 3), (6, 4)
+        ]
+        for (n, c) in spec {
+            for _ in 0..<c {
+                result.append(
+                    Card(
+                        kind: .spell,
+                        name: "Dice\(n)",
+                        symbol: "die.face.\(n).fill",  // 無ければ任意のアセット名でOK
+                        stats: nil,
+                        spell: .fixNextRoll(n)
+                    )
+                )
+            }
+        }
+        return result
+    }
+    
     private func drawOne(for pid: Int) {
         guard !decks[pid].isEmpty else { return }
         let idx = Int.random(in: 0..<decks[pid].count)
         let picked = decks[pid].remove(at: idx)   // ← ランダムで抜き取る
         hands[pid].append(picked)
+    }
+    
+    /// 手札上限処理（>5 のとき捨てフェーズ等へ）
+    private func handleHandOverflowIfNeeded() {
+        if hands[turn].count > 5 {
+            mustDiscardFor = turn
+        }
     }
 
     func discard(_ card: Card, for pid: Int) {
@@ -304,7 +307,6 @@ final class GameVM: ObservableObject {
         presentingCard = nil
     }
 
-    /// スペル説明（暫定）
     /// ※ カード名に応じて説明文を返す。未定義はプレースホルダ。
     func spellDescription(for card: Card) -> String {
         guard card.kind == .spell else { return "" }
@@ -318,11 +320,39 @@ final class GameVM: ObservableObject {
         default: return "不明"
         }
     }
+    
+    /// 中央オーバーレイに短文を出す（既存の仕組みに繋いでください）
+    private func pushCenterMessage(_ text: String) {
+        battleResult = text
+        logs.append(text)
+    }
+    
+    /// スペル購入確定
+    func confirmPurchaseSpell(_ spell: ShopSpell) {
+        guard players[turn][keyPath: goldRef] >= spell.price else { return }
+        addGold(-spell.price, to: turn)
 
-    // MARK: - サイコロ
+        // 手札に追加（あなたのカード実装に合わせてここだけ調整）
+        addSpellCardToHand(spellID: spell.id, displayName: spell.name)
+
+        pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
+        handleHandOverflowIfNeeded()  // 6枚超の処理があるなら実装済み関数を呼ぶ
+        activeSpecialSheet = nil
+        objectWillChange.send()
+    }
+
+    /// 手札へスペルを追加（あなたの Card/Hand 実装に合わせて置き換え）
+    private func addSpellCardToHand(spellID: String, displayName: String) {
+        let card = Card(kind: .spell, name: displayName, symbol: "sun.max.fill")
+        hands[turn].append(card)
+    }
+
+    // MARK: - サイコロ・移動
     func rollDice() {
         guard turn == 0, phase == .ready else { return }
+        
         let r = nextForcedRoll[turn] ?? Int.random(in: 1...6)
+        nextForcedRoll[turn] = nil
         forceRollToOneFor[turn] = false
         lastRoll = r
         stepsLeft = r
@@ -338,6 +368,21 @@ final class GameVM: ObservableObject {
         phase = .moving
         continueMove()
         focusTile = players[turn].pos
+    }
+    
+    // 1歩ずつ前進し、交差点(マス5)に入ったら分岐UIを出して一時停止
+    private func continueMove() {
+        while stepsLeft > 0 {
+            advanceOneStep()
+            // 分岐停止中ならループ中断（ユーザー選択を待つ）
+            if branchSource != nil { return }
+        }
+        phase = .moved
+        // ここで landedOnOpponentTileIndex など既存処理を続ける
+        didStop(at: players[turn].pos, isYou: turn == 0)
+        handleAfterMove()
+        focusTile = players[turn].pos
+        
     }
     
     private func handleAfterMove() {
@@ -395,29 +440,181 @@ final class GameVM: ObservableObject {
         players[turn].pos = chosenNext
         stepsLeft = max(0, stepsLeft - 1)
     }
+    
+    private func nextIndex(for pid: Int, from cur: Int) -> Int {
+        switch moveDir[pid] {
+        case .cw:  return nextCW[cur]
+        case .ccw: return nextCCW[cur]
+        }
+    }
+    
+    // 既存の「次のマス」算出を利用して1歩進める
+    private func advanceOneStep() {
+        // まず通常の1歩前進
+        let cur = players[turn].pos
+        let next = nextIndex(for: turn, from: cur)
+        players[turn].pos = next
+        stepsLeft -= 1
+        awardCheckpointIfNeeded(entering: next, pid: turn)
 
-    // MARK: - カード使用（プレイヤー）
-    func useSpellPreRoll(_ card: Card) {
-        guard turn == 0, phase == .ready, card.kind == .spell else { return }
+        // 分岐ノードに入った & まだ動けるなら分岐処理
+        if next == CROSS_NODE, stepsLeft > 0 {
+            let cameFrom = cur
+            // Uターン禁止（来た方向は候補から外す）
+            let filtered = CROSS_CHOICES.filter { $0 != cameFrom }
 
-        if let effect = card.spell {
-            switch effect {
-            case .fixNextRoll(let n):
-                guard (1...6).contains(n) else { break }
-                nextForcedRoll[0] = n
-
-            // ここに将来のスペル分岐を追記していく:
-            // case .buffPower(let v): ...
-            // case .moveRelative(let d): ...
-            default:
-                break
+            if turn == 0 {
+                // プレイヤー: UI表示して停止
+                branchCameFrom = cameFrom
+                branchSource = CROSS_NODE
+                branchCandidates = filtered
+                phase = .branchSelecting
+                return
+            } else {
+                // CPU: passedCP2 の状態に応じて優先方向を絞る
+                var base = filtered
+                if passedCP2.indices.contains(1) {
+                    if passedCP2[1] == false {
+                        // まだCP2未通過 → 28/29 方向を優先（0始まりで 27/28）
+                        let prefer: Set<Int> = [27, 28]
+                        let narrowed = base.filter { prefer.contains($0) }
+                        if !narrowed.isEmpty { base = narrowed }
+                    } else {
+                        // CP2通過済み → 3/5 方向を優先
+                        let prefer: Set<Int> = [3, 5]
+                        let narrowed = base.filter { prefer.contains($0) }
+                        if !narrowed.isEmpty { base = narrowed }
+                    }
+                }
+                // 最終候補からランダム選択→即適用（1歩消費して選択先へ）
+                if let choice = base.randomElement() {
+                    applyBranchChoice(choice)
+                }
+                // CPUは停止せず続行（stepsLeft が 0 になるか、以降の処理で停止）
             }
         }
+    }
+    
+    func pickBranch(_ chosenNext: Int) {
+        guard branchSource != nil else { return }
+        
+        if let came = branchCameFrom, chosenNext == came {
+            return  // UIでは除外済みだが二重防御
+        }
+        // 方向確定＋1歩消費＋位置更新
+        applyBranchChoice(chosenNext)
 
-        consumeFromHand(card, for: 0)
-        rollDice()  // 前ロール専用：使ったら直ちにロール
+        // UIクリア
+        branchSource = nil
+        branchCandidates = []
+        branchCameFrom = nil
+
+        // 残りがあれば移動継続、なければ後処理へ
+        if stepsLeft > 0 {
+            phase = .moving
+            continueMove()
+        } else {
+            phase = .moved
+            handleAfterMove()
+        }
+    }
+    
+    // === 追加: 駒の移動完了時に特別マスか確認してメニューを開く ===
+    func didStop(at index: Int, isYou: Bool) {
+        // 自分のターンで止まった場合のみメニューを提示（必要ならCPUにも対応可）
+        if isYou, let kind = specialNodeKind(for: index) {
+            currentSpecialKind = kind
+            showSpecialMenu = true
+        } else {
+            currentSpecialKind = nil
+            showSpecialMenu = false
+        }
+        
+        // 追加：自分のクリーチャーが置いてあるマスなら CreatureMenu を出す
+        if isYou,
+           owner.indices.contains(index),
+           owner[index] == turn,
+           level.indices.contains(index),
+           level[index] >= 1,                          // 設置済み
+           creatureSymbol.indices.contains(index),
+           creatureSymbol[index] != nil {
+            creatureMenuTile = index
+            showCreatureMenu = true
+        } else {
+            creatureMenuTile = nil
+            showCreatureMenu = false
+        }
+    }
+    
+    // タイルに「入った」タイミングで呼ぶ
+    private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
+        // 1) CP通過フラグの更新（CP1/CP2それぞれ）
+        if index == CP1_NODE {
+            passedCP1[pid] = true
+            if pid == 0 {
+                // GOLDはまだ付与しないが、通過ポップアップは出す
+                lastCheckpointGain = 0
+                checkpointMessage = "CP1通過"
+                showCheckpointOverlay = true
+            }
+            return
+        }
+        if index == CP2_NODE {
+            passedCP2[pid] = true
+            if pid == 0 {
+                lastCheckpointGain = 0
+                checkpointMessage = "CP2通過"
+                showCheckpointOverlay = true
+            }
+            return
+        }
+
+        // 2) ホーム通過時：両方trueならGOLD付与してフラグをリセット
+        if index == HOME_NODE {
+            if passedCP1[pid] && passedCP2[pid] {
+                let gain = checkpointReward(for: pid)
+                players[pid].gold += gain
+                passedCP1[pid] = false
+                passedCP2[pid] = false
+
+                if pid == 0 {
+                    lastCheckpointGain = gain
+                    checkpointMessage = "帰還しました。CP達成報酬 \(gain) GOLD"
+                    showCheckpointOverlay = true
+                }
+            } else {
+                // どちらか未達 → 何もしない（ポップアップも出さない）
+            }
+        }
     }
 
+    // MARK: - カード使用（プレイヤー）
+    func useSpellPreRoll(_ card: Card, target: Int) {
+        guard turn == 0, phase == .ready, card.kind == .spell else { return }
+        guard (0...1).contains(target) else { return }
+
+        if case let .fixNextRoll(n)? = card.spell, (1...6).contains(n) {
+            // 対象の次ロールを固定
+            nextForcedRoll[target] = n
+
+            // 手札から消費
+            consumeFromHand(card, for: 0)
+
+            if target == turn {
+                // 自分に使ったときは従来通り即ロール
+                pushCenterMessage("次のサイコロを \(n) に固定")
+                rollDice()
+            } else {
+                // CPUに使ったときはロールしない（次ターンCPUのロールが固定される）
+                pushCenterMessage("CPUの次のサイコロを \(n) に固定")
+                // phaseは .ready のまま。プレイヤーはこのままロール可能。
+            }
+        }
+    }
+    
+    func useSpellPreRoll(_ card: Card) {
+        useSpellPreRoll(card, target: 0)
+    }
 
     func useCardAfterMove(_ card: Card) {
         guard turn == 0, phase == .moved else { return }
@@ -444,8 +641,31 @@ final class GameVM: ObservableObject {
     private func consumeFromHand(_ card: Card, for pid: Int) {
         if let i = hands[pid].firstIndex(of: card) { hands[pid].remove(at: i) }
     }
+    
+    // === 追加: 設置可否チェック ===
+    func canPlaceCreature(at index: Int) -> Bool {
+        return !isSpecialNode(index)
+    }
 
-    // MARK: - CPU 自動
+    /// クリーチャー移動の移動先選択を表示
+    func actionMoveCreatureFromSpecialNode() {
+        if let t = focusTile,
+           owner.indices.contains(t), owner[t] == turn,
+           level.indices.contains(t), level[t] >= 1,
+           creatureSymbol.indices.contains(t), creatureSymbol[t] != nil {
+            activeSpecialSheet = .moveFrom(tile: t)
+            return
+        }
+        specialPending = .pickMoveSource
+        pushCenterMessage("移動するデジレプを選択")
+    }
+
+    /// スペル購入シートを表示
+    func actionPurchaseSkillOnSpecialNode() {
+        activeSpecialSheet = .buySpell
+    }
+
+    // MARK: - CPU 行動ロジック
     private func runCpuAuto() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
@@ -458,6 +678,7 @@ final class GameVM: ObservableObject {
 
             // ロール→自動移動
             self.lastRoll = self.nextForcedRoll[1] ?? Int.random(in: 1...6)
+            self.nextForcedRoll[1] = nil
             self.forceRollToOneFor[1] = false
             self.stepsLeft = self.lastRoll
             // ★ CPUがマス5開始＆動くなら、先にランダム分岐を適用
@@ -508,6 +729,7 @@ final class GameVM: ObservableObject {
     }
     
     private func cpuUseRandomDiceFixSpellIfAvailable() {
+        if nextForcedRoll[1] != nil { return }
         // hands[1] から fixNextRoll(n) を集めてランダムに1枚使う
         let candidates: [(idx: Int, n: Int)] = hands[1].enumerated().compactMap { (i, c) in
             guard c.kind == .spell else { return nil }
@@ -522,6 +744,69 @@ final class GameVM: ObservableObject {
         let (idx, n) = pick
         _ = hands[1].remove(at: idx)
         nextForcedRoll[1] = n
+    }
+    
+    // ▼ CPU：最小売却の自動実行（合計が赤字額以上になる最小合計を選ぶ）
+    private func autoLiquidateCPU(target deficit: Int) {
+        let p = 1
+        let myTiles: [Int] = owner.enumerated().compactMap { (i, o) in (o == p) ? i : nil }
+        let values: [(idx: Int, val: Int)] = myTiles.map { ($0, saleValue(for: $0)) }.filter { $0.val > 0 }
+        guard !values.isEmpty else { return } // 売れる土地が無い → 別途ゲームオーバー等の検討箇所
+
+        // 簡易DP：sums[合計]=タイル配列、から「合計>=deficitの最小」を選ぶ
+        var sums: [Int: [Int]] = [0: []]
+        let cap = values.map(\.val).reduce(0, +)
+        let limit = max(0, deficit)
+        for (idx, val) in values {
+            let snap = sums
+            for (s, arr) in snap {
+                let ns = s + val
+                if ns > cap { continue }
+                if sums[ns] == nil || (sums[ns]!.count > arr.count + 1) {
+                    sums[ns] = arr + [idx]
+                }
+            }
+        }
+        if let bestSum = sums.keys.filter({ $0 >= limit }).min(),
+           let sellSet = sums[bestSum] {
+            for t in sellSet { performSell(tile: t, for: p) }
+        } else {
+            // どう組んでも足りない → すべて売却（フォールバック）
+            for t in values.sorted(by: { $0.val < $1.val }).map(\.idx) { performSell(tile: t, for: p) }
+        }
+    }
+
+    // MARK: - マス管理
+    
+    private func buildFixedTerrain() -> [TileTerrain] {
+        // 既定は field（ノーマル）
+        var arr = Array(
+            repeating: TileTerrain(imageName: "field", attribute: .normal),
+            count: tileCount
+        )
+
+        // 1始まり → 配列index（0始まり）に変換して代入するヘルパ
+        func setRange(_ startTile: Int, _ endTile: Int, image: String, attr: TileAttribute) {
+            let s = max(1, startTile)
+            let e = min(tileCount, endTile)
+            guard s <= e else { return }
+            for t in s...e {
+                let i = t - 1   // 1始まり → 0始まり
+                arr[i] = TileTerrain(imageName: image, attribute: attr)
+            }
+        }
+
+        // 指定の固定割り当て（タイル番号は 1..31）
+        setRange( 2,  4, image: "field",  attr: .normal) // 2〜4
+        setRange( 6,  9, image: "desert", attr: .dry)    // 6〜9
+        setRange(10, 13, image: "water",  attr: .water)  // 10〜13
+        setRange(14, 16, image: "field",  attr: .normal) // 14〜16
+        setRange(17, 20, image: "fire",   attr: .heat)   // 17〜20
+        setRange(22, 25, image: "snow",   attr: .cold)   // 22〜25
+        setRange(26, 31, image: "field",  attr: .normal) // 26〜31
+
+        // 指定が無い 1,5,21（＝チェックポイント）は既定の field のまま
+        return arr
     }
 
     // 料金計算（レベル基礎 × セットボーナス）
@@ -621,238 +906,14 @@ final class GameVM: ObservableObject {
         toll[tile] = toll(at: tile)
     }
     
-    private func tryPay(_ amount: Int, by pid: Int) -> Bool {
-        guard amount > 0 else { return true }
-        guard players.indices.contains(pid) else { return false }
-        if players[pid].gold >= amount {
-            players[pid].gold -= amount
-            return true
-        } else {
-            return false
-        }
-    }
-
-    func hpRatio(_ tile: Int) -> CGFloat? {
-        guard owner.indices.contains(tile),
-              owner[tile] != nil,
-              hpMax[tile] > 0
-        else { return nil }
-        return CGFloat(hp[tile]) / CGFloat(hpMax[tile])
+    /// マスの属性を返す（あなたのデータ構造に合わせて中身を実装）
+    private func attributeAt(tile: Int) -> TileAttribute {
+        // 例: terrain[tile].attribute を持っている場合
+        // return terrain[tile].attribute
+        // 無ければ一旦 normal でフォールバック
+        return .normal
     }
     
-    func chooseBattle() {
-        guard landedOnOpponentTileIndex != nil else { return }
-        expectBattleCardSelection = true
-        canEndTurn = false            // ← End無効化
-        showLogOverlay = false
-    }
-
-    func payTollAndEndChoice() {
-        guard let t = landedOnOpponentTileIndex, let own = owner[t] else { return }
-        transferToll(from: turn, to: own, tile: t)
-        battleResult = (turn == 1)
-            ? "通行料を奪った"      // CPUが支払ってあなたが受け取り
-            : "通行料を奪われた"   // あなたが支払い
-        landedOnOpponentTileIndex = nil
-        expectBattleCardSelection = false
-        canEndTurn = true
-    }
-    
-    private func highestResistAt(tile: Int) -> Int {
-        max(rDry[tile], rWat[tile], rHot[tile], rCold[tile])
-    }
-    
-    func showSingleLog(_ message: String) {
-        logs = [message]          // ← 配列を丸ごと置き換え（過去分を消す）
-        showLogOverlay = true
-    }
-
-    func startBattle(with card: Card) {
-        guard let t = landedOnOpponentTileIndex,
-              let defOwner = owner[t],
-              defOwner != turn,
-              card.kind == .creature
-        else { return }
-
-        // 先手：攻撃側→守備側
-        let attackerIsCPU = (turn == 1)
-        let atkStats = card.stats ?? CreatureStats.defaultLizard
-        let defHighest = highestResistAt(tile: t)
-        
-        let atk1 = (atkStats.power + atkStats.highestResist) * 2
-        let def1 = dur[t] + atkStats.highestResist
-        let dmg1 = max(0, atk1 - def1)
-        hp[t] = max(0, hp[t] - dmg1)
-        hp = hp
-        if var c = creatureOnTile[t] {
-            c.hp = hp[t]
-            creatureOnTile[t] = c
-        }
-
-        if hp[t] <= 0 {
-            // 撃破 → 奪取
-            placeCreature(from: card, at: t, by: turn)
-            consumeFromHand(card, for: turn)
-            battleResult = attackerIsCPU
-                ? "土地を奪われた"
-                : "土地を奪い取った"
-            canEndTurn = true
-            landedOnOpponentTileIndex = nil
-            expectBattleCardSelection = false
-            return
-        }
-
-        // 反撃：守備側→攻撃側
-        let atk2 = (pow[t] + defHighest) * 2
-        let def2 = atkStats.durability + defHighest
-        let dmg2 = max(0, atk2 - def2)
-
-        var atkHP = atkStats.hpMax
-        atkHP = max(0, atkHP - dmg2)
-
-        if atkHP <= 0 {
-            // 攻撃側が倒れ → 通行料
-            consumeFromHand(card, for: turn)
-            transferToll(from: turn, to: defOwner, tile: t)
-            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
-            canEndTurn = true
-        } else {
-            transferToll(from: turn, to: defOwner, tile: t)
-            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
-            canEndTurn = true
-        }
-
-        landedOnOpponentTileIndex = nil
-        expectBattleCardSelection = false
-    }
-    
-    private func transferToll(from payer: Int, to ownerPid: Int, tile: Int) {
-        let fee = toll(at: tile)
-        payToll(payer: payer, to: ownerPid, amount: fee)
-    }
-    
-    func clearBattleResult() {
-        battleResult = nil
-    }
-    
-    // 1歩ずつ前進し、交差点(マス5)に入ったら分岐UIを出して一時停止
-    private func continueMove() {
-        while stepsLeft > 0 {
-            advanceOneStep()
-            // 分岐停止中ならループ中断（ユーザー選択を待つ）
-            if branchSource != nil { return }
-        }
-        phase = .moved
-        // ここで landedOnOpponentTileIndex など既存処理を続ける
-        didStop(at: players[turn].pos, isYou: turn == 0)
-        handleAfterMove()
-        focusTile = players[turn].pos
-        
-    }
-    
-    // 既存の「次のマス」算出を利用して1歩進める
-    private func advanceOneStep() {
-        // まず通常の1歩前進
-        let cur = players[turn].pos
-        let next = nextIndex(for: turn, from: cur)
-        players[turn].pos = next
-        stepsLeft -= 1
-        awardCheckpointIfNeeded(entering: next, pid: turn)
-
-        // 分岐ノードに入った & まだ動けるなら分岐処理
-        if next == CROSS_NODE, stepsLeft > 0 {
-            let cameFrom = cur
-            // Uターン禁止（来た方向は候補から外す）
-            let filtered = CROSS_CHOICES.filter { $0 != cameFrom }
-
-            if turn == 0 {
-                // プレイヤー: UI表示して停止
-                branchCameFrom = cameFrom
-                branchSource = CROSS_NODE
-                branchCandidates = filtered
-                phase = .branchSelecting
-                return
-            } else {
-                // CPU: passedCP2 の状態に応じて優先方向を絞る
-                var base = filtered
-                if passedCP2.indices.contains(1) {
-                    if passedCP2[1] == false {
-                        // まだCP2未通過 → 28/29 方向を優先（0始まりで 27/28）
-                        let prefer: Set<Int> = [27, 28]
-                        let narrowed = base.filter { prefer.contains($0) }
-                        if !narrowed.isEmpty { base = narrowed }
-                    } else {
-                        // CP2通過済み → 3/5 方向を優先
-                        let prefer: Set<Int> = [3, 5]
-                        let narrowed = base.filter { prefer.contains($0) }
-                        if !narrowed.isEmpty { base = narrowed }
-                    }
-                }
-                // 最終候補からランダム選択→即適用（1歩消費して選択先へ）
-                if let choice = base.randomElement() {
-                    applyBranchChoice(choice)
-                }
-                // CPUは停止せず続行（stepsLeft が 0 になるか、以降の処理で停止）
-            }
-        }
-    }
-    
-    func pickBranch(_ chosenNext: Int) {
-        guard branchSource != nil else { return }
-        
-        if let came = branchCameFrom, chosenNext == came {
-            return  // UIでは除外済みだが二重防御
-        }
-        // 方向確定＋1歩消費＋位置更新
-        applyBranchChoice(chosenNext)
-
-        // UIクリア
-        branchSource = nil
-        branchCandidates = []
-        branchCameFrom = nil
-
-        // 残りがあれば移動継続、なければ後処理へ
-        if stepsLeft > 0 {
-            phase = .moving
-            continueMove()
-        } else {
-            phase = .moved
-            handleAfterMove()
-        }
-    }
-    
-    // === 追加: 設置可否チェック ===
-    func canPlaceCreature(at index: Int) -> Bool {
-        return !isSpecialNode(index)
-    }
-
-    // === 追加: 駒の移動完了時に特別マスか確認してメニューを開く ===
-    func didStop(at index: Int, isYou: Bool) {
-        // 自分のターンで止まった場合のみメニューを提示（必要ならCPUにも対応可）
-        if isYou, let kind = specialNodeKind(for: index) {
-            currentSpecialKind = kind
-            showSpecialMenu = true
-        } else {
-            currentSpecialKind = nil
-            showSpecialMenu = false
-        }
-        
-        // 追加：自分のクリーチャーが置いてあるマスなら CreatureMenu を出す
-        if isYou,
-           owner.indices.contains(index),
-           owner[index] == turn,
-           level.indices.contains(index),
-           level[index] >= 1,                          // 設置済み
-           creatureSymbol.indices.contains(index),
-           creatureSymbol[index] != nil {
-            creatureMenuTile = index
-            showCreatureMenu = true
-        } else {
-            creatureMenuTile = nil
-            showCreatureMenu = false
-        }
-    }
-
     /// レベルアップ候補を表示
     func actionLevelUpOnSpecialNode() {
         // 今立っているマス（focusTile）で即実行できるならそのまま
@@ -866,32 +927,6 @@ final class GameVM: ObservableObject {
         specialPending = .pickLevelUpSource
         pushCenterMessage("レベルUPする土地を選択")
     }
-
-    /// クリーチャー移動の移動先選択を表示
-    func actionMoveCreatureFromSpecialNode() {
-        if let t = focusTile,
-           owner.indices.contains(t), owner[t] == turn,
-           level.indices.contains(t), level[t] >= 1,
-           creatureSymbol.indices.contains(t), creatureSymbol[t] != nil {
-            activeSpecialSheet = .moveFrom(tile: t)
-            return
-        }
-        specialPending = .pickMoveSource
-        pushCenterMessage("移動するデジレプを選択")
-    }
-
-    /// スペル購入シートを表示
-    func actionPurchaseSkillOnSpecialNode() {
-        activeSpecialSheet = .buySpell
-    }
-
-    func actionEndTurnFromSpecialNode() {
-        // TODO: ターン終了の処理
-        showSpecialMenu = false
-        currentSpecialKind = nil
-        endTurn()
-        // ここで既存のターン終了ハンドラを呼ぶ等
-    }
     
     func canSeeFullStats(of creature: Creature, viewer: Int) -> Bool {
         // 自分の所有なら全表示。敵は基本HP以外非表示。
@@ -899,7 +934,7 @@ final class GameVM: ObservableObject {
         // 例: 鑑定アイテム所持時は true を返す分岐を足せる
         // if revealAllForEnemy { return true }
     }
-
+    
     // マップ・クリーチャー情報を混ぜた検査VMを作る
     func makeInspectView(for tile: Int, viewer: Int) -> CreatureInspectView? {
         // 個体が未登録なら配列ベースの旧データから推測するフォールバック
@@ -963,8 +998,8 @@ final class GameVM: ObservableObject {
             coldRes:   mask(c.stats.resistCold)
         )
     }
+    
     // タイルタップ時ハンドラ（クリーチャーがいないタイルは無視）
-    // GameVM
     func tapTileForInspect(_ index: Int) {
         // ← 先に特別アクション選択モードを優先処理
         if let pending = specialPending {
@@ -999,7 +1034,6 @@ final class GameVM: ObservableObject {
         inspectTarget = index
     }
 
-
     func closeInspect() { inspectTarget = nil }
     
     private func isCheckpoint(_ index: Int) -> Bool {
@@ -1014,57 +1048,55 @@ final class GameVM: ObservableObject {
     private func checkpointReward(for pid: Int) -> Int {
         300 + ownedTileCount(of: pid) * 30
     }
-
-    // タイルに「入った」タイミングで呼ぶ
-    private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
-        // 1) CP通過フラグの更新（CP1/CP2それぞれ）
-        if index == CP1_NODE {
-            passedCP1[pid] = true
-            if pid == 0 {
-                // GOLDはまだ付与しないが、通過ポップアップは出す
-                lastCheckpointGain = 0
-                checkpointMessage = "CP1通過"
-                showCheckpointOverlay = true
+    
+    func totalAssets(for pid: Int) -> Int {
+        let gold = players.indices.contains(pid) ? players[pid].gold : 0
+        var sumToll = 0
+        for i in 0..<tileCount {
+            if owner.indices.contains(i), owner[i] == pid {
+                // 現在レベルから都度算出（配列tollを参照せず最新を反映）
+                sumToll += toll(at: i)
             }
-            return
         }
-        if index == CP2_NODE {
-            passedCP2[pid] = true
-            if pid == 0 {
-                lastCheckpointGain = 0
-                checkpointMessage = "CP2通過"
-                showCheckpointOverlay = true
-            }
-            return
-        }
-
-        // 2) ホーム通過時：両方trueならGOLD付与してフラグをリセット
-        if index == HOME_NODE {
-            if passedCP1[pid] && passedCP2[pid] {
-                let gain = checkpointReward(for: pid)
-                players[pid].gold += gain
-                passedCP1[pid] = false
-                passedCP2[pid] = false
-
-                if pid == 0 {
-                    lastCheckpointGain = gain
-                    checkpointMessage = "帰還しました。CP達成報酬 \(gain) GOLD"
-                    showCheckpointOverlay = true
-                }
-            } else {
-                // どちらか未達 → 何もしない（ポップアップも出さない）
-            }
+        return gold + sumToll
+    }
+    
+    // 売却額（＝現行の通行料を売値にする）
+    func saleValue(for tile: Int) -> Int {
+        return max(0, toll(at: tile))
+    }
+    
+    func confirmSellTile() {
+        guard let t = sellConfirmTile else { return }
+        performSell(tile: t, for: 0)
+        sellConfirmTile = nil
+        if players[0].gold < 0 {
+            debtAmount = -players[0].gold
+        } else {
+            isForcedSaleMode = false
+            debtAmount = 0
         }
     }
 
-    // ポップアップを閉じる
-    func closeCheckpointOverlay() {
-        showCheckpointOverlay = false
-        checkpointMessage = nil
+    func cancelSellTile() {
+        sellConfirmTile = nil
     }
 
-    // MARK: 実行（シートから確定時に呼ぶ）
+    // ▼ 売却の実処理（共通）: 所有解除・レベル/通行料/シンボル初期化
+    private func performSell(tile idx: Int, for player: Int) {
+        let v = saleValue(for: idx)
+        if players.indices.contains(player) {
+            players[player].gold += v
+        }
+        if owner.indices.contains(idx) { owner[idx] = nil }
+        if level.indices.contains(idx) { level[idx] = 0 }
+        if toll.indices.contains(idx)  { toll[idx]  = 0 }
+        if creatureSymbol.indices.contains(idx) { creatureSymbol[idx] = nil }
 
+        // TOTAL 表示がある場合はここで再計算を呼ぶ
+        // recalcTotal(for: player)
+    }
+    
     /// レベルアップ確定
     func confirmLevelUp(tile: Int, to newLevel: Int) {
         guard owner.indices.contains(tile), owner[tile] == turn else { return }
@@ -1090,7 +1122,7 @@ final class GameVM: ObservableObject {
         activeSpecialSheet = nil
         objectWillChange.send()
     }
-
+    
     /// クリーチャー移動確定
     func confirmMoveCreature(from: Int, to: Int) {
         guard owner.indices.contains(from), owner[from] == turn else { return }
@@ -1127,20 +1159,6 @@ final class GameVM: ObservableObject {
         toll[from] = 0
 
         pushCenterMessage("デジレプを移動")
-        activeSpecialSheet = nil
-        objectWillChange.send()
-    }
-
-    /// スペル購入確定
-    func confirmPurchaseSpell(_ spell: ShopSpell) {
-        guard players[turn][keyPath: goldRef] >= spell.price else { return }
-        addGold(-spell.price, to: turn)
-
-        // 手札に追加（あなたのカード実装に合わせてここだけ調整）
-        addSpellCardToHand(spellID: spell.id, displayName: spell.name)
-
-        pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
-        handleHandOverflowIfNeeded()  // 6枚超の処理があるなら実装済み関数を呼ぶ
         activeSpecialSheet = nil
         objectWillChange.send()
     }
@@ -1206,67 +1224,150 @@ final class GameVM: ObservableObject {
         hp = hp
         return true
     }
-
-    // MARK: - ユーティリティ（必要に応じて中身を既存実装に接続）
-
-    /// 中央オーバーレイに短文を出す（既存の仕組みに繋いでください）
-    private func pushCenterMessage(_ text: String) {
-        battleResult = text
-        logs.append(text)
-    }
-
-    /// 手札へスペルを追加（あなたの Card/Hand 実装に合わせて置き換え）
-    private func addSpellCardToHand(spellID: String, displayName: String) {
-        let card = Card(kind: .spell, name: displayName, symbol: "sun.max.fill")
-        hands[turn].append(card)
-    }
-
-    /// 手札上限処理（>5 のとき捨てフェーズ等へ）
-    private func handleHandOverflowIfNeeded() {
-        if hands[turn].count > 5 {
-            mustDiscardFor = turn
+    
+    // MARK: - 戦闘管理
+    private func tryPay(_ amount: Int, by pid: Int) -> Bool {
+        guard amount > 0 else { return true }
+        guard players.indices.contains(pid) else { return false }
+        if players[pid].gold >= amount {
+            players[pid].gold -= amount
+            return true
+        } else {
+            return false
         }
     }
-    
-    private func buildFixedForceRollSpells() -> [Card] {
-        var result: [Card] = []
-        // 1と6は4枚、それ以外は3枚ずつ → 合計20枚
-        let spec: [(num: Int, count: Int)] = [
-            (1, 4), (2, 3), (3, 3), (4, 3), (5, 3), (6, 4)
-        ]
-        for (n, c) in spec {
-            for _ in 0..<c {
-                result.append(
-                    Card(
-                        kind: .spell,
-                        name: "Dice\(n)",
-                        symbol: "die.face.\(n).fill",  // 無ければ任意のアセット名でOK
-                        stats: nil,
-                        spell: .fixNextRoll(n)
-                    )
-                )
-            }
-        }
-        return result
+
+    func hpRatio(_ tile: Int) -> CGFloat? {
+        guard owner.indices.contains(tile),
+              owner[tile] != nil,
+              hpMax[tile] > 0
+        else { return nil }
+        return CGFloat(hp[tile]) / CGFloat(hpMax[tile])
     }
     
-    func totalAssets(for pid: Int) -> Int {
-        let gold = players.indices.contains(pid) ? players[pid].gold : 0
-        var sumToll = 0
-        for i in 0..<tileCount {
-            if owner.indices.contains(i), owner[i] == pid {
-                // 現在レベルから都度算出（配列tollを参照せず最新を反映）
-                sumToll += toll(at: i)
-            }
-        }
-        return gold + sumToll
-    }
-    
-    // 売却額（＝現行の通行料を売値にする）
-    func saleValue(for tile: Int) -> Int {
-        return max(0, toll(at: tile))
+    func chooseBattle() {
+        guard landedOnOpponentTileIndex != nil else { return }
+        expectBattleCardSelection = true
+        canEndTurn = false            // ← End無効化
+        showLogOverlay = false
     }
 
+    func payTollAndEndChoice() {
+        guard let t = landedOnOpponentTileIndex, let own = owner[t] else { return }
+        transferToll(from: turn, to: own, tile: t)
+        battleResult = (turn == 1)
+            ? "通行料を奪った"      // CPUが支払ってあなたが受け取り
+            : "通行料を奪われた"   // あなたが支払い
+        landedOnOpponentTileIndex = nil
+        expectBattleCardSelection = false
+        canEndTurn = true
+    }
+    
+    private func highestResistAt(tile: Int) -> Int {
+        max(rDry[tile], rWat[tile], rHot[tile], rCold[tile])
+    }
+    
+    private func resistValue(of stats: CreatureStats, for attr: TileAttribute) -> Int {
+        switch attr {
+        case .normal:
+            return stats.highestResist
+        case .dry:
+            return stats.resistDry
+        case .water:
+            return stats.resistWater
+        case .heat:
+            return stats.resistHeat
+        case .cold:
+            return stats.resistCold
+        }
+    }
+
+    /// 守備側（タイル上のクリーチャー）の抵抗値を、マス属性に合わせて取得
+    private func defenderResistAt(tile: Int, for attr: TileAttribute) -> Int {
+        if let defCard = creatureOnTile[tile] {
+            // 守備側カードのステータスから取得（無ければ既定トカゲ）
+            let s = defCard.stats
+            return resistValue(of: s, for: attr)
+        } else {
+            // クリーチャー不在などのフォールバック（従来の最高抵抗を使用）
+            // ※手元のプロジェクトに合わせて適宜調整してください
+            return highestResistAt(tile: tile)
+        }
+    }
+
+    func startBattle(with card: Card) {
+        guard let t = landedOnOpponentTileIndex,
+              let defOwner = owner[t],
+              defOwner != turn,
+              card.kind == .creature
+        else { return }
+
+        let attackerIsCPU = (turn == 1)
+        let atkStats = card.stats ?? CreatureStats.defaultLizard
+        let attr = attributeAt(tile: t)
+
+        // ── 攻撃フェーズ（攻撃側 → 守備側）
+        // 攻撃側：power * 2 + 抵抗(マスattr) * 4
+        let atkResist_A = resistValue(of: atkStats, for: attr)
+        let atk1 = atkStats.power * 2 + atkResist_A * 4
+        // 守備側：dur[t] + 攻撃側の抵抗(マスattr)
+        let def1 = dur[t] + atkResist_A
+
+        let dmg1 = max(0, atk1 - def1)
+        hp[t] = max(0, hp[t] - dmg1)
+        hp = hp
+        if var c = creatureOnTile[t] {
+            c.hp = hp[t]
+            creatureOnTile[t] = c
+        }
+
+        if hp[t] <= 0 {
+            // 撃破 → 奪取
+            placeCreature(from: card, at: t, by: turn)
+            consumeFromHand(card, for: turn)
+            battleResult = attackerIsCPU ? "土地を奪われた" : "土地を奪い取った"
+            canEndTurn = true
+            landedOnOpponentTileIndex = nil
+            expectBattleCardSelection = false
+            return
+        }
+
+        // ── 反撃フェーズ（守備側 → 攻撃側）
+        // 反撃側（=守備側）の抵抗は守備側クリーチャーのステータスからマスattrで選択
+        let defResist_C = defenderResistAt(tile: t, for: attr)
+        // 守備側の攻撃力：pow[t] * 2 + 守備側抵抗(マスattr) * 4
+        let atk2 = (pow[t] * 2 + defResist_C * 4)
+        // 攻撃側（=元の攻撃者）の防御：atkStats.durability + 守備側抵抗(マスattr)
+        let def2 = atkStats.durability + defResist_C
+        let dmg2 = max(0, atk2 - def2)
+
+        // 今回は手札のカード（攻撃側クリーチャー）が場に出ていない想定のため、
+        // 攻撃側のHPはカードの最大HPから算出（＝一撃離脱バトルの想定）
+        var atkHP = atkStats.hpMax
+        atkHP = max(0, atkHP - dmg2)
+
+        if atkHP <= 0 {
+            // 攻撃側が倒れ → 通行料
+            consumeFromHand(card, for: turn)
+            transferToll(from: turn, to: defOwner, tile: t)
+            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
+            canEndTurn = true
+        } else {
+            // 生存でも通行料は発生（現行仕様踏襲）
+            transferToll(from: turn, to: defOwner, tile: t)
+            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
+            canEndTurn = true
+        }
+
+        landedOnOpponentTileIndex = nil
+        expectBattleCardSelection = false
+    }
+    
+    private func transferToll(from payer: Int, to ownerPid: Int, tile: Int) {
+        let fee = toll(at: tile)
+        payToll(payer: payer, to: ownerPid, amount: fee)
+    }
+    
     // 所持金の増減は必ずここを通す
     func addGold(_ amount: Int, to player: Int) {
         guard players.indices.contains(player) else { return }
@@ -1277,7 +1378,7 @@ final class GameVM: ObservableObject {
             startForcedSaleIfNeeded(for: player)
         }
     }
-
+    
     // マイナスなら売却フロー開始（Youは手動、CPUは自動）
     func startForcedSaleIfNeeded(for player: Int) {
         guard players.indices.contains(player) else { return }
@@ -1303,68 +1404,7 @@ final class GameVM: ObservableObject {
         sellPreviewAfterGold = players[0].gold + v
         sellConfirmTile = idx
     }
-
-    func confirmSellTile() {
-        guard let t = sellConfirmTile else { return }
-        performSell(tile: t, for: 0)
-        sellConfirmTile = nil
-        if players[0].gold < 0 {
-            debtAmount = -players[0].gold
-        } else {
-            isForcedSaleMode = false
-            debtAmount = 0
-        }
-    }
-
-    func cancelSellTile() {
-        sellConfirmTile = nil
-    }
-
-    // ▼ 売却の実処理（共通）: 所有解除・レベル/通行料/シンボル初期化
-    private func performSell(tile idx: Int, for player: Int) {
-        let v = saleValue(for: idx)
-        if players.indices.contains(player) {
-            players[player].gold += v
-        }
-        if owner.indices.contains(idx) { owner[idx] = nil }
-        if level.indices.contains(idx) { level[idx] = 0 }
-        if toll.indices.contains(idx)  { toll[idx]  = 0 }
-        if creatureSymbol.indices.contains(idx) { creatureSymbol[idx] = nil }
-
-        // TOTAL 表示がある場合はここで再計算を呼ぶ
-        // recalcTotal(for: player)
-    }
-
-    // ▼ CPU：最小売却の自動実行（合計が赤字額以上になる最小合計を選ぶ）
-    private func autoLiquidateCPU(target deficit: Int) {
-        let p = 1
-        let myTiles: [Int] = owner.enumerated().compactMap { (i, o) in (o == p) ? i : nil }
-        let values: [(idx: Int, val: Int)] = myTiles.map { ($0, saleValue(for: $0)) }.filter { $0.val > 0 }
-        guard !values.isEmpty else { return } // 売れる土地が無い → 別途ゲームオーバー等の検討箇所
-
-        // 簡易DP：sums[合計]=タイル配列、から「合計>=deficitの最小」を選ぶ
-        var sums: [Int: [Int]] = [0: []]
-        let cap = values.map(\.val).reduce(0, +)
-        let limit = max(0, deficit)
-        for (idx, val) in values {
-            let snap = sums
-            for (s, arr) in snap {
-                let ns = s + val
-                if ns > cap { continue }
-                if sums[ns] == nil || (sums[ns]!.count > arr.count + 1) {
-                    sums[ns] = arr + [idx]
-                }
-            }
-        }
-        if let bestSum = sums.keys.filter({ $0 >= limit }).min(),
-           let sellSet = sums[bestSum] {
-            for t in sellSet { performSell(tile: t, for: p) }
-        } else {
-            // どう組んでも足りない → すべて売却（フォールバック）
-            for t in values.sorted(by: { $0.val < $1.val }).map(\.idx) { performSell(tile: t, for: p) }
-        }
-    }
-
+    
     // ▼ 通行料支払いの共通口（最後にこれを呼ぶよう統一）
     func payToll(payer: Int, to ownerPlayer: Int, amount: Int) {
         addGold(-amount, to: payer)

@@ -8,9 +8,9 @@
 import Foundation
 
 enum CardKind { case spell, creature }
+
 enum SpellEffect: Equatable {
     case fixNextRoll(Int)        // 次回ロールを 1..6 に固定（今回実装）
-    // ここから将来追加予定の例：
     case buffPower(Int)          // 戦闘力+N（例）
     case buffDefense(Int)        // 耐久力+N
     case moveRelative(Int)       // 相対移動（+N / -N）

@@ -327,15 +327,49 @@ struct ContentView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .shadow(radius: 10)
                         }
-                        .zIndex(1000)
+                    }
+                    if let card = vm.presentingCard,
+                       card.kind == .spell,
+                       vm.turn == 0, vm.phase == .ready, vm.mustDiscardFor == nil,
+                       isFixNextRollSpell(card) {
+
+                        ZStack {
+                            Color.yellow
+
+                            HStack(spacing: 12) {
+                                Text("誰にこの移動スペルを使いますか？")
+                                    .font(.subheadline).bold()
+
+                                Button("自分に使う") {
+                                    vm.useSpellPreRoll(card, target: 0)
+                                    vm.closeCardPopup()          // カード詳細を閉じる
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button("CPUに使う") {
+                                    vm.useSpellPreRoll(card, target: 1)
+                                    vm.closeCardPopup()
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("キャンセル") {
+                                    vm.closeCardPopup()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                        }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     if vm.isForcedSaleMode && vm.turn == 0 {
-                        Text("売却する土地を選んでください\n現在のマイナス \(vm.debtAmount) GOLD")
-                            .multilineTextAlignment(.center)
-                            .padding(8)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.yellow.opacity(0.2))
-                            .cornerRadius(8)
+                        ZStack {
+                            Color.yellow
+                            Text("売却する土地を選んでください\n現在のマイナス \(vm.debtAmount) GOLD")
+                                .multilineTextAlignment(.center)
+                                .padding(8)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                 }
                 .frame(height: controlsH)
@@ -344,6 +378,12 @@ struct ContentView: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
         .ignoresSafeArea(edges: .bottom)
+    }
+    
+    private func isFixNextRollSpell(_ card: Card) -> Bool {
+        guard card.kind == .spell, let e = card.spell else { return false }
+        if case .fixNextRoll(let n) = e { return (1...6).contains(n) }
+        return false
     }
 }
 
