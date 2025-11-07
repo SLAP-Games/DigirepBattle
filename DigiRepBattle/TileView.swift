@@ -22,6 +22,7 @@ struct TileView: View {
     let hpMax: Int?
     let bgImageName: String?          // 例: "field", "desert", "town" など（拡張子不要）
     let attribute: TileAttribute?      // 表示には未使用（今後の判定用）
+    let highlightTargets: Set<Int>
     
     private var special: SpecialNodeKind? { specialNodeKind(for: index) }
     private var isPlaceable: Bool { !isSpecialNode(index) }   // クリーチャー設置可否
@@ -57,6 +58,14 @@ struct TileView: View {
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(owner == nil ? .secondary.opacity(0.8) : accent,
                                 lineWidth: owner == nil ? 1 : 3)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.yellow, lineWidth: highlightTargets.contains(index) ? 4 : 0)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15)
+                        .fill(Color.yellow.opacity(highlightTargets.contains(index) ? 0.18 : 0))
                 )
                 .frame(width: size, height: size)
 

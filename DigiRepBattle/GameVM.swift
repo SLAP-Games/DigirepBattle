@@ -77,10 +77,11 @@ final class GameVM: ObservableObject {
     @Published var passedCP2: [Bool] = [false, false]
     @Published var showCreatureMenu: Bool = false
     @Published var creatureMenuTile: Int? = nil
-    @Published var isForcedSaleMode: Bool = false      // You(=0) がマイナスの間 true
-    @Published var debtAmount: Int = 0                 // 現在のマイナス額（例: 100）
-    @Published var sellConfirmTile: Int? = nil         // 売却確認ポップ対象タイル
-    @Published var sellPreviewAfterGold: Int = 0       // 売却後の所持金プレビュー
+    @Published var isForcedSaleMode: Bool = false
+    @Published var debtAmount: Int = 0
+    @Published var sellConfirmTile: Int? = nil
+    @Published var sellPreviewAfterGold: Int = 0
+    @Published var branchLandingTargets: Set<Int> = []
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -183,23 +184,6 @@ final class GameVM: ObservableObject {
         checkpointMessage = nil
     }
         
-//    private func buildCreaturePool() -> [Card] {
-//        (1...60).map { i in
-//            let name = String(format: "デジレプ（C%02d）", i)
-//            var c = Card(kind: .creature, name: name, symbol: "lizard.fill")
-//            c.stats = .defaultLizard
-//            return c
-//        }
-//    }
-//
-//    /// 固定50枚（順序固定）。※シャッフルしない
-//    private func makeFixedDeck() -> [Card] {
-//        let spells = Array(spellPool.prefix(20))       // S01..S20
-//        let creatures = Array(creaturePool.prefix(30)) // C01..C30
-//        // 既存が popLast() なら、末尾が「山札の上」だが、
-//        // 今回はドロー時にランダム化するのでそのままでOK
-//        return spells + creatures
-//    }
 
     // MARK: - ターン管理
 
@@ -363,6 +347,7 @@ final class GameVM: ObservableObject {
             branchSource = CROSS_NODE
             branchCandidates = CROSS_CHOICES
             phase = .branchSelecting
+            recomputeBranchLandingHints()
             return
         }
         phase = .moving
@@ -441,11 +426,56 @@ final class GameVM: ObservableObject {
         stepsLeft = max(0, stepsLeft - 1)
     }
     
+    // 選択肢ごとの進行方向
+    private func dirForCandidate(_ chosenNext: Int) -> Dir {
+        if chosenNext == 3 || chosenNext == 27 { return .ccw }
+        if chosenNext == 5 || chosenNext == 28 { return .cw }
+        return .cw
+    }
+    
     private func nextIndex(for pid: Int, from cur: Int) -> Int {
         switch moveDir[pid] {
         case .cw:  return nextCW[cur]
         case .ccw: return nextCCW[cur]
         }
+    }
+    
+    // 方向を明示して「次マス」を返す純関数版（状態を変えない）
+    private func nextIndex(for dir: Dir, from cur: Int) -> Int {
+        switch dir {
+        case .cw:  return nextCW[cur]
+        case .ccw: return nextCCW[cur]
+        }
+    }
+    
+    // 「この候補を選んだらどこに止まるか」をシミュレーション
+    private func landingIfChoose(_ candidate: Int, from currentPos: Int, steps remaining: Int) -> Int {
+        // candidate を選ぶとその場で 1 歩消費して candidate へ進む想定（applyBranchChoiceと同じ）
+        var pos = candidate
+        var rem = max(0, remaining - 1)
+        let dir = dirForCandidate(candidate)
+
+        while rem > 0 {
+            pos = nextIndex(for: dir, from: pos)
+            rem -= 1
+            // ※もし将来「2回目の分岐」を入れるなら、ここでさらに分岐処理を差し込む
+        }
+        return pos
+    }
+
+    // 分岐UI表示中に、すべての候補の“着地マス”を算出して公開プロパティに入れる
+    private func recomputeBranchLandingHints() {
+        guard let src = branchSource, src == CROSS_NODE, phase == .branchSelecting else {
+            branchLandingTargets = []
+            return
+        }
+        // 現在の stepsLeft は「この分岐選択でさらに1歩消費される前」の残数
+        let remaining = stepsLeft
+        let cur = players[turn].pos
+        let targets: Set<Int> = Set(branchCandidates.map { cand in
+            landingIfChoose(cand, from: cur, steps: remaining)
+        })
+        branchLandingTargets = targets
     }
     
     // 既存の「次のマス」算出を利用して1歩進める
@@ -469,6 +499,7 @@ final class GameVM: ObservableObject {
                 branchSource = CROSS_NODE
                 branchCandidates = filtered
                 phase = .branchSelecting
+                recomputeBranchLandingHints()
                 return
             } else {
                 // CPU: passedCP2 の状態に応じて優先方向を絞る
@@ -508,6 +539,7 @@ final class GameVM: ObservableObject {
         branchSource = nil
         branchCandidates = []
         branchCameFrom = nil
+        branchLandingTargets = []
 
         // 残りがあれば移動継続、なければ後処理へ
         if stepsLeft > 0 {

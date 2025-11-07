@@ -43,6 +43,7 @@ struct RingBoardView: View {
     let toll: (Int) -> Int
     let hp: [Int]
     let hpMax: [Int]
+    let highlightTargets: Set<Int>
 
     // 分岐UI（既存そのまま）
     var branchSource: Int? = nil
@@ -115,7 +116,8 @@ struct RingBoardView: View {
                              hp: safeHp,
                              hpMax: safeHpMax,
                              bgImageName: terr.imageName,
-                             attribute: terr.attribute
+                             attribute: terr.attribute,
+                             highlightTargets: highlightTargets
                     )
                     .position(pos)
                     .onTapGesture {

@@ -28,6 +28,7 @@ struct ContentView: View {
                         toll: vm.toll,
                         hp: vm.hp,
                         hpMax: vm.hpMax,
+                        highlightTargets: vm.branchLandingTargets,
                         branchSource: vm.branchSource,
                         branchCandidates: vm.branchCandidates,
                         onPickBranch: { vm.pickBranch($0) },
