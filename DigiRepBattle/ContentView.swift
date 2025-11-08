@@ -50,13 +50,6 @@ struct ContentView: View {
                     }
                     .overlay(
                         VStack(alignment: .trailing, spacing: 6) {
-                            // CPUバッジ
-                            Badge(player: vm.players[1],
-                                  active: vm.turn == 1,
-                                  tint: .red,
-                                  total: vm.totalAssets(for: 1)
-                            )
-
                             // CPスター（CP1・CP2）
                             HStack(spacing: 6) {
                                 let cp1CPU = vm.passedCP1.indices.contains(1) && vm.passedCP1[1]
@@ -71,11 +64,17 @@ struct ContentView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
+                            // CPUバッジ
+                            Badge(player: vm.players[1],
+                                  active: vm.turn == 1,
+                                  tint: .red,
+                                  total: vm.totalAssets(for: 1)
+                            )
                         }
-                        .padding(.top, 10)
+                        .padding(.bottom, 10)
                         .padding(.trailing, 12)
                         .allowsHitTesting(false),            // 盤面タップの邪魔をしない
-                        alignment: .topTrailing
+                        alignment: .bottomTrailing
                     )
 
                     // ★ ここで貼る：プレイヤーバッジ（左下）
@@ -107,6 +106,20 @@ struct ContentView: View {
                         .allowsHitTesting(false),
                         alignment: .bottomLeading
                     )
+                    
+                    .overlay(alignment: .center) {
+                        if let card = vm.presentingCard {
+                            CardDetailOverlay(
+                                card: card,
+                                vm: vm,
+                                onClose: { vm.closeCardPopup() }
+                            )
+                            .fixedSize(horizontal: false, vertical: true) // 中身サイズだけにする
+                            .padding(12)                                  // ボード枠からの余白
+                            .transition(.opacity.combined(with: .scale))
+                            .zIndex(900)
+                        }
+                    }
                     
                     if vm.showCheckpointOverlay {
                         ZStack {
@@ -171,15 +184,15 @@ struct ContentView: View {
                         .animation(.spring(response: 0.25, dampingFraction: 0.9), value: vm.activeSpecialSheet)
                     }
                     
-                    if let card = vm.presentingCard {
-                        CardDetailOverlay(
-                            card: card,
-                            vm: vm,
-                            onClose: { vm.closeCardPopup() }
-                        )
-                        .transition(.opacity.combined(with: .scale))
-                        .zIndex(900) // 重要UIの上に
-                    }
+//                    if let card = vm.presentingCard {
+//                        CardDetailOverlay(
+//                            card: card,
+//                            vm: vm,
+//                            onClose: { vm.closeCardPopup() }
+//                        )
+//                        .transition(.opacity.combined(with: .scale))
+//                        .zIndex(900) // 重要UIの上に
+//                    }
                     
                     if vm.mustDiscardFor == 0 {
                         ZStack {
@@ -416,18 +429,19 @@ private struct CardView: View {
     let card: Card
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 4)
                 .fill(Color(.systemGray6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.secondary.opacity(0.5), lineWidth: 1)
+                    Image("cardS")
+                        .resizable()
+                        .scaledToFill()
                 )
                 .frame(width: 90, height: 130)
 
             VStack(spacing: 6) {
-                Text(card.kind == .spell ? "スペル" : "クリーチャー")
+                Text(card.kind == .spell ? "スペル" : "デジレプ")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white)
                 Image(card.symbol)
                     .resizable()
                     .scaledToFit()
@@ -617,151 +631,357 @@ struct SpecialNodeMenu: View {
     }
 }
 
+// 角度で正面/背面の描画を自動切替しつつ回転させる版
+struct FlipAngle<Front: View, Back: View>: View, Animatable {
+    // ← Animatable 準拠を追加
+    var angle: Double
+    var perspective: CGFloat = 0.6
+    let front: () -> Front
+    let back: () -> Back
+
+    // これを追加：angle をアニメーションのドライバにする
+    var animatableData: Double {
+        get { angle }
+        set { angle = newValue }
+    }
+
+    init(angle: Double,
+         perspective: CGFloat = 0.6,
+         @ViewBuilder front: @escaping () -> Front,
+         @ViewBuilder back: @escaping () -> Back) {
+        self.angle = angle
+        self.perspective = perspective
+        self.front = front
+        self.back = back
+    }
+
+    var body: some View {
+        // 角度正規化（0...360）
+        let a = angle.truncatingRemainder(dividingBy: 360)
+        let norm = a < 0 ? a + 360 : a
+        let showFront = !(90.0...270.0).contains(norm)
+
+        return ZStack {
+            front()
+                .opacity(showFront ? 1 : 0)
+                .zIndex(showFront ? 1 : 0)
+
+            back()
+                .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                .opacity(showFront ? 0 : 1)
+                .zIndex(showFront ? 0 : 1)
+        }
+        .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), perspective: perspective)
+        // （必要なら）透過ブレンドのチラつき対策
+        .drawingGroup() // 任意
+    }
+}
+
+// =======================
+// 1) Flip 汎用ビュー
+// =======================
+struct Flip<Front: View, Back: View>: View {
+    var isFront: Bool
+    @State private var canShowFrontView: Bool
+    let duration: Double
+    let front: () -> Front
+    let back: () -> Back
+
+    init(isFront: Bool,
+         duration: Double = 1.0,
+         @ViewBuilder front: @escaping () -> Front,
+         @ViewBuilder back: @escaping () -> Back) {
+        self.isFront = isFront
+        self._canShowFrontView = State(initialValue: isFront)
+        self.duration = duration
+        self.front = front
+        self.back = back
+    }
+
+    var body: some View {
+        ZStack {
+            if canShowFrontView {
+                front()
+            } else {
+                back()
+                    .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+            }
+        }
+        .onChange(of: isFront) { oldValue, newValue in
+            // 半分回転したタイミングで front/back を入れ替える
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration / 2.0) {
+                self.canShowFrontView = newValue
+            }
+        }
+        .animation(nil, value: canShowFrontView)
+        .rotation3DEffect(isFront ? .degrees(0) : .degrees(180),
+                          axis: (x: 0, y: 1, z: 0))
+        .animation(.easeInOut(duration: duration), value: isFront)
+    }
+}
+
+// =======================
+// 2) カード詳細オーバーレイ
+// =======================
 private struct CardDetailOverlay: View {
     let card: Card
     @ObservedObject var vm: GameVM
     let onClose: () -> Void
 
-    // 使用可否とラベルを状況で決定
-    private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
-        // 1) 捨てフェーズ
-        if vm.mustDiscardFor == 0 {
-            return ("捨てる", { vm.discard(card, for: 0); onClose() }, true)
-        }
+    @State private var appearOpacity: Double = 0
+    @State private var appearOffsetY: CGFloat = 50
+    @State private var spinAngle: Double = 0      // ← 追加（0→720 に回す）
 
-        // 2) 準備フェーズ（サイコロ前）：スペルのみ使用可
+    private let frameImageName = "cardL"
+    private let backImageName  = "CardLreverse"
+
+    private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
+        if vm.mustDiscardFor == 0 { return ("捨てる", {
+            vm.discard(card, for: 0); onClose() }, true)
+        }
         if vm.phase == .ready && card.kind == .spell {
             return ("スペル使用", { vm.useSpellPreRoll(card); onClose() }, vm.turn == 0)
         }
-
-        // 3) 移動後フェーズ
         if vm.turn == 0 && vm.phase == .moved {
             if vm.expectBattleCardSelection && card.kind == .creature {
                 return ("戦闘する", { vm.startBattle(with: card); onClose() }, true)
             } else {
-                // クリーチャー設置やスペル等、移動後に許されている使用
                 return ("カードを使用", { vm.useCardAfterMove(card); onClose() }, true)
             }
         }
-
-        // 4) それ以外は説明のみ（使用不可）
-        return ("使用できません", nil, false)
-    }
-
+        return ("使用できません", nil, false) }
+    
     var body: some View {
-        ZStack {
-            // 背面暗転
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-                .onTapGesture { onClose() }
+        VStack(spacing: 8) {
+            Text(card.name)
+                .font(.system(size: 26, weight: .semibold))
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .foregroundColor(.white)
+                .frame(maxWidth: 430)
+                .padding(.horizontal, 20)
 
-            // 本体カード
-            VStack(spacing: 12) {
-                // ヘッダー
-                Text(card.name)
-                    .font(.headline)
+            // 角度制御版
+            flipCardAngle
+                .frame(maxWidth: 430)
+                .opacity(appearOpacity)
+                .onAppear {
+                    appearOpacity = 0
+                    withAnimation(.easeOut(duration: 0.7)) { appearOpacity = 1 }
 
-                HStack(alignment: .top, spacing: 12) {
-                    // 左：画像
-                    Image(card.symbol)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 110, height: 110)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                    // 右：内容
-                    VStack(alignment: .leading, spacing: 8) {
-                        if card.kind == .creature {
-                            creatureSection
-                        } else {
-                            spellSection
-                        }
+                    // 0 → 720° を 1.5秒で線形回転
+                    spinAngle = 0
+                    withAnimation(.linear(duration: 0.6)) {
+                        spinAngle = 360
                     }
                 }
+                .onDisappear {
+                    appearOpacity = 0
+                    spinAngle = 0
+                }
 
-                // ボタン
-                HStack(spacing: 10) {
-                    Button(primaryAction.title) {
-                        primaryAction.action?()
-                    }
+            // ボタン類（そのまま）
+            HStack(spacing: 10) {
+                Button(primaryAction.title) { primaryAction.action?() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!primaryAction.enabled)
 
-                    Button("閉じる") {
-                        onClose()
-                    }
+                Button("閉じる") { onClose() }
                     .buttonStyle(.bordered)
-                }
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(UIColor.systemBackground))
+                            .shadow(radius: 12)
+                    )
             }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(UIColor.systemBackground))
-                    .shadow(radius: 12)
-            )
-            .padding(.horizontal, 20)
+        }
+        .padding(.horizontal, 20)
+        .opacity(appearOpacity)
+        .offset(y: appearOffsetY)  // ← 下から上へ
+        .onAppear {
+            // 初期値
+            appearOpacity = 0
+            appearOffsetY = 50
+
+            withAnimation(.easeOut(duration: 0.6)) {
+                appearOpacity = 1
+                appearOffsetY = 0
+            }
+
+            spinAngle = 0
+            withAnimation(.linear(duration: 0.7)) {
+                spinAngle = 360
+            }
+        }
+        .onDisappear {
+            // リセット
+            appearOpacity = 0
+            appearOffsetY = 50
+            spinAngle = 0
         }
     }
 
-    // クリーチャー情報
-    @ViewBuilder
-    private var creatureSection: some View {
-        if let s = card.stats {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("タイプ：デジレプ").font(.caption).foregroundStyle(.secondary)
-                Grid(horizontalSpacing: 8, verticalSpacing: 6) {
-                    GridRow {
-                        statRow(title: "HP", value: "\(s.hpMax)")
-                        statRow(title: "なつき度", value: "\(s.affection)")
-                    }
-                    GridRow {
-                        statRow(title: "戦闘力", value: "\(s.power)")
-                        statRow(title: "耐久力", value: "\(s.durability)")
-                    }
-                    GridRow {
-                        statRow(title: "乾耐性", value: "\(s.resistDry)")
-                        statRow(title: "水耐性", value: "\(s.resistWater)")
-                    }
-                    GridRow {
-                        statRow(title: "熱耐性", value: "\(s.resistHeat)")
-                        statRow(title: "冷耐性", value: "\(s.resistCold)")
-                    }
-                    GridRow {
-                        statRow(title: "コスト", value: "\(s.cost)")
-                        Spacer().frame(width: 0, height: 0)
-                    }
-                }
-            }
-        } else {
-            // stats が無い場合でもクラッシュしないように
-            VStack(alignment: .leading, spacing: 6) {
-                Text("タイプ：クリーチャー").font(.caption).foregroundStyle(.secondary)
-                Text("ステータス情報が未設定です。").font(.footnote)
+    // ここを Flip → FlipAngle に
+    private var flipCardAngle: some View {
+        FlipAngle(angle: spinAngle) {
+            FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
+        } back: {
+            BackCardFace(frameImageName: backImageName)
+        }
+        // 任意：タップでさらに 360° 回したい場合の例
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.linear(duration: 0.75)) {
+                spinAngle += 360
             }
         }
-    }
-
-    // スペル情報
-    @ViewBuilder
-    private var spellSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("タイプ：スペル").font(.caption).foregroundStyle(.secondary)
-            Text(vm.spellDescription(for: card))
-                .font(.footnote)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func statRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).font(.callout.bold())
-        }
-        .frame(minWidth: 120)
     }
 }
 
+// =======================
+// 3) 既存の Front / Back
+// =======================
+private struct FrontCardFace: View {
+    let card: Card
+    @ObservedObject var vm: GameVM
+    let frameImageName: String
+
+    var body: some View {
+        ZStack {
+            Image(frameImageName)
+                .resizable()
+                .aspectRatio(3/4, contentMode: .fit)
+
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
+                let sidePad = w * 0.12
+                let topPad  = h * 0.04
+                let imgH    = h * 0.48
+                let heartH  = h * 0.052
+                let statsTopGap = h * 0.03
+
+                VStack(spacing: 0) {
+                    Spacer().frame(height: topPad)
+
+                    Image(card.symbol)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: imgH)
+                        .padding(.horizontal, sidePad)
+
+                    if let s = card.stats {
+                        HeartRow(count: max(0, min(s.affection, 10)))
+                            .frame(height: heartH)
+                            .padding(.top, h * 0.05)
+                            .padding(.bottom, h * 0.02)
+                    } else {
+                        Spacer().frame(height: heartH)
+                    }
+
+                    VStack(spacing: statsTopGap) {
+                        if case .creature = card.kind, let s = card.stats {
+                            StatGrid2x4(items: [
+                                ("コスト", "\(s.cost)"),
+                                ("HP", "\(s.hpMax)"),
+                                ("戦闘力", "\(s.power)"),
+                                ("耐久力", "\(s.durability)"),
+                                ("乾耐性", "\(s.resistDry)"),
+                                ("水耐性", "\(s.resistWater)"),
+                                ("熱耐性", "\(s.resistHeat)"),
+                                ("冷耐性", "\(s.resistCold)")
+                            ])
+                            .padding(.horizontal, sidePad)
+                            .padding(.bottom, h * 0.06)
+                        } else {
+                            Spacer().frame(height: heartH / 2)
+                            Text(vm.spellDescription(for: card))
+                                .font(.system(size: min(w, h) * 0.07))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.leading)
+                                .lineSpacing(2)
+                                .padding(.horizontal, sidePad * 0.7)
+                                .padding(.bottom, h * 0.06)
+                        }
+                    }
+                }
+                .frame(width: w, height: h, alignment: .top)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+        }
+    }
+}
+
+private struct BackCardFace: View {
+    let frameImageName: String
+    // 画像の周囲をカットする量（pt）
+    private let trim: CGFloat = 6
+
+    var body: some View {
+        ZStack {
+            Image(frameImageName)
+                .resizable()
+                .aspectRatio(3/4, contentMode: .fit)
+                // 縁取りをトリミング（上下左右を等幅でカット）
+                .mask(
+                    Rectangle().inset(by: trim)
+                )
+
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
+                let topPad  = h * 0.04
+                VStack(spacing: 0) {
+                    Spacer().frame(height: topPad)
+                    Spacer()
+                }
+                .frame(width: w, height: h, alignment: .top)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+        }
+    }
+}
+
+// MARK: - 下パネル：2列×4行のステータス
+private struct StatGrid2x4: View {
+    let items: [(String, String)] // 8個を想定
+
+    var body: some View {
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .leading), count: 2)
+        LazyVGrid(columns: cols, alignment: .leading, spacing: 10) {
+            ForEach(0..<items.count, id: \.self) { i in
+                HStack {
+                    Text(items[i].0)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(.white.opacity(0.85))
+                    Spacer()
+                    Text(items[i].1)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - ハート行（なつき度）
+private struct HeartRow: View {
+    let count: Int
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<count, id: \.self) { _ in
+                Image(systemName: "heart.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 24)
+                    .foregroundColor(.red)
+                    .shadow(radius: 1)
+            }
+        }
+    }
+}
 
 #Preview {
     ContentView()
