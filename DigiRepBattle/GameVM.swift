@@ -82,7 +82,9 @@ final class GameVM: ObservableObject {
     @Published var sellConfirmTile: Int? = nil
     @Published var sellPreviewAfterGold: Int = 0
     @Published var branchLandingTargets: Set<Int> = []
+    @Published var pendingSwapHandIndex: Int? = nil
     
+    private var cpuDidBattleThisTurn: Bool = false
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
     private var moveDir: [Dir] = [.cw, .cw]
@@ -239,6 +241,24 @@ final class GameVM: ObservableObject {
         if hands[turn].count > 5 { mustDiscardFor = turn }
     }
     
+    func confirmPlaceCreatureFromHand(_ card: Card, at tile: Int, by pid: Int) {
+        guard canPlaceCreature(at: tile),
+              owner.indices.contains(tile),
+              owner[tile] == nil else {
+            return
+        }
+
+        placeCreature(from: card, at: tile, by: pid)
+
+        if let i = hands[pid].firstIndex(of: card) {
+            hands[pid].remove(at: i)
+        }
+
+        canEndTurn = true
+        showCreatureMenu = false
+        creatureMenuTile = nil
+    }
+    
     /// テスト用のサイコロスペル割振
     private func buildFixedForceRollSpells() -> [Card] {
         var result: [Card] = []
@@ -330,6 +350,34 @@ final class GameVM: ObservableObject {
         let card = Card(kind: .spell, name: displayName, symbol: "sun.max.fill")
         hands[turn].append(card)
     }
+    
+    // カードA（手札で選んだカード）から、確認ポップを出す
+    func requestImmediateSwap(forSelectedCard card: Card) {
+        // 手札インデックスを引く
+        guard let idx = hands.indices.contains(turn) ? hands[turn].firstIndex(of: card) : nil else { return }
+        // 支払い可能チェック
+        guard canSwapCreature(withHandIndex: idx) else {
+            battleResult = "GOLDが足りません"
+            return
+        }
+        pendingSwapHandIndex = idx     // ← これでポップが出る（後述の overlay if で表示）
+    }
+
+    // 交換実行（［交換］）
+    func confirmSwapPending() {
+        guard let idx = pendingSwapHandIndex else { return }
+        if swapCreature(withHandIndex: idx) {
+            pendingSwapHandIndex = nil
+            showCreatureMenu = false
+            creatureMenuTile = nil
+            battleResult = "デジレプを交換しました"
+        }
+    }
+
+    // 交換キャンセル（［キャンセル］）
+    func cancelSwapPending() {
+        pendingSwapHandIndex = nil
+    }
 
     // MARK: - サイコロ・移動
     func rollDice() {
@@ -399,7 +447,8 @@ final class GameVM: ObservableObject {
 
         if turn == 1 {
             // ★ CPUは自動で戦闘
-            if let creature = hands[1].first(where: { $0.kind == .creature }) {
+            let attr = attributeAt(tile: t)
+            if let creature = bestAttackerCard(in: hands[1], for: attr) {
                 startBattle(with: creature)
                 return
             }
@@ -731,6 +780,12 @@ final class GameVM: ObservableObject {
             self.phase = .moving
             self.continueMove()
             let t = self.players[1].pos
+            
+            if self.cpuDidBattleThisTurn {
+                self.cpuDidBattleThisTurn = false
+                self.endTurn()
+                return
+            }
 
             // ★追加：自分のマスなら1レベルだけ自動で上げる（Lv1→Lv2…最大Lv5）
             if self.owner.indices.contains(t),
@@ -776,6 +831,32 @@ final class GameVM: ObservableObject {
         let (idx, n) = pick
         _ = hands[1].remove(at: idx)
         nextForcedRoll[1] = n
+    }
+    
+    private func bestAttackerCard(in hand: [Card], for attr: TileAttribute) -> Card? {
+        // 火力 = power*2 + resist(attr)*4 を最大化
+        hand
+            .filter { $0.kind == .creature }
+            .max(by: { (lhs, rhs) in
+                let ls = lhs.stats ?? .defaultLizard
+                let rs = rhs.stats ?? .defaultLizard
+                let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4
+                let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4
+                return lScore < rScore
+            })
+    }
+
+    private func bestDefenderCard(in hand: [Card], for attr: TileAttribute) -> Card? {
+        // 防御 = durability + resist(attr) を最大化
+        hand
+            .filter { $0.kind == .creature }
+            .max(by: { (lhs, rhs) in
+                let ls = lhs.stats ?? .defaultLizard
+                let rs = rhs.stats ?? .defaultLizard
+                let lScore = ls.durability + resistValue(of: ls, for: attr)
+                let rScore = rs.durability + resistValue(of: rs, for: attr)
+                return lScore < rScore
+            })
     }
     
     // ▼ CPU：最小売却の自動実行（合計が赤字額以上になる最小合計を選ぶ）
@@ -938,12 +1019,10 @@ final class GameVM: ObservableObject {
         toll[tile] = toll(at: tile)
     }
     
-    /// マスの属性を返す（あなたのデータ構造に合わせて中身を実装）
+    /// マスの属性を返す
     private func attributeAt(tile: Int) -> TileAttribute {
-        // 例: terrain[tile].attribute を持っている場合
-        // return terrain[tile].attribute
-        // 無ければ一旦 normal でフォールバック
-        return .normal
+        guard terrain.indices.contains(tile) else { return .normal }
+        return terrain[tile].attribute
     }
     
     /// レベルアップ候補を表示
@@ -1393,6 +1472,10 @@ final class GameVM: ObservableObject {
 
         landedOnOpponentTileIndex = nil
         expectBattleCardSelection = false
+        
+        if attackerIsCPU {
+            cpuDidBattleThisTurn = true
+        }
     }
     
     private func transferToll(from payer: Int, to ownerPid: Int, tile: Int) {
