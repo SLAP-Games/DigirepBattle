@@ -83,6 +83,7 @@ final class GameVM: ObservableObject {
     @Published var sellPreviewAfterGold: Int = 0
     @Published var branchLandingTargets: Set<Int> = []
     @Published var pendingSwapHandIndex: Int? = nil
+    @Published var isTurnTransition = false
     
     private var cpuDidBattleThisTurn: Bool = false
     private var spellPool: [Card] = []
@@ -190,6 +191,22 @@ final class GameVM: ObservableObject {
     // MARK: - ターン管理
 
     func endTurn() {
+        showSpecialMenu = false
+        beginTurnTransition()
+    }
+    
+    func beginTurnTransition() {
+        guard !isTurnTransition else { return }
+        isTurnTransition = true
+
+        // 3秒後にターン交代して演出終了
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_600_000_000)
+            finishTurnTransition()
+        }
+    }
+
+    func finishTurnTransition() {
         guard phase == .moved else { return }
         turn = 1 - turn
         phase = .ready
@@ -202,7 +219,7 @@ final class GameVM: ObservableObject {
                 self.runCpuAuto()
             }
         }
-        showSpecialMenu = false
+        isTurnTransition = false
     }
     
     // 毎ターンなつき度分回復
@@ -229,7 +246,6 @@ final class GameVM: ObservableObject {
         showSpecialMenu = false
         currentSpecialKind = nil
         endTurn()
-        // ここで既存のターン終了ハンドラを呼ぶ等
     }
 
     // MARK: - 山札・手札
