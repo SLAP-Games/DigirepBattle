@@ -48,6 +48,7 @@ struct ContentView: View {
                             .scaledToFill()
                             .ignoresSafeArea()
                     }
+//                    .clipped()
                     .overlay(
                         VStack(alignment: .trailing, spacing: 6) {
                             // CPスター（CP1・CP2）
@@ -76,7 +77,6 @@ struct ContentView: View {
                         .allowsHitTesting(false),            // 盤面タップの邪魔をしない
                         alignment: .bottomTrailing
                     )
-
                     // ★ ここで貼る：プレイヤーバッジ（左下）
                     .overlay(
                         VStack(alignment: .trailing, spacing: 6) {
@@ -106,7 +106,6 @@ struct ContentView: View {
                         .allowsHitTesting(false),
                         alignment: .bottomLeading
                     )
-                    
                     .overlay(alignment: .center) {
                         if let card = vm.presentingCard {
                             CardDetailOverlay(
@@ -261,10 +260,6 @@ struct ContentView: View {
 
                 // ── 下：操作エリア（自プレイヤー専用） ──
                 ZStack(alignment: .center) {
-                    Image("underMenuBackground")
-                        .resizable()
-                        .scaledToFill()
-                        .allowsHitTesting(false)
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 6) {
                             Button("🎲 Roll") { vm.rollDice() }
@@ -323,11 +318,6 @@ struct ContentView: View {
                         // 1) 空き地（未占領） → 配置するか？
                         if canPlace {
                             ZStack {
-                                Image("underMenuBackgroundRed")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .clipped()
-                                    .allowsHitTesting(false)
                                 VStack {
                                     Text("このデジレプを配置しますか？")
                                         .font(.subheadline).bold()
@@ -349,6 +339,13 @@ struct ContentView: View {
                                     .padding(.horizontal, 12)
                                 }
                             }
+                            .frame(maxWidth: .infinity)
+                            .background {
+                                Image("underMenuBackgroundRed")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            }
+//                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         // 2) 自分のデジレプが設置済み
@@ -356,11 +353,6 @@ struct ContentView: View {
                             if vm.phase == .ready {
                                 // 移動前：占領済み（配置不可）
                                 ZStack {
-                                    Image("underMenuBackgroundRed")
-                                        .resizable()
-                                        .scaledToFill()
-                                        .clipped()
-                                        .allowsHitTesting(false)
                                     VStack(spacing: 12) {
                                         Text("占領済みです")
                                             .font(.subheadline).bold()
@@ -372,15 +364,17 @@ struct ContentView: View {
                                     .padding(.vertical, 8)
                                     .padding(.horizontal, 12)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .background {
+                                    Image("underMenuBackgroundRed")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                }
+                                .clipped()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             } else if vm.phase == .moved {
                                 // 移動後：CreatureMenuView を表示する
                                 ZStack {
-                                    Image("underMenuBackgroundRed")
-                                        .resizable()
-                                        .scaledToFill()
-                                        .clipped()
-                                        .allowsHitTesting(false)
                                     CreatureMenuView(
                                         vm: vm,
                                         tile: t,
@@ -394,6 +388,13 @@ struct ContentView: View {
                                     .frame(height: controlsH)
                                     .transition(.move(edge: .bottom).combined(with: .opacity))
                                 }
+                                .frame(maxWidth: .infinity)
+                                .background {
+                                    Image("underMenuBackgroundRed")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                }
+//                                .clipped()
                                 .onAppear {
                                     vm.creatureMenuTile = t
                                     vm.showCreatureMenu = true
@@ -404,11 +405,6 @@ struct ContentView: View {
                         else if isCPU && hasCreature {
                             // CPU領地（配置不可）
                             ZStack {
-                                Image("underMenuBackgroundRed")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .clipped()
-                                    .allowsHitTesting(false)
                                 VStack(spacing: 12) {
                                     Text("相手の領地です")
                                         .font(.subheadline).bold()
@@ -420,16 +416,18 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
                             }
+                            .frame(maxWidth: .infinity)
+                            .background {
+                                Image("underMenuBackgroundRed")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            }
+//                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         // フォールバック（想定外状況）
                         else {
                             ZStack {
-                                Image("underMenuBackgroundRed")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .clipped()
-                                    .allowsHitTesting(false)
                                 VStack(spacing: 12) {
                                     Text("この場所では配置できません")
                                         .font(.subheadline).bold()
@@ -441,6 +439,13 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
                             }
+                            .frame(maxWidth: .infinity)
+                            .background {
+                                Image("underMenuBackgroundRed")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            }
+//                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
@@ -448,11 +453,6 @@ struct ContentView: View {
                     if let t = vm.landedOnOpponentTileIndex,
                        vm.turn == 0, vm.phase == .moved, !vm.expectBattleCardSelection {
                         ZStack{
-                            Image("underMenuBackgroundRed")
-                                .resizable()
-                                .scaledToFill()
-                                .clipped()
-                                .allowsHitTesting(false)
                             VStack {
                                 Text("相手の領地です。").bold()
 
@@ -465,15 +465,17 @@ struct ContentView: View {
                                 .padding(8)
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Image("underMenuBackgroundRed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+//                        .clipped()
                     }
                     
                     if vm.showSpecialMenu {
                         ZStack{
-                            Image("underMenuBackgroundRed")
-                                .resizable()
-                                .scaledToFill()
-                                .clipped()
-                                .allowsHitTesting(false)
                             SpecialNodeMenu(
                                 kind: vm.currentSpecialKind,
                                 levelUp: { vm.actionLevelUpOnSpecialNode() },
@@ -486,16 +488,17 @@ struct ContentView: View {
                             .frame(height: controlsH)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Image("underMenuBackgroundRed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+//                        .clipped()
                     }
 
                     if let text = vm.battleResult {
                         ZStack {
-                            Image("underMenuBackgroundRed")
-                                .resizable()
-                                .scaledToFill()
-                                .clipped()
-                                .allowsHitTesting(false)
-
                             VStack(spacing: 12) {
                                 Text(text)
                                     .multilineTextAlignment(.center)
@@ -510,6 +513,13 @@ struct ContentView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .shadow(radius: 10)
                         }
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Image("underMenuBackgroundRed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+//                        .clipped()
                     }
                     
                     if let card = vm.presentingCard,
@@ -518,11 +528,6 @@ struct ContentView: View {
                        isFixNextRollSpell(card) {
 
                         ZStack {
-                            Image("underMenuBackgroundRed")
-                                .resizable()
-                                .scaledToFill()
-                                .clipped()
-                                .allowsHitTesting(false)
                             VStack {
                                 Text("スペル使用先を選択")
                                     .font(.subheadline).bold()
@@ -549,21 +554,30 @@ struct ContentView: View {
                                 .padding(.horizontal, 12)
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Image("underMenuBackgroundRed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+//                        .clipped()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     
                     if vm.isForcedSaleMode && vm.turn == 0 {
                         ZStack {
-                            Image("underMenuBackgroundRed")
-                                .resizable()
-                                .scaledToFill()
-                                .clipped()
-                                .allowsHitTesting(false)
                             Text("売却する土地を選んでください\n現在のマイナス \(vm.debtAmount) GOLD")
                                 .multilineTextAlignment(.center)
                                 .padding(8)
                                 .frame(maxWidth: .infinity)
                         }
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Image("underMenuBackgroundRed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+//                        .clipped()
                     }
                     VStack {
                         Image("line")
@@ -576,7 +590,12 @@ struct ContentView: View {
                 }
                 .frame(height: controlsH)
                 .frame(maxWidth: .infinity)
-                .clipped()
+                .background {
+                    Image("underMenuBackground")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                }
+//                .clipped()
                 .overlay(Divider(), alignment: .top)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -645,7 +664,7 @@ private struct CardView: View {
 struct CreatureMenuView: View {
     @ObservedObject var vm: GameVM
     let tile: Int
-    let selectedCard: Card     // ← 追加：選択中の“カードA”
+    let selectedCard: Card
     let onClose: () -> Void
 
     var body: some View {
@@ -714,8 +733,8 @@ struct SpecialNodeMenu: View {
 
     var title: String {
         switch kind {
-        case .some(.castle): return "城"
-        case .some(.tower):  return "塔"
+        case .some(.castle): return "城（ボーナスポイント）"
+        case .some(.tower):  return "塔（チェックポイント）"
         case .none:          return "特別マス"
         }
     }

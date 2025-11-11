@@ -227,7 +227,7 @@ final class GameVM: ObservableObject {
         var touched = false
         for i in 0..<tileCount {
             guard owner[i] != nil, hpMax[i] > 0, hp[i] < hpMax[i] else { continue }
-            let heal = max(0, aff[i])
+            let heal = max(0, aff[i] / 2)
             let newHP = min(hpMax[i], hp[i] + heal)
             if newHP != hp[i] {
                 hp[i] = newHP
