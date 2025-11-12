@@ -415,23 +415,31 @@ final class GameVM: ObservableObject {
             return
         }
         phase = .moving
-        continueMove()
+        Task { await continueMoveAnimated() }
         focusTile = players[turn].pos
     }
     
-    // 1歩ずつ前進し、交差点(マス5)に入ったら分岐UIを出して一時停止
-    private func continueMove() {
+    @MainActor
+    func continueMoveAnimated() async {
         while stepsLeft > 0 {
             advanceOneStep()
-            // 分岐停止中ならループ中断（ユーザー選択を待つ）
-            if branchSource != nil { return }
+
+            // 分岐UIが出たら入力待ちで中断（ここまでで1歩進んだ）
+            if branchSource != nil {
+                // ★ 分岐地点に寄せる
+                focusTile = players[turn].pos
+                return
+            }
+
+            focusTile = players[turn].pos
+
+            try? await Task.sleep(nanoseconds: 400_000_000)
         }
+
         phase = .moved
-        // ここで landedOnOpponentTileIndex など既存処理を続ける
         didStop(at: players[turn].pos, isYou: turn == 0)
         handleAfterMove()
         focusTile = players[turn].pos
-        
     }
     
     private func handleAfterMove() {
@@ -489,6 +497,7 @@ final class GameVM: ObservableObject {
         // マス5にいた状態から「選んだ先へ」即1歩進む（消費）
         players[turn].pos = chosenNext
         stepsLeft = max(0, stepsLeft - 1)
+        focusTile = players[turn].pos
     }
     
     // 選択肢ごとの進行方向
@@ -609,7 +618,7 @@ final class GameVM: ObservableObject {
         // 残りがあれば移動継続、なければ後処理へ
         if stepsLeft > 0 {
             phase = .moving
-            continueMove()
+            Task { await continueMoveAnimated() }
         } else {
             phase = .moved
             handleAfterMove()
@@ -794,7 +803,7 @@ final class GameVM: ObservableObject {
                 }
             }
             self.phase = .moving
-            self.continueMove()
+            Task { await self.continueMoveAnimated() }
             let t = self.players[1].pos
             
             if self.cpuDidBattleThisTurn {

@@ -144,25 +144,5 @@ struct TileView: View {
                 }
             }
         )
-        .overlay(alignment: .topLeading) {
-            if hasP1 {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.blue)
-                    .padding(6)
-                    .background(.thinMaterial, in: Circle())
-                    .padding(6) // タイル端からの余白
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            if hasP2 {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.red)
-                    .padding(6)
-                    .background(.thinMaterial, in: Circle())
-                    .padding(6)
-            }
-        }
     }
 }

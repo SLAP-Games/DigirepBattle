@@ -11,6 +11,8 @@ enum TileAttribute: String {
     case normal, dry, water, heat, cold
 }
 
+private enum TileCorner { case topLeft, topRight }
+
 struct TileTerrain {
     let imageName: String      // 例: "field", "desert", "water", "fire", "snow", "town"
     let attribute: TileAttribute
@@ -58,6 +60,9 @@ struct RingBoardView: View {
     @State private var gestureScale: CGFloat = 1.0
     @State private var gestureOffset: CGSize = .zero
     @State private var terrains: [TileTerrain] = []
+    @State private var p1HopFlag = false
+    @State private var p2HopFlag = false
+    @State private var autoFollowCamera = true
 
     // 角を重ねた正方形×2 のグラフ
     private var graph: [BoardNode] {
@@ -126,6 +131,30 @@ struct RingBoardView: View {
                         onTapTile?(idx) 
                     }
                 }
+                
+                let inset = tileSize * 0.18
+                // === P1 / P2 トークン（タイルとは独立に位置アニメ）
+                let p1CornerPoint = tileCornerPosition(
+                    for: graph[p1Pos].grid,
+                    minX: minX, minY: minY,
+                    step: step, tileSize: tileSize,
+                    corner: .topLeft,   // プレイヤーは左上
+                    inset: inset
+                )
+                let p2CornerPoint = tileCornerPosition(
+                    for: graph[p2Pos].grid,
+                    minX: minX, minY: minY,
+                    step: step, tileSize: tileSize,
+                    corner: .topRight,  // CPUは右上
+                    inset: inset
+                )
+                TokenView(systemName: "person.fill", color: .blue, hopFlag: $p1HopFlag)
+                    .position(p1CornerPoint)
+                    .animation(.interpolatingSpring(stiffness: 400, damping: 28), value: p1Pos)
+
+                TokenView(systemName: "person.fill", color: .red, hopFlag: $p2HopFlag)
+                    .position(p2CornerPoint)
+                    .animation(.interpolatingSpring(stiffness: 400, damping: 28), value: p2Pos)
 
                 // 分岐選択UI（既存そのまま）
                 if let src = branchSource,
@@ -149,53 +178,39 @@ struct RingBoardView: View {
                     }
                 }
             }
+            .onChange(of: p1Pos) { _, _ in p1HopFlag.toggle() }
+            .onChange(of: p2Pos) { _, _ in p2HopFlag.toggle() }
             .frame(width: boardSize.width, height: boardSize.height, alignment: .topLeading)
             // ★ ここで“疑似カメラ”を適用
             .scaleEffect(scale * gestureScale, anchor: .center)
             .offset(x: offset.width + gestureOffset.width,
                     y: offset.height + gestureOffset.height)
             .contentShape(Rectangle()) // ヒット領域
-            // ★ ピンチ（拡大縮小）
             .gesture(
                 MagnificationGesture()
                     .onChanged { value in
-                        // 拡大率の候補（まだ確定はしない）
+                        autoFollowCamera = false                      // ← 追従停止
+                        // 既存の拡大処理
                         let newS = min(max(scale * value, 0.6), 2.5)
-
-                        // ピンチ開始時点の「画面中央にある盤上の点」を旧スケールで逆算
-                        let pivot = boardPointAtScreenCenter(viewSize: geo.size,
-                                                             boardCenter: boardCenter,
-                                                             s: scale)
-
-                        // その点が newS 後も画面中央に居続けるための "新しいoffset"
-                        let newOffset = offsetForCentering(point: pivot,
-                                                           viewSize: geo.size,
-                                                           boardCenter: boardCenter,
-                                                           s: newS)
-
-                        // 描画中は gestureScale / gestureOffset で見かけを更新
+                        let pivot = boardPointAtScreenCenter(viewSize: geo.size, boardCenter: boardCenter, s: scale)
+                        let newOffset = offsetForCentering(point: pivot, viewSize: geo.size, boardCenter: boardCenter, s: newS)
                         gestureScale = value
-                        gestureOffset = CGSize(width: newOffset.width  - offset.width,
-                                               height: newOffset.height - offset.height)
+                        gestureOffset = CGSize(width: newOffset.width - offset.width, height: newOffset.height - offset.height)
                     }
                     .onEnded { value in
-                        // 確定
                         let newS = min(max(scale * value, 0.6), 2.5)
-                        let pivot = boardPointAtScreenCenter(viewSize: geo.size,
-                                                             boardCenter: boardCenter,
-                                                             s: scale)
-                        let newOffset = offsetForCentering(point: pivot,
-                                                           viewSize: geo.size,
-                                                           boardCenter: boardCenter,
-                                                           s: newS)
+                        let pivot = boardPointAtScreenCenter(viewSize: geo.size, boardCenter: boardCenter, s: scale)
+                        let newOffset = offsetForCentering(point: pivot, viewSize: geo.size, boardCenter: boardCenter, s: newS)
                         withAnimation(.easeInOut(duration: 0.15)) {
                             scale = newS
                             offset = newOffset
                             gestureScale = 1.0
                             gestureOffset = .zero
                         }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { autoFollowCamera = true } // ← 再開
                     }
             )
+
             // ★ ドラッグ（平行移動）
             .simultaneousGesture(
                 DragGesture()
@@ -222,9 +237,8 @@ struct RingBoardView: View {
                                  animated: false)
                 }
             }
-            // ★ ターン終了などで focusTile が変わったら“自動で中央へ”
             .onChange(of: focusTile) { _, new in
-                guard let idx = new else { return }
+                guard let idx = new, autoFollowCamera else { return }
                 DispatchQueue.main.async {
                     centerOnTile(idx,
                                  in: geo.size,
@@ -233,8 +247,17 @@ struct RingBoardView: View {
                                  step: step, tileSize: tileSize)
                 }
             }
-            
-            .clipped() // “操作ビューを除く表示領域”内に収める
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { _ in
+                        autoFollowCamera = false
+                    }
+                    .onEnded { _ in
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            autoFollowCamera = true
+                        }
+                    }
+            )
         }
     }
 
@@ -272,7 +295,7 @@ struct RingBoardView: View {
         }
 
         if animated {
-            withAnimation(.easeInOut(duration: 0.45)) { apply() }
+            withAnimation(.easeInOut(duration: 0.35)) { apply() }
         } else {
             apply()
         }
@@ -440,3 +463,53 @@ private func point(for g: I2, minX: Int, minY: Int, step: CGFloat, origin: CGPoi
 private func angle(from a: CGPoint, to b: CGPoint) -> Angle {
     Angle(radians: atan2(b.y - a.y, b.x - a.x))
 }
+
+// === 駒（跳ねアニメ付き）の小さなView
+private struct TokenView: View {
+    let systemName: String
+    let color: Color
+    @Binding var hopFlag: Bool
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(color)
+            .padding(6)
+            .background(.thinMaterial, in: Circle())
+            // hopFlag が変わるたびに 0→1→0 の値を走らせる
+            .keyframeAnimator(initialValue: CGFloat(0), trigger: hopFlag) { content, v in
+                content
+                    .offset(y: -30 * v)        // 上に持ち上げる
+                    .scaleEffect(1 + 0.08 * v) // ほんの少し拡大
+            } keyframes: { _ in
+                KeyframeTrack(\.self) {
+                    // ひゅっと上がる（0 → 1）
+                    CubicKeyframe(1.0, duration: 0.12)
+                    // すっと戻る（1 → 0）スプリング
+                    SpringKeyframe(0.0, duration: 0.22, spring: .init(response: 0.22, dampingRatio: 0.9))
+                }
+            }
+    }
+}
+
+
+private func tileCornerPosition(
+    for grid: I2,
+    minX: Int, minY: Int,
+    step: CGFloat, tileSize: CGFloat,
+    corner: TileCorner,
+    inset: CGFloat
+) -> CGPoint {
+    let cx = CGFloat(grid.x - minX) * step + tileSize / 2
+    let cy = CGFloat(grid.y - minY) * step + tileSize / 2
+
+    switch corner {
+    case .topLeft:
+        return CGPoint(x: cx - tileSize/2 + inset,
+                       y: cy - tileSize/2 + inset)
+    case .topRight:
+        return CGPoint(x: cx + tileSize/2 - inset,
+                       y: cy - tileSize/2 + inset)
+    }
+}
+
