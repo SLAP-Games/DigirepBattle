@@ -84,6 +84,13 @@ final class GameVM: ObservableObject {
     @Published var branchLandingTargets: Set<Int> = []
     @Published var pendingSwapHandIndex: Int? = nil
     @Published var isTurnTransition = false
+    @Published var showBattleOverlay = false
+    @Published var battleLeft: BattleCombatant?
+    @Published var battleRight: BattleCombatant?
+    @Published var battleAttr: BattleAttribute = .normal
+    @Published var currentBattleTile: Int? = nil
+    @Published var currentAttackingCard: Card? = nil
+    @Published var isAwaitingBattleResult: Bool = false
     
     private var cpuDidBattleThisTurn: Bool = false
     private var spellPool: [Card] = []
@@ -94,6 +101,8 @@ final class GameVM: ObservableObject {
     private var stepsLeft: Int = 0
     private var goldRef: WritableKeyPath<Player, Int> { \.gold }
     private var forceRollToOneFor: [Bool] = [false, false]
+    private var pendingBattleAttacker: Int? = nil
+    private var pendingBattleDefender: Int? = nil
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
     private let CHECKPOINTS: Set<Int> = [0, 4, 20]
@@ -216,7 +225,7 @@ final class GameVM: ObservableObject {
         focusTile = players[turn].pos
         if turn == 1 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.runCpuAuto()
+                Task { await self.runCpuAuto() }
             }
         }
         isTurnTransition = false
@@ -772,72 +781,67 @@ final class GameVM: ObservableObject {
     }
 
     // MARK: - CPU 行動ロジック
-    private func runCpuAuto() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self else { return }
-            // 捨て必要ならランダム捨て
-            if self.hands[1].count > 4 {
-                if let c = self.hands[1].randomElement() { self.discard(c, for: 1) }
-            }
-            
-            self.cpuUseRandomDiceFixSpellIfAvailable()
+    @MainActor
+    private func runCpuAuto() async {
+        try? await Task.sleep(nanoseconds: 500_000_000)
 
-            // ロール→自動移動
-            self.lastRoll = self.nextForcedRoll[1] ?? Int.random(in: 1...6)
-            self.nextForcedRoll[1] = nil
-            self.forceRollToOneFor[1] = false
-            self.stepsLeft = self.lastRoll
-            // ★ CPUがマス5開始＆動くなら、先にランダム分岐を適用
-            if self.players[1].pos == self.CROSS_NODE, self.stepsLeft > 0 {
-                // passedCP2 が未達なら 28/29（= 0始まり 27/28）に限定
-                let choices: [Int]
-                if self.passedCP2.indices.contains(1), self.passedCP2[1] == false {
-                    choices = [27, 28]   // マス28, マス29へ誘導
-                } else if self.passedCP2.indices.contains(1), self.passedCP2[1] == true {
-                    choices = [3, 5]
-                } else {
-                    choices = self.CROSS_CHOICES
-                }
-                if let choice = choices.randomElement() {
-                    self.applyBranchChoice(choice)
-                }
-            }
-            self.phase = .moving
-            Task { await self.continueMoveAnimated() }
-            let t = self.players[1].pos
-            
-            if self.cpuDidBattleThisTurn {
-                self.cpuDidBattleThisTurn = false
-                self.endTurn()
-                return
-            }
+        // 捨て必要ならランダム捨て
+        if hands[1].count > 4, let c = hands[1].randomElement() { discard(c, for: 1) }
 
-            // ★追加：自分のマスなら1レベルだけ自動で上げる（Lv1→Lv2…最大Lv5）
-            if self.owner.indices.contains(t),
-               self.owner[t] == 1,
-               self.level.indices.contains(t),
-               self.level[t] >= 1,
-               self.level[t] < 5 {
-                let cur = self.level[t]
-                let nextLv = cur + 1
-                if self.players[1].gold >= (self.levelUpCost[nextLv] ?? .max) {
-                    self.confirmLevelUp(tile: t, to: nextLv)
-                }
-            }
+        // ロール前にスペル使用
+        cpuUseRandomDiceFixSpellIfAvailable()
 
-            // 移動後：空き地ならクリーチャーを1枚置く
-            if self.owner[t] == nil,
-               self.canPlaceCreature(at: t),
-               let creature = self.hands[1].first(where: { $0.kind == .creature }) {
-                self.placeCreature(from: creature, at: t, by: 1)  // ← これに変更
-                self.consumeFromHand(creature, for: 1)
-            }
+        // ロール確定
+        lastRoll = nextForcedRoll[1] ?? Int.random(in: 1...6)
+        nextForcedRoll[1] = nil
+        forceRollToOneFor[1] = false
+        stepsLeft = lastRoll
 
-            // ターン終了
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.endTurn() // プレイヤーへ戻る（startTurnIfNeeded が実行される）
+        // 分岐の事前選択（必要なら）
+        if players[1].pos == CROSS_NODE, stepsLeft > 0 {
+            let choices: [Int]
+            if passedCP2.indices.contains(1), passedCP2[1] == false {
+                choices = [27, 28]
+            } else if passedCP2.indices.contains(1), passedCP2[1] == true {
+                choices = [3, 5]
+            } else {
+                choices = CROSS_CHOICES
+            }
+            if let choice = choices.randomElement() { applyBranchChoice(choice) }
+        }
+
+        phase = .moving
+        // ★ ここで“本当に”移動完了を待つ
+        await continueMoveAnimated()
+
+        // ここに来た時点で players[1].pos は“移動後”
+        let t = players[1].pos
+
+        if cpuDidBattleThisTurn {
+            cpuDidBattleThisTurn = false
+            endTurn()
+            return
+        }
+
+        // 自軍タイルならLv+1（可能なら）
+        if owner.indices.contains(t), owner[t] == 1,
+           level.indices.contains(t), level[t] >= 1, level[t] < 5 {
+            let cur = level[t], nextLv = cur + 1
+            if players[1].gold >= (levelUpCost[nextLv] ?? .max) {
+                confirmLevelUp(tile: t, to: nextLv)
             }
         }
+
+        // 移動後：空き地なら設置
+        if owner[t] == nil,
+           canPlaceCreature(at: t),
+           let creature = hands[1].first(where: { $0.kind == .creature }) {
+            placeCreature(from: creature, at: t, by: 1)
+            consumeFromHand(creature, for: 1)
+        }
+
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        endTurn()
     }
     
     private func cpuUseRandomDiceFixSpellIfAvailable() {
@@ -1433,74 +1437,85 @@ final class GameVM: ObservableObject {
 
     func startBattle(with card: Card) {
         guard let t = landedOnOpponentTileIndex,
-              let defOwner = owner[t],
-              defOwner != turn,
+              let defOwner = owner[t], defOwner != turn,
               card.kind == .creature
         else { return }
 
-        let attackerIsCPU = (turn == 1)
+        // 戦闘中は End を押せない
+        canEndTurn = false
+
+        // 戦闘の対象タイルと攻撃カードを保持（Overlay 終了後に使う）
+        currentBattleTile = t
+        currentAttackingCard = card
+        pendingBattleAttacker = turn
+        isAwaitingBattleResult = true
+
         let atkStats = card.stats ?? CreatureStats.defaultLizard
         let attr = attributeAt(tile: t)
 
-        // ── 攻撃フェーズ（攻撃側 → 守備側）
-        // 攻撃側：power * 2 + 抵抗(マスattr) * 4
-        let atkResist_A = resistValue(of: atkStats, for: attr)
-        let atk1 = atkStats.power * 2 + atkResist_A * 4
-        // 守備側：dur[t] + 攻撃側の抵抗(マスattr)
-        let def1 = dur[t] + atkResist_A
+        // 左=攻撃者（あなた or CPU）、右=防御者（盤面クリーチャー）
+        let attacker = BattleCombatant(
+            name: (turn == 0 ? "あなた" : "CPU"),
+            imageName: card.symbol,
+            hp: atkStats.hpMax, hpMax: atkStats.hpMax,
+            power: atkStats.power, durability: atkStats.durability,
+            itemPower: 0, itemDurability: 0,
+            resist: resistValue(of: atkStats, for: attr)
+        )
 
-        let dmg1 = max(0, atk1 - def1)
-        hp[t] = max(0, hp[t] - dmg1)
-        hp = hp
-        if var c = creatureOnTile[t] {
-            c.hp = hp[t]
-            creatureOnTile[t] = c
-        }
+        let defender = BattleCombatant(
+            name: (defOwner == 0 ? "あなた" : "相手"),
+            imageName: creatureOnTile[t]?.imageName ?? "enemyCreature",
+            hp: hp.indices.contains(t) ? hp[t] : 0,
+            hpMax: hpMax.indices.contains(t) ? hpMax[t] : 0,
+            power: pow.indices.contains(t) ? pow[t] : 0,
+            durability: dur.indices.contains(t) ? dur[t] : 0,
+            itemPower: 0, itemDurability: 0,
+            resist: defenderResistAt(tile: t, for: attr)
+        )
 
-        if hp[t] <= 0 {
-            // 撃破 → 奪取
-            placeCreature(from: card, at: t, by: turn)
-            consumeFromHand(card, for: turn)
+        battleLeft = attacker
+        battleRight = defender
+        battleAttr = BattleAttribute(rawValue: attr.rawValue) ?? .normal
+        
+        showBattleOverlay = true
+        expectBattleCardSelection = false
+        landedOnOpponentTileIndex = t
+    }
+    
+    func finishBattle(finalL: BattleCombatant, finalR: BattleCombatant) {
+        guard isAwaitingBattleResult,
+              let t = currentBattleTile,
+              let usedCard = currentAttackingCard,
+              let defOwner = owner.indices.contains(t) ? owner[t] : nil,
+              let attackerId = pendingBattleAttacker
+        else { return }
+
+        // Overlay を閉じる
+        showBattleOverlay = false
+        isAwaitingBattleResult = false
+
+        let attackerIsCPU = (attackerId == 1)
+        let defenderId = defOwner
+
+        if finalR.hp <= 0 {
+            placeCreature(from: usedCard, at: t, by: attackerId)
+            consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "土地を奪われた" : "土地を奪い取った"
-            canEndTurn = true
-            landedOnOpponentTileIndex = nil
-            expectBattleCardSelection = false
-            return
-        }
-
-        // ── 反撃フェーズ（守備側 → 攻撃側）
-        // 反撃側（=守備側）の抵抗は守備側クリーチャーのステータスからマスattrで選択
-        let defResist_C = defenderResistAt(tile: t, for: attr)
-        // 守備側の攻撃力：pow[t] * 2 + 守備側抵抗(マスattr) * 4
-        let atk2 = (pow[t] * 2 + defResist_C * 4)
-        // 攻撃側（=元の攻撃者）の防御：atkStats.durability + 守備側抵抗(マスattr)
-        let def2 = atkStats.durability + defResist_C
-        let dmg2 = max(0, atk2 - def2)
-
-        // 今回は手札のカード（攻撃側クリーチャー）が場に出ていない想定のため、
-        // 攻撃側のHPはカードの最大HPから算出（＝一撃離脱バトルの想定）
-        var atkHP = atkStats.hpMax
-        atkHP = max(0, atkHP - dmg2)
-
-        if atkHP <= 0 {
-            // 攻撃側が倒れ → 通行料
-            consumeFromHand(card, for: turn)
-            transferToll(from: turn, to: defOwner, tile: t)
-            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
-            canEndTurn = true
         } else {
-            // 生存でも通行料は発生（現行仕様踏襲）
-            transferToll(from: turn, to: defOwner, tile: t)
+            if hp.indices.contains(t) { hp[t] = finalR.hp; hp = hp }
+            if var c = creatureOnTile[t] { c.hp = finalR.hp; creatureOnTile[t] = c }
+
+            transferToll(from: attackerId, to: defenderId, tile: t)
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
-            canEndTurn = true
         }
 
         landedOnOpponentTileIndex = nil
-        expectBattleCardSelection = false
-        
-        if attackerIsCPU {
-            cpuDidBattleThisTurn = true
-        }
+        currentBattleTile = nil
+        currentAttackingCard = nil
+        pendingBattleAttacker = nil
+
+        canEndTurn = true
     }
     
     private func transferToll(from payer: Int, to ownerPid: Int, tile: Int) {
