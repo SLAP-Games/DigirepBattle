@@ -65,7 +65,6 @@ struct ContentView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                            // CPUバッジ
                             Badge(player: vm.players[1],
                                   active: vm.turn == 1,
                                   tint: .red,
@@ -74,7 +73,7 @@ struct ContentView: View {
                         }
                         .padding(.bottom, 10)
                         .padding(.trailing, 12)
-                        .allowsHitTesting(false),            // 盤面タップの邪魔をしない
+                        .allowsHitTesting(false),
                         alignment: .bottomTrailing
                     )
                     .overlay(
@@ -111,8 +110,8 @@ struct ContentView: View {
                                 vm: vm,
                                 onClose: { vm.closeCardPopup() }
                             )
-                            .fixedSize(horizontal: false, vertical: true) // 中身サイズだけにする
-                            .padding(12)                                  // ボード枠からの余白
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(12)
                             .transition(.opacity.combined(with: .scale))
                             .zIndex(900)
                         }
@@ -140,11 +139,11 @@ struct ContentView: View {
                             .padding()
                         }
                         .transition(.opacity)
-                        .zIndex(999) // 最前面に
+                        .zIndex(999)
                     }
                     
                     if let idx = vm.inspectTarget,
-                       let iv = vm.makeInspectView(for: idx, viewer: 0) { // 0 = You
+                       let iv = vm.makeInspectView(for: idx, viewer: 0) {
                         CreatureInfoPanel(iv: iv, onClose: { vm.closeInspect() })
                             .padding(.top, 8)
                             .padding(.horizontal, 8)
@@ -153,14 +152,11 @@ struct ContentView: View {
                     }
                     
                     if let sheet = vm.activeSpecialSheet {
-                        // 半透明の背面
                         Color.black.opacity(0.35)
                             .ignoresSafeArea()
                             .onTapGesture {
                                 vm.activeSpecialSheet = nil
-                            } // 背面タップで閉じる
-
-                        // 中央カード
+                            }
                         Group {
                             switch sheet {
                             case .levelUp(let tile):
@@ -187,7 +183,7 @@ struct ContentView: View {
                             VStack(spacing: 12) {
                                 let before = vm.players[0].gold
                                 let add    = vm.saleValue(for: t)
-                                let after  = vm.sellPreviewAfterGold   // = before + add
+                                let after  = vm.sellPreviewAfterGold
 
                                 Text("売却しますか？").font(.headline)
                                 Text("-\(max(0, -before)) GOLD → \(after) GOLD").font(.subheadline)
@@ -293,7 +289,6 @@ struct ContentView: View {
 
                         Divider().frame(height: controlsH * 0.8)
 
-                        // 右：手札（横並び）— 状況に応じて使用可否
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(vm.hands[0]) { card in
@@ -305,7 +300,6 @@ struct ContentView: View {
                             .padding(.vertical, 8)
                         }
                         .frame(maxHeight: controlsH * 0.9)
-                            
                     }
                     .padding(.horizontal)
                     
@@ -518,27 +512,28 @@ struct ContentView: View {
                     
                     if let card = vm.presentingCard,
                        card.kind == .spell,
-                       vm.turn == 0, (vm.phase == .ready || vm.phase == .moved), vm.mustDiscardFor == nil,
+                       vm.turn == 0,
+                       vm.phase == .ready,
+                       vm.mustDiscardFor == nil,
                        isFixNextRollSpell(card) {
-
                         ZStack {
                             VStack {
                                 Text("スペル使用先を選択")
                                     .font(.subheadline).bold()
-                                
+
                                 HStack(spacing: 12) {
                                     Button("自分") {
                                         vm.useSpellPreRoll(card, target: 0)
                                         vm.closeCardPopup()
                                     }
                                     .buttonStyle(.bordered)
-                                    
+
                                     Button("CPU") {
                                         vm.useSpellPreRoll(card, target: 1)
                                         vm.closeCardPopup()
                                     }
                                     .buttonStyle(.bordered)
-                                    
+
                                     Button("キャンセル") {
                                         vm.closeCardPopup()
                                     }
@@ -605,14 +600,13 @@ struct CardDetailOverlay: View {
     let card: Card
     @ObservedObject var vm: GameVM
     let onClose: () -> Void
-
+    
     @State private var appearOpacity: Double = 0
     @State private var appearOffsetY: CGFloat = 50
     @State private var spinAngle: Double = 0
 
     private let frameImageName = "cardL"
     private let backImageName  = "cardLreverse"
-
     private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
         if vm.mustDiscardFor == 0 { return ("捨てる", {
             vm.discard(card, for: 0); onClose() }, true)
@@ -662,7 +656,6 @@ struct CardDetailOverlay: View {
                 Button(primaryAction.title) { primaryAction.action?() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!primaryAction.enabled)
-
                 Button("閉じる") { onClose() }
                     .buttonStyle(.bordered)
                     .background(

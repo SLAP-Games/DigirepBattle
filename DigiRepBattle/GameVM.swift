@@ -156,7 +156,7 @@ final class GameVM: ObservableObject {
             "cre-defaultLizard": 30
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-fireball": 20
+            "sp-dice1": 20
         ]
         
         //NPCデッキ
@@ -166,7 +166,7 @@ final class GameVM: ObservableObject {
             "cre-defaultGecko": 30
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-heal": 20
+            "sp-dice1": 20
         ]
         
         for pid in 0...1 {
@@ -182,17 +182,17 @@ final class GameVM: ObservableObject {
         self.terrain = buildFixedTerrain()
     }
     
-    // MARK: - 各種セット関数
-    
+// MARK: ---------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　その他
+// MARK: ---------------------------------------------------------------------------
     // ポップアップを閉じる
     func closeCheckpointOverlay() {
         showCheckpointOverlay = false
         checkpointMessage = nil
     }
-        
-
-    // MARK: - ターン管理
-
+// MARK: ---------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　ターン管理
+// MARK: ---------------------------------------------------------------------------
     func endTurn() {
         showSpecialMenu = false
         beginTurnTransition()
@@ -251,7 +251,9 @@ final class GameVM: ObservableObject {
         endTurn()
     }
 
-    // MARK: - 山札・手札
+// MARK: ---------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　山札・手札
+// MARK: ---------------------------------------------------------------------------
     func startTurnIfNeeded() {
         guard phase == .ready else { return }
         // 手番のドロー
@@ -306,18 +308,85 @@ final class GameVM: ObservableObject {
     func closeCardPopup() {
         presentingCard = nil
     }
-
-    /// ※ カード名に応じて説明文を返す。未定義はプレースホルダ。
+    
     func spellDescription(for card: Card) -> String {
-        guard card.kind == .spell else { return "" }
-        switch card.name {
-        case "Dice1": return "次のサイコロを 1 に固定。"
-        case "Dice2": return "次のサイコロを 2 に固定。"
-        case "Dice3": return "次のサイコロを 3 に固定。"
-        case "Dice4": return "次のサイコロを 4 に固定。"
-        case "Dice5": return "次のサイコロを 5 に固定。"
-        case "Dice6": return "次のサイコロを 6 に固定。"
-        default: return "不明"
+        // スペルじゃなければ空文字
+        guard let effect = card.spell else {
+            return ""
+        }
+        return spellDescription(effect)
+    }
+
+    func spellDescription(_ effect: SpellEffect) -> String {
+        switch effect {
+        case .fixNextRoll(let n):
+            return "次のサイコロの出目を \(n) に固定する"
+        case .doubleDice:
+            return "次のターン、サイコロを2つ振ることができる"
+
+        case .buffPower(let n):
+            return "この戦闘中、戦闘力を \(n) 上昇させる"
+        case .buffDefense(let n):
+            return "この戦闘中、耐久力を \(n) 上昇させる"
+        case .firstStrike:
+            return "この戦闘で先に攻撃を行う"
+        case .poison:
+            return "敵クリーチャーに毒を付与する"
+        case .reflectSkill:
+            return "敵の特殊スキルを跳ね返す"
+
+        case .teleport:
+            return "盤上の任意のマスへワープする"
+        case .healHP(let n):
+            return "HPを \(n) 回復する"
+
+        case .drawCards(let n):
+            return "自分の手札を \(n) 枚引く"
+        case .discardOpponentCards(let n):
+            return "相手の手札を \(n) 枚捨てさせる"
+
+        case .fullHealAnyCreature:
+            return "任意のマスのクリーチャーのHPを全回復させる"
+        case .changeLandLevel:
+            return "任意の土地のレベルを1下げる"
+        case .setLandTollZero:
+            return "任意の土地の通行料を0にする"
+        case .multiplyLandToll:
+            return "任意の土地の通行料を2倍にする"
+        case .damageAnyCreature(let n):
+            return "任意のマスのクリーチャーに \(n) ダメージを与える"
+
+        case .gainGold(let n):
+            return "\(n)GOLDを獲得する"
+        case .stealGold(let n):
+            return "相手から \(n)GOLD 奪い、自分のGOLDに加える"
+
+        case .inspectCreature:
+            return "任意の相手クリーチャーのステータスを確認できる"
+
+        case .aoeDamageByResist(let category, let th, let n):
+            let label: String
+            switch category {
+            case .dry:   label = "乾耐性"
+            case .water: label = "水耐性"
+            case .heat:  label = "熱耐性"
+            case .cold:  label = "冷耐性"
+            }
+            return "\(label)\(th)以上の全キャラクターに \(n) ダメージを与える"
+
+        case .changeTileAttribute(let kind):
+            let label: String
+            switch kind {
+            case .normal: label = "normal"
+            case .dry:    label = "dry"
+            case .water:  label = "water"
+            case .heat:   label = "heat"
+            case .cold:   label = "cold"
+            }
+            return "任意のマスを \(label) マスに変える"
+
+        case .purgeAllCreatures:
+            return "自軍を含む全てのマスのクリーチャーを破壊する"
         }
     }
     
@@ -370,7 +439,7 @@ final class GameVM: ObservableObject {
             battleResult = "GOLDが足りません"
             return
         }
-        pendingSwapHandIndex = idx     // ← これでポップが出る（後述の overlay if で表示）
+        pendingSwapHandIndex = idx
     }
 
     // 交換実行（［交換］）
@@ -389,7 +458,9 @@ final class GameVM: ObservableObject {
         pendingSwapHandIndex = nil
     }
 
-    // MARK: - サイコロ・移動
+// MARK: ---------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　サイコロ・移動
+// MARK: ---------------------------------------------------------------------------
     func rollDice() {
         guard turn == 0, phase == .ready else { return }
         
@@ -688,48 +759,88 @@ final class GameVM: ObservableObject {
         }
     }
 
-    // MARK: - カード使用（プレイヤー）
-    func useSpellPreRoll(_ card: Card, target: Int) {
-        guard turn == 0, phase == .ready, card.kind == .spell else { return }
-        guard (0...1).contains(target) else { return }
+    // MARK: ---------------------------------------------------------------------------
+    //　　　　　　　　　　　　　　　　　　カード使用
+    // MARK: ---------------------------------------------------------------------------
+    
+    func useSpellCard(_ card: Card, by pid: Int, targetTile: Int?) {
+        // 1. 定義取得
+        guard let def = CardDatabase.definition(for: card.id) else { return }
 
-        if case let .fixNextRoll(n)? = card.spell, (1...6).contains(n) {
-            // 対象の次ロールを固定
-            nextForcedRoll[target] = n
+        // 2. GOLD コストを支払う
+        guard tryPay(def.cost, by: pid) else {
+            // ここでログやアラートなど
+            battleResult = "GOLDが足りません（必要: \(def.cost)）"
+            return
+        }
 
-            // 手札から消費
-            consumeFromHand(card, for: 0)
-
-            if target == turn {
-                // 自分に使ったときは従来通り即ロール
-                pushCenterMessage("次のサイコロを \(n) に固定")
-                rollDice()
-            } else {
-                // CPUに使ったときはロールしない（次ターンCPUのロールが固定される）
-                pushCenterMessage("CPUの次のサイコロを \(n) に固定")
-                // phaseは .ready のまま。プレイヤーはこのままロール可能。
-            }
+        // 3. 実際の効果（あとで個別に実装していく）
+        if let effect = def.spellEffect {
+            applySpellEffect(effect, by: pid, targetTile: targetTile)
         }
     }
     
+    private func spellCost(of card: Card) -> Int {
+        CardDatabase.definition(for: card.id)?.cost ?? 0
+    }
+    
+    func useSpellPreRoll(_ card: Card, target: Int) {
+        // 自分ターン・ロール前・スペルカードのみ
+        guard turn == 0,
+              phase == .ready,
+              card.kind == .spell else { return }
+        guard (0...1).contains(target) else { return }
+
+        // ダイス固定スペルのみ対象
+        guard case let .fixNextRoll(n)? = card.spell,
+              (1...6).contains(n) else { return }
+
+        // --- ① GOLDコスト支払い ---
+        let cost = spellCost(of: card)
+        if cost > 0 {
+            guard tryPay(cost, by: 0) else {
+                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
+                return
+            }
+        }
+
+        // --- ② 効果適用 ---
+        nextForcedRoll[target] = n
+
+        // 手札から消費
+        consumeFromHand(card, for: 0)
+
+        if target == turn {
+            // 自分に使ったときは即ロール
+            pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+            rollDice()
+        } else {
+            // CPU に使ったときは次ターンの CPU ロールが固定される
+            pushCenterMessage("CPUの次のサイコロを \(n) に固定（コスト\(cost)）")
+            // phaseは .ready のまま。プレイヤーはこのままロール可能。
+        }
+    }
+
     func useSpellPreRoll(_ card: Card) {
         useSpellPreRoll(card, target: 0)
     }
 
     func useCardAfterMove(_ card: Card) {
         guard turn == 0, phase == .moved else { return }
+
         switch card.kind {
         case .spell:
-            // 次回ロール固定
-            consumeFromHand(card, for: 0)
-            forceRollToOneFor[0] = true
-            didStop(at: players[turn].pos, isYou: turn == 0)
+            // マス移動後に使うスペルの入口
+            useSpellAfterMove(card)
+
         case .creature:
             // 戦闘選択中なら「このカードで戦闘」
-            if expectBattleCardSelection, landedOnOpponentTileIndex != nil {
+            if expectBattleCardSelection,
+               landedOnOpponentTileIndex != nil {
                 startBattle(with: card)
                 return
             }
+
             let t = players[0].pos
             if owner[t] == nil, canPlaceCreature(at: t) {
                 placeCreature(from: card, at: t, by: 0)
@@ -737,6 +848,83 @@ final class GameVM: ObservableObject {
             }
         }
     }
+    
+    func useSpellAfterMove(_ card: Card) {
+        guard turn == 0,
+              phase == .moved,
+              card.kind == .spell else { return }
+
+        guard let effect = card.spell else { return }
+
+        let cost = spellCost(of: card)
+        if cost > 0 {
+            guard tryPay(cost, by: 0) else {
+                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
+                return
+            }
+        }
+
+        switch effect {
+
+        case .fixNextRoll(let n) where (1...6).contains(n):
+            nextForcedRoll[0] = n
+            pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+
+        case .doubleDice:
+            pushCenterMessage("スペル『\(card.name)』の効果（ダブルダイス）は未実装です")
+
+        case .buffPower, .buffDefense, .teleport, .healHP,
+             .firstStrike, .poison, .reflectSkill,
+             .drawCards, .discardOpponentCards,
+             .fullHealAnyCreature, .changeLandLevel,
+             .setLandTollZero, .multiplyLandToll,
+             .damageAnyCreature,
+             .gainGold, .stealGold,
+             .inspectCreature,
+             .aoeDamageByResist,
+             .changeTileAttribute,
+             .purgeAllCreatures:
+            pushCenterMessage("スペル『\(card.name)』の効果はまだ未実装です（コスト\(cost)だけ消費）")
+
+        // ★ 追加：万一新しいケースが増えてもここで拾う
+        default:
+            pushCenterMessage("未対応のスペル効果です（コスト\(cost)だけ消費）")
+        }
+
+        // 手札から消費
+        consumeFromHand(card, for: 0)
+    }
+    /// 山札ショップなどから買ったスペルの共通適用口
+    private func applySpellEffect(_ effect: SpellEffect, by pid: Int, targetTile: Int?) {
+        switch effect {
+
+        // ① ダイス固定
+        case let .fixNextRoll(n):
+            guard (1...6).contains(n),
+                  (0...1).contains(pid) else { return }
+            nextForcedRoll[pid] = n
+            pushCenterMessage("次のサイコロを \(n) に固定")
+
+        // ② GOLD獲得
+        case let .gainGold(n):
+            addGold(n, to: pid)
+            pushCenterMessage("\(n)GOLD を獲得")
+
+        // ③ GOLD奪取（とりあえずシンプルに実装）
+        case let .stealGold(n):
+            let other = 1 - pid
+            guard players.indices.contains(other) else { return }
+            let stolen = min(players[other].gold, n)
+            addGold(-stolen, to: other)
+            addGold(+stolen, to: pid)
+            pushCenterMessage("\(stolen)GOLD を奪った")
+
+        // それ以外はあとで個別実装
+        default:
+            pushCenterMessage("このスペル効果はまだ未実装です")
+        }
+    }
+
 
     private func consumeFromHand(_ card: Card, for pid: Int) {
         if let i = hands[pid].firstIndex(of: card) { hands[pid].remove(at: i) }
@@ -765,7 +953,10 @@ final class GameVM: ObservableObject {
         activeSpecialSheet = .buySpell
     }
 
-    // MARK: - CPU 行動ロジック
+    // MARK: ---------------------------------------------------------------------------
+    //　　　　　　　　　　　　　　　　　　NPC行動ロジック
+    // MARK: ---------------------------------------------------------------------------
+
     @MainActor
     private func runCpuAuto() async {
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -1004,7 +1195,6 @@ final class GameVM: ObservableObject {
         
         guard tryPay(price, by: pid) else {
             if pid == 0 {
-                // プレイヤーにはメッセージ（CPUは不要なら表示しない）
                 battleResult = "GOLD不足（必要: \(price)）"
             }
             return

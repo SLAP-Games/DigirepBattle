@@ -14,6 +14,7 @@ struct CardDefinition {
     let symbol: String
     let stats: CreatureStats?
     let spellEffect: SpellEffect?
+    let cost: Int
 
     func makeInstance() -> Card {
         Card(
@@ -21,6 +22,7 @@ struct CardDefinition {
             kind: kind,
             name: name,
             symbol: symbol,
+            cost: cost,
             stats: stats,
             spell: spellEffect
         )
@@ -32,7 +34,8 @@ extension CardDefinition {
         id: CardID,
         name: String,
         symbol: String,
-        stats: CreatureStats
+        stats: CreatureStats,
+        cost: Int = 0
     ) -> CardDefinition {
         CardDefinition(
             id: id,
@@ -40,7 +43,8 @@ extension CardDefinition {
             name: name,
             symbol: symbol,
             stats: stats,
-            spellEffect: nil
+            spellEffect: nil,
+            cost: cost
         )
     }
 
@@ -48,7 +52,8 @@ extension CardDefinition {
         id: CardID,
         name: String,
         symbol: String,
-        effect: SpellEffect
+        effect: SpellEffect,
+        cost: Int
     ) -> CardDefinition {
         CardDefinition(
             id: id,
@@ -56,14 +61,17 @@ extension CardDefinition {
             name: name,
             symbol: symbol,
             stats: nil,
-            spellEffect: effect
+            spellEffect: effect,
+            cost: cost
         )
     }
 }
 
 enum CardDatabase {
     static let all: [CardID: CardDefinition] = [
-        // クリーチャー
+//----------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　クリーチャー
+//----------------------------------------------------------------------------
         "cre-defaultLizard": .creature(
             id: "cre-defaultLizard",
             name: "デジトカゲ",
@@ -159,12 +167,282 @@ enum CardDatabase {
             symbol: "defaultHornedFrog",
             stats: .defaultHornedFrog
         ),
-        // スペル
-        "sp-fireball": .spell(
-            id: "sp-fireball",
-            name: "ファイアボール",
+//----------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　スペル
+//----------------------------------------------------------------------------
+        "sp-dice1": .spell(
+            id: "sp-dice1",
+            name: "ダイス1",
+            symbol: "🎲1",
+            effect: .fixNextRoll(1),
+            cost: 20
+        ),
+        "sp-dice2": .spell(
+            id: "sp-dice2",
+            name: "ダイス2",
+            symbol: "🎲2",
+            effect: .fixNextRoll(2),
+            cost: 20
+        ),
+        "sp-dice3": .spell(
+            id: "sp-dice3",
+            name: "ダイス3",
+            symbol: "🎲3",
+            effect: .fixNextRoll(3),
+            cost: 20
+        ),
+        "sp-dice4": .spell(
+            id: "sp-dice4",
+            name: "ダイス4",
+            symbol: "🎲4",
+            effect: .fixNextRoll(4),
+            cost: 20
+        ),
+        "sp-dice5": .spell(
+            id: "sp-dice5",
+            name: "ダイス5",
+            symbol: "🎲5",
+            effect: .fixNextRoll(5),
+            cost: 20
+        ),
+        "sp-dice6": .spell(
+            id: "sp-dice6",
+            name: "ダイス6",
+            symbol: "🎲6",
+            effect: .fixNextRoll(6),
+            cost: 20
+        ),
+
+        // --- ダブルダイス / 先制 ---
+        "sp-doubleDice": .spell(
+            id: "sp-doubleDice",
+            name: "ダブルダイス",
+            symbol: "🎲🎲",
+            effect: .doubleDice,
+            cost: 30
+        ),
+        "sp-firstStrike": .spell(
+            id: "sp-firstStrike",
+            name: "先制",
+            symbol: "⚡️",
+            effect: .firstStrike,
+            cost: 30
+        ),
+
+        // --- 牙系（攻撃力） ---
+        "sp-hardFang": .spell(
+            id: "sp-hardFang",
+            name: "硬牙",
+            symbol: "🦷",
+            effect: .buffPower(10),
+            cost: 20
+        ),
+        "sp-sharpFang": .spell(
+            id: "sp-sharpFang",
+            name: "鋭牙",
+            symbol: "🩸",
+            effect: .buffPower(20),
+            cost: 30
+        ),
+        "sp-poisonFang": .spell(
+            id: "sp-poisonFang",
+            name: "毒牙",
+            symbol: "☠️",
+            effect: .poison,
+            cost: 30
+        ),
+
+        // --- 鱗系（防御力） ---
+        "sp-bigScale": .spell(
+            id: "sp-bigScale",
+            name: "大鱗",
+            symbol: "🛡",
+            effect: .buffDefense(10),
+            cost: 20
+        ),
+        "sp-hardScale": .spell(
+            id: "sp-hardScale",
+            name: "硬鱗",
+            symbol: "🛡🛡",
+            effect: .buffDefense(20),
+            cost: 30
+        ),
+        "sp-reflectScale": .spell(
+            id: "sp-reflectScale",
+            name: "反射鱗",
+            symbol: "🔁",
+            effect: .reflectSkill,
+            cost: 30
+        ),
+
+        // --- 手札操作 ---
+        "sp-draw2": .spell(
+            id: "sp-draw2",
+            name: "ドロー2",
+            symbol: "📥",
+            effect: .drawCards(2),
+            cost: 20
+        ),
+        "sp-deleteHand": .spell(
+            id: "sp-deleteHand",
+            name: "削除",
+            symbol: "🗑",
+            effect: .discardOpponentCards(1),
+            cost: 30
+        ),
+
+        // --- クリーチャー / 土地操作 ---
+        "sp-elixir": .spell(
+            id: "sp-elixir",
+            name: "秘薬",
+            symbol: "🧪",
+            effect: .fullHealAnyCreature,
+            cost: 20
+        ),
+        "sp-decay": .spell(
+            id: "sp-decay",
+            name: "腐敗",
+            symbol: "💀",
+            effect: .changeLandLevel(delta: -1),
+            cost: 30
+        ),
+        "sp-devastation": .spell(
+            id: "sp-devastation",
+            name: "荒廃",
+            symbol: "🏚",
+            effect: .setLandTollZero,
+            cost: 100
+        ),
+        "sp-harvest": .spell(
+            id: "sp-harvest",
+            name: "豊作",
+            symbol: "🌾",
+            effect: .multiplyLandToll(2.0),
+            cost: 100
+        ),
+        "sp-greatStorm": .spell(
+            id: "sp-greatStorm",
+            name: "大嵐",
+            symbol: "🌪",
+            effect: .damageAnyCreature(30),
+            cost: 30
+        ),
+
+        // --- GOLD ---
+        "sp-treasure": .spell(
+            id: "sp-treasure",
+            name: "財宝",
+            symbol: "💰",
+            effect: .gainGold(500),
+            cost: 10
+        ),
+        "sp-plunder": .spell(
+            id: "sp-plunder",
+            name: "略奪",
+            symbol: "🏴‍☠️",
+            effect: .stealGold(200),
+            cost: 10
+        ),
+
+        // --- 情報系 ---
+        "sp-clairvoyance": .spell(
+            id: "sp-clairvoyance",
+            name: "透視",
+            symbol: "👁",
+            effect: .inspectCreature,
+            cost: 20
+        ),
+
+        // --- 耐性条件つき全体攻撃 ---
+        "sp-blizzard": .spell(
+            id: "sp-blizzard",
+            name: "吹雪",
+            symbol: "❄️",
+            effect: .aoeDamageByResist(
+                category: .heat,
+                threshold: 10,
+                amount: 50
+            ),
+            cost: 100
+        ),
+        "sp-eruption": .spell(
+            id: "sp-eruption",
+            name: "噴火",
+            symbol: "🌋",
+            effect: .aoeDamageByResist(
+                category: .cold,
+                threshold: 10,
+                amount: 50
+            ),
+            cost: 100
+        ),
+        "sp-heavyRain": .spell(
+            id: "sp-heavyRain",
+            name: "豪雨",
+            symbol: "🌧",
+            effect: .aoeDamageByResist(
+                category: .dry,
+                threshold: 10,
+                amount: 50
+            ),
+            cost: 100
+        ),
+        "sp-drought": .spell(
+            id: "sp-drought",
+            name: "干魃",
+            symbol: "☀️",
+            effect: .aoeDamageByResist(
+                category: .water,
+                threshold: 10,
+                amount: 50
+            ),
+            cost: 100
+        ),
+
+        // --- マス属性変更 ---
+        "sp-snowMountain": .spell(
+            id: "sp-snowMountain",
+            name: "雪山",
+            symbol: "🏔",
+            effect: .changeTileAttribute(.cold),
+            cost: 30
+        ),
+        "sp-desert": .spell(
+            id: "sp-desert",
+            name: "砂漠",
+            symbol: "🏜",
+            effect: .changeTileAttribute(.dry),
+            cost: 30
+        ),
+        "sp-volcano": .spell(
+            id: "sp-volcano",
+            name: "火山",
             symbol: "🔥",
-            effect: .buffPower(5)
+            effect: .changeTileAttribute(.heat),
+            cost: 30
+        ),
+        "sp-flood": .spell(
+            id: "sp-flood",
+            name: "洪水",
+            symbol: "🌊",
+            effect: .changeTileAttribute(.water),
+            cost: 30
+        ),
+        "sp-plain": .spell(
+            id: "sp-plain",
+            name: "平原",
+            symbol: "🌱",
+            effect: .changeTileAttribute(.normal),
+            cost: 30
+        ),
+
+        // --- 浄化 ---
+        "sp-purification": .spell(
+            id: "sp-purification",
+            name: "浄化",
+            symbol: "✨",
+            effect: .purgeAllCreatures,
+            cost: 500
         )
     ]
 

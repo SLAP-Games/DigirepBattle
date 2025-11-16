@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Models
 public struct BattleCombatant: Identifiable, Equatable {
@@ -177,19 +178,17 @@ public struct BattleOverlayView: View {
 
     @State private var leftOffset: CGFloat = 0
     @State private var rightOffset: CGFloat = 0
-
     @State private var leftHPAnim: CGFloat
     @State private var rightHPAnim: CGFloat
-
     @State private var L: BattleCombatant
     @State private var R: BattleCombatant
-
     @State private var showDmgLeft = false
     @State private var showDmgRight = false
     @State private var dmgLeft: Int = 0
     @State private var dmgRight: Int = 0
-    
     @State private var isFinished = false
+    @State private var useFirstImage = true
+    private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
 
     public init(
         left: BattleCombatant,
@@ -268,7 +267,6 @@ public struct BattleOverlayView: View {
                         .frame(height: hudH)
                 }
                 .frame(maxWidth: .infinity, maxHeight: totalH) // HUD分も含めて確保
-//                .clipped()
             }
             .onAppear {
                 setupInitialOffsets(W: W)
@@ -283,12 +281,17 @@ public struct BattleOverlayView: View {
 
     @ViewBuilder
     private func fighterSpriteView(isLeft: Bool, who: BattleCombatant) -> some View {
-        Image(who.imageName)
+        Image(useFirstImage ? "\(who.imageName)1" : "\(who.imageName)2")
             .resizable()
             .scaledToFit()
             .frame(maxHeight: 70)
             .scaleEffect(x: isLeft ? 1 : -1, y: 1)
             .shadow(color: .white.opacity(0.15), radius: 8, x: 0, y: 3)
+            .onReceive(timer) { _ in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    useFirstImage.toggle()
+                }
+            }
     }
 
     
