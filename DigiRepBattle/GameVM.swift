@@ -91,6 +91,10 @@ final class GameVM: ObservableObject {
     @Published var currentBattleTile: Int? = nil
     @Published var currentAttackingCard: Card? = nil
     @Published var isAwaitingBattleResult: Bool = false
+    @Published var cardStates: [PlayerCardState] = [
+        PlayerCardState(collection: CardCollection(), deckList: DeckList()),
+        PlayerCardState(collection: CardCollection(), deckList: DeckList())
+    ]
     
     private var cpuDidBattleThisTurn: Bool = false
     private var spellPool: [Card] = []
@@ -145,16 +149,29 @@ final class GameVM: ObservableObject {
         self.cost = Array(repeating: 1, count: tileCount)
         self.toll = Array(repeating: 0, count: tileCount)
         
-        self.spellPool = buildFixedForceRollSpells()
-//        self.creaturePool = buildCreaturePool()
+        //プレイヤーデッキ
+        cardStates[0].collection.add("cre-defaultLizard", count: 30)
+        cardStates[0].collection.add("sp-fireball",       count: 20)
+        cardStates[0].deckList.creatureSlots = [
+            "cre-defaultLizard": 30
+        ]
+        cardStates[0].deckList.spellSlots = [
+            "sp-fireball": 20
+        ]
         
-        let playerSpells = spellPool
-        let playerCreatures = makePlayerFixedCreatureCards()
-        decks[0] = (playerSpells + playerCreatures)
-        let cpuSpells = buildFixedForceRollSpells()
-        let cpuCreatures = makePlayerFixedCreatureCards()
-        decks[1] = (cpuSpells + cpuCreatures)
-
+        //NPCデッキ
+        cardStates[1].collection.add("cre-defaultGecko", count: 30)
+        cardStates[1].collection.add("sp-heal",          count: 20)
+        cardStates[1].deckList.creatureSlots = [
+            "cre-defaultGecko": 30
+        ]
+        cardStates[1].deckList.spellSlots = [
+            "sp-heal": 20
+        ]
+        
+        for pid in 0...1 {
+            decks[pid] = cardStates[pid].deckList.buildDeckCards()
+        }
         // 初期手札3枚
         for pid in 0...1 {
             for _ in 0..<3 { drawOne(for: pid) }
@@ -166,29 +183,6 @@ final class GameVM: ObservableObject {
     }
     
     // MARK: - 各種セット関数
-
-    private func makePlayerFixedCreatureCards() -> [Card] {
-        func reptile(_ name: String, _ stats: CreatureStats, _ n: Int) -> [Card] {
-            (0..<n).map { _ in Card(kind: .creature, name: name, symbol: name, stats: stats) }
-            // symbol に画像アセット名を入れる（＝手札＆設置の表示名）
-        }
-
-        return
-            reptile("defaultLizard1",        .defaultLizard,        3) +
-            reptile("defaultGecko1",         .defaultGecko,         3) +
-            reptile("defaultCrocodile1",     .defaultCrocodile,     3) +
-            reptile("defaultSnake1",         .defaultSnake,         3) +
-            reptile("defaultIguana1",        .defaultIguana,        3) +
-            reptile("defaultTurtle1",        .defaultTurtle,        3) +
-            reptile("defaultFrog1",          .defaultFrog,          3) +
-            reptile("defaultBeardedDragon1", .defaultBeardedDragon, 2) +
-            reptile("defaultLeopardGecko1",  .defaultLeopardGecko,  2) +
-            reptile("defaultNileCrocodile1", .defaultNileCrocodile, 1) +
-            reptile("defaultBallPython1",    .defaultBallPython,    1) +
-            reptile("defaultGreenIguana1",   .defaultGreenIguana,   1) +
-            reptile("defaultaStarTurtle1",   .defaultaStarTurtle,   1) +
-            reptile("defaultHornedFrog1",    .defaultHornedFrog,    1)
-    }
     
     // ポップアップを閉じる
     func closeCheckpointOverlay() {
@@ -284,29 +278,6 @@ final class GameVM: ObservableObject {
         creatureMenuTile = nil
     }
     
-    /// テスト用のサイコロスペル割振
-    private func buildFixedForceRollSpells() -> [Card] {
-        var result: [Card] = []
-        // 1と6は4枚、それ以外は3枚ずつ → 合計20枚
-        let spec: [(num: Int, count: Int)] = [
-            (1, 4), (2, 3), (3, 3), (4, 3), (5, 3), (6, 4)
-        ]
-        for (n, c) in spec {
-            for _ in 0..<c {
-                result.append(
-                    Card(
-                        kind: .spell,
-                        name: "Dice\(n)",
-                        symbol: "die.face.\(n).fill",  // 無ければ任意のアセット名でOK
-                        stats: nil,
-                        spell: .fixNextRoll(n)
-                    )
-                )
-            }
-        }
-        return result
-    }
-    
     private func drawOne(for pid: Int) {
         guard !decks[pid].isEmpty else { return }
         let idx = Int.random(in: 0..<decks[pid].count)
@@ -361,7 +332,7 @@ final class GameVM: ObservableObject {
         guard players[turn][keyPath: goldRef] >= spell.price else { return }
         addGold(-spell.price, to: turn)
 
-        // 手札に追加（あなたのカード実装に合わせてここだけ調整）
+        // 手札に追加：ShopSpell.id を CardID として扱う
         addSpellCardToHand(spellID: spell.id, displayName: spell.name)
 
         pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
@@ -370,10 +341,24 @@ final class GameVM: ObservableObject {
         objectWillChange.send()
     }
 
-    /// 手札へスペルを追加（あなたの Card/Hand 実装に合わせて置き換え）
-    private func addSpellCardToHand(spellID: String, displayName: String) {
-        let card = Card(kind: .spell, name: displayName, symbol: "sun.max.fill")
-        hands[turn].append(card)
+    /// 手札へスペルを追加
+    private func addSpellCardToHand(spellID: CardID, displayName: String) {
+        if let def = CardDatabase.definition(for: spellID) {
+            // CardDatabase から正しい効果つきの Card を生成
+            let card = def.makeInstance()
+            hands[turn].append(card)
+        } else {
+            // DBにないIDだった場合のフォールバック（暫定）
+            let card = Card(
+                id: spellID,
+                kind: .spell,
+                name: displayName,
+                symbol: "sun.max.fill",
+                stats: nil,
+                spell: nil
+            )
+            hands[turn].append(card)
+        }
     }
     
     // カードA（手札で選んだカード）から、確認ポップを出す
@@ -975,7 +960,7 @@ final class GameVM: ObservableObject {
 
         // 同属性セット数 → 倍率
         let attr = attribute(of: tile)
-        let n = sameAttributeCount(for: pid, attr: attr)   // 例: 1なら1.0倍, 2なら1.2倍...
+        let n = sameAttributeCount(for: pid, attr: attr)
         let mult = setBonusMultiplier(for: n)
 
         // 四捨五入で整数化（必要に応じて切り捨てに変更可）
@@ -1005,9 +990,9 @@ final class GameVM: ObservableObject {
     private func setBonusMultiplier(for sameAttrCount: Int) -> Double {
         switch sameAttrCount {
         case 2:      return 1.2
-        case 3:      return 1.3
-        case 4:      return 1.4
-        case 5...:   return 1.5
+        case 3:      return 1.5
+        case 4:      return 1.8
+        case 5...:   return 2.0
         default:     return 1.0
         }
     }
@@ -1325,7 +1310,7 @@ final class GameVM: ObservableObject {
 
         // 既存カードを“手札に戻す”
         if let oldSym = creatureSymbol[t] {
-            // 旧ステの再構築（簡易）：画像名だけ既存、ステは配列から復元
+            // タイル上の配列からステータスを復元
             let oldStats = CreatureStats(
                 hpMax: hpMax[t],
                 affection: aff[t],
@@ -1337,7 +1322,16 @@ final class GameVM: ObservableObject {
                 resistCold: rCold[t],
                 cost: cost[t]
             )
-            let oldCard = Card(kind: .creature, name: oldSym, symbol: oldSym, stats: oldStats)
+
+            // Card は id が必須なので、新規UUIDを振る
+            let oldCard = Card(
+                id: UUID().uuidString,
+                kind: .creature,
+                name: oldSym,
+                symbol: oldSym,
+                stats: oldStats,
+                spell: nil
+            )
             hands[turn].append(oldCard)
         }
 

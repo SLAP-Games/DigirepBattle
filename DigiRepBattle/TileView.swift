@@ -6,8 +6,11 @@
 //
 
 import SwiftUI
+import Combine
 
 struct TileView: View {
+    @State private var useFirstImage = true
+    private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
     let index: Int
     let size: CGFloat
     let hasP1: Bool
@@ -20,8 +23,8 @@ struct TileView: View {
     
     let hp: Int?
     let hpMax: Int?
-    let bgImageName: String?          // 例: "field", "desert", "town" など（拡張子不要）
-    let attribute: TileAttribute?      // 表示には未使用（今後の判定用）
+    let bgImageName: String?
+    let attribute: TileAttribute?
     let highlightTargets: Set<Int>
     
     private var special: SpecialNodeKind? { specialNodeKind(for: index) }
@@ -79,7 +82,7 @@ struct TileView: View {
             // クリーチャー（中央）
             if let sym = creatureSymbol, level > 0 {
                 ZStack {
-                    Image(sym)
+                    Image(useFirstImage ? "\(sym)1" : "\(sym)2")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 50, height: 50)
@@ -144,5 +147,10 @@ struct TileView: View {
                 }
             }
         )
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                useFirstImage.toggle()
+            }
+        }
     }
 }

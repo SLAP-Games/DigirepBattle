@@ -17,7 +17,9 @@ struct ContentView: View {
             let boardH = geo.size.height - controlsH
 
             VStack(spacing: 0) {
-                // ── 上：ボードエリア ──
+// -------------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　　　上部：ボードエリア
+// -------------------------------------------------------------------------------
                 ZStack(alignment: .center) {
                     RingBoardView(
                         p1Pos: vm.players[0].pos,
@@ -34,9 +36,9 @@ struct ContentView: View {
                         onPickBranch: { vm.pickBranch($0) },
                         onTapTile: { idx in
                             if vm.isForcedSaleMode && vm.turn == 0 {
-                                vm.requestSell(tile: idx)        // 自軍タイルなら売却ポップへ（ガードは中で実施）
+                                vm.requestSell(tile: idx)
                             } else {
-                                vm.tapTileForInspect(idx)        // 既存動作：インスペクト
+                                vm.tapTileForInspect(idx)
                             }
                         },
                         focusTile: vm.focusTile
@@ -48,10 +50,8 @@ struct ContentView: View {
                             .scaledToFill()
                             .ignoresSafeArea()
                     }
-//                    .clipped()
                     .overlay(
                         VStack(alignment: .trailing, spacing: 6) {
-                            // CPスター（CP1・CP2）
                             HStack(spacing: 6) {
                                 let cp1CPU = vm.passedCP1.indices.contains(1) && vm.passedCP1[1]
                                 let cp2CPU = vm.passedCP2.indices.contains(1) && vm.passedCP2[1]
@@ -61,7 +61,7 @@ struct ContentView: View {
                                 Image(systemName: cp2CPU ? "star.fill" : "star")
                                     .foregroundStyle(cp2CPU ? .yellow : .gray)
                             }
-                            .font(.caption) // 大きさはお好みで
+                            .font(.caption)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -77,10 +77,8 @@ struct ContentView: View {
                         .allowsHitTesting(false),            // 盤面タップの邪魔をしない
                         alignment: .bottomTrailing
                     )
-                    // ★ ここで貼る：プレイヤーバッジ（左下）
                     .overlay(
                         VStack(alignment: .trailing, spacing: 6) {
-                            // CPスター（CP1・CP2）
                             HStack(spacing: 6) {
                                 let cp1Player = vm.passedCP1.indices.contains(0) && vm.passedCP1[0]
                                 let cp2Player = vm.passedCP2.indices.contains(0) && vm.passedCP2[0]
@@ -263,7 +261,10 @@ struct ContentView: View {
                     }
                 }
 
-                // ── 下：操作エリア（自プレイヤー専用） ──
+// -------------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　　下部：操作エリア（自プレイヤー専用）
+// -------------------------------------------------------------------------------
+
                 ZStack(alignment: .center) {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -313,7 +314,6 @@ struct ContentView: View {
                        vm.turn == 0,
                        vm.mustDiscardFor == nil {
 
-                        // 現在タイルの状況を判定
                         let t = vm.players[0].pos
                         let isMy = vm.owner.indices.contains(t) && vm.owner[t] == 0
                         let isCPU = vm.owner.indices.contains(t) && vm.owner[t] == 1
@@ -350,13 +350,11 @@ struct ContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                             }
-//                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         // 2) 自分のデジレプが設置済み
                         else if isMy && hasCreature {
                             if vm.phase == .ready {
-                                // 移動前：占領済み（配置不可）
                                 ZStack {
                                     VStack(spacing: 12) {
                                         Text("占領済みです")
@@ -378,7 +376,6 @@ struct ContentView: View {
                                 .clipped()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             } else if vm.phase == .moved {
-                                // 移動後：CreatureMenuView を表示する
                                 ZStack {
                                     CreatureMenuView(
                                         vm: vm,
@@ -399,7 +396,6 @@ struct ContentView: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
                                 }
-//                                .clipped()
                                 .onAppear {
                                     vm.creatureMenuTile = t
                                     vm.showCreatureMenu = true
@@ -408,7 +404,6 @@ struct ContentView: View {
                         }
                         // 3) CPUのデジレプが設置済み
                         else if isCPU && hasCreature {
-                            // CPU領地（配置不可）
                             ZStack {
                                 VStack(spacing: 12) {
                                     Text("相手の領地です")
@@ -427,10 +422,8 @@ struct ContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                             }
-//                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
-                        // フォールバック（想定外状況）
                         else {
                             ZStack {
                                 VStack(spacing: 12) {
@@ -450,7 +443,6 @@ struct ContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                             }
-//                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
@@ -476,7 +468,6 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
-//                        .clipped()
                     }
                     
                     if vm.showSpecialMenu {
@@ -499,7 +490,6 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
-//                        .clipped()
                     }
 
                     if let text = vm.battleResult {
@@ -524,7 +514,6 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
-//                        .clipped()
                     }
                     
                     if let card = vm.presentingCard,
@@ -565,7 +554,6 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
-//                        .clipped()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     
@@ -582,7 +570,6 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
-//                        .clipped()
                     }
                     VStack {
                         Image("line")
@@ -600,7 +587,6 @@ struct ContentView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 }
-//                .clipped()
                 .overlay(Divider(), alignment: .top)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -622,7 +608,7 @@ struct CardDetailOverlay: View {
 
     @State private var appearOpacity: Double = 0
     @State private var appearOffsetY: CGFloat = 50
-    @State private var spinAngle: Double = 0      // ← 追加（0→720 に回す）
+    @State private var spinAngle: Double = 0
 
     private let frameImageName = "cardL"
     private let backImageName  = "cardLreverse"
@@ -662,7 +648,6 @@ struct CardDetailOverlay: View {
                     appearOpacity = 0
                     withAnimation(.easeOut(duration: 0.7)) { appearOpacity = 1 }
 
-                    // 0 → 720° を 1.5秒で線形回転
                     spinAngle = 0
                     withAnimation(.linear(duration: 0.6)) {
                         spinAngle = 360
@@ -673,7 +658,6 @@ struct CardDetailOverlay: View {
                     spinAngle = 0
                 }
 
-            // ボタン類（そのまま）
             HStack(spacing: 10) {
                 Button(primaryAction.title) { primaryAction.action?() }
                     .buttonStyle(.borderedProminent)
@@ -690,9 +674,8 @@ struct CardDetailOverlay: View {
         }
         .padding(.horizontal, 20)
         .opacity(appearOpacity)
-        .offset(y: appearOffsetY)  // ← 下から上へ
+        .offset(y: appearOffsetY)
         .onAppear {
-            // 初期値
             appearOpacity = 0
             appearOffsetY = 50
 
@@ -707,21 +690,18 @@ struct CardDetailOverlay: View {
             }
         }
         .onDisappear {
-            // リセット
             appearOpacity = 0
             appearOffsetY = 50
             spinAngle = 0
         }
     }
 
-    // ここを Flip → FlipAngle に
     private var flipCardAngle: some View {
         FlipAngle(angle: spinAngle) {
             FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
         } back: {
             BackCardFace(frameImageName: backImageName)
         }
-        // 任意：タップでさらに 360° 回したい場合の例
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.linear(duration: 0.75)) {

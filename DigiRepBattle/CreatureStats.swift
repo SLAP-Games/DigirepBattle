@@ -9,9 +9,9 @@ import Foundation
 
 struct CreatureStats: Equatable {
     var hpMax: Int
-    var affection: Int         // なつき度
-    var power: Int             // 戦闘力
-    var durability: Int        // 耐久力
+    var affection: Int
+    var power: Int
+    var durability: Int
     var resistDry: Int
     var resistWater: Int
     var resistHeat: Int

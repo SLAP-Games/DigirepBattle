@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct FlipAngle<Front: View, Back: View>: View, Animatable {
     // ← Animatable 準拠を追加
@@ -96,6 +97,8 @@ struct FrontCardFace: View {
     let card: Card
     @ObservedObject var vm: GameVM
     let frameImageName: String
+    @State private var useFirstImage = true
+    private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -115,7 +118,7 @@ struct FrontCardFace: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: topPad)
 
-                    Image(card.symbol)
+                    Image(useFirstImage ? "\(card.symbol)1" : "\(card.symbol)2")
                         .resizable()
                         .scaledToFit()
                         .frame(height: imgH)
@@ -160,6 +163,11 @@ struct FrontCardFace: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
+        }
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                useFirstImage.toggle()
+            }
         }
     }
 }

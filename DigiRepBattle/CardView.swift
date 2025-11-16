@@ -24,7 +24,7 @@ struct CardView: View {
                 Text(card.kind == .spell ? "スペル" : "デジレプ")
                     .font(.caption2)
                     .foregroundStyle(.white)
-                Image(card.symbol)
+                Image("\(card.symbol)1")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 60, height: 60)
