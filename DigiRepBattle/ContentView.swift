@@ -251,9 +251,33 @@ struct ContentView: View {
                     }
                     
                     if vm.showBattleOverlay, let L = vm.battleLeft, let R = vm.battleRight {
-                        BattleOverlayView(left: L, right: R, attribute: vm.battleAttr) { finalL, finalR in
+                        BattleOverlayView(
+                            left: L,
+                            right: R,
+                            attribute: vm.battleAttr,
+                            isItemSelecting: $vm.isBattleItemSelectionPhase
+                        ) { finalL, finalR in
                             vm.finishBattle(finalL: finalL, finalR: finalR)
                         }
+                    }
+                    
+                    if let card = vm.presentingCard {
+                        ZStack {
+                            // 背景を少し暗くする（不要なら消してOK）
+                            Color.black.opacity(0.45)
+                                .ignoresSafeArea()
+                                .onTapGesture { vm.closeCardPopup() }
+
+                            CardDetailOverlay(
+                                card: card,
+                                vm: vm,
+                                onClose: { vm.closeCardPopup() }
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(12)
+                        }
+                        .transition(.opacity.combined(with: .scale))
+                        .zIndex(1200)
                     }
                 }
 
@@ -263,25 +287,29 @@ struct ContentView: View {
 
                 ZStack(alignment: .center) {
                     HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Button("🎲 Roll") { vm.rollDice() }
-                                .disabled(!(vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil))
-                            
-                            Button("✅ End") { vm.endTurn() }
-                                .disabled(!(vm.turn == 0 && vm.phase == .moved))
-                                .disabled(!vm.canEndTurn)
-                            
-                            Text("Roll: \(vm.lastRoll)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .overlay {
+                        ZStack {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Spacer()
+                                Button("🎲 Roll") { vm.rollDice() }
+                                    .disabled(!(vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil))
+                                
+                                Button("✅ End") { vm.endTurn() }
+                                    .disabled(!(vm.turn == 0 && vm.phase == .moved))
+                                    .disabled(!vm.canEndTurn)
+                                
+                                Text("Roll: \(vm.lastRoll)")
+                                Spacer()
+                            }
+                            .buttonStyle(.borderedProminent)
                             if vm.mustDiscardFor == 0 {
                                 ZStack {
                                     Color.black.opacity(0.6)
-                                    Text("手札を\n捨てて\nください")
-                                        .foregroundColor(.white)
+                                    VStack {
+                                        Spacer()
+                                        Text("手札を\n捨てて\nください")
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                    }
                                 }
                                 .allowsHitTesting(false)
                             }
@@ -441,7 +469,7 @@ struct ContentView: View {
                         }
                     }
                     
-                    if let t = vm.landedOnOpponentTileIndex,
+                    if (vm.landedOnOpponentTileIndex != nil),
                        vm.turn == 0, vm.phase == .moved, !vm.expectBattleCardSelection {
                         ZStack{
                             VStack {
@@ -515,7 +543,7 @@ struct ContentView: View {
                        vm.turn == 0,
                        vm.phase == .ready,
                        vm.mustDiscardFor == nil,
-                       isFixNextRollSpell(card) {
+                       isPreRollTargetSpell(card) {
                         ZStack {
                             VStack {
                                 Text("スペル使用先を選択")
@@ -589,10 +617,16 @@ struct ContentView: View {
         .ignoresSafeArea(edges: .bottom)
     }
     
-    private func isFixNextRollSpell(_ card: Card) -> Bool {
+    private func isPreRollTargetSpell(_ card: Card) -> Bool {
         guard card.kind == .spell, let e = card.spell else { return false }
-        if case .fixNextRoll(let n) = e { return (1...6).contains(n) }
-        return false
+        switch e {
+        case .fixNextRoll(let n):
+            return (1...6).contains(n)
+        case .doubleDice:
+            return true
+        default:
+            return false
+        }
     }
 }
 
@@ -608,6 +642,17 @@ struct CardDetailOverlay: View {
     private let frameImageName = "cardL"
     private let backImageName  = "cardLreverse"
     private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
+        if vm.isBattleItemSelectionPhase {
+            return (
+                "装備を使用",
+                {
+                    vm.applyBattleEquipment(card, by: vm.turn)
+                    vm.finishBattleItemSelection(card, for: 0)
+                    onClose()
+                },
+                vm.turn == 0
+            )
+        }
         if vm.mustDiscardFor == 0 { return ("捨てる", {
             vm.discard(card, for: 0); onClose() }, true)
         }

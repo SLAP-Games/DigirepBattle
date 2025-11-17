@@ -17,8 +17,8 @@ public struct BattleCombatant: Identifiable, Equatable {
     public let hpMax: Int
     public let power: Int
     public let durability: Int
-    public let itemPower: Int
-    public let itemDurability: Int
+    public var itemPower: Int
+    public var itemDurability: Int
     public let resist: Int
 
     public init(
@@ -175,7 +175,11 @@ public struct BattleOverlayView: View {
     public let right: BattleCombatant
     public let attribute: BattleAttribute
     public let onFinished: (BattleCombatant, BattleCombatant) -> Void
+    
+    @Binding public var isItemSelecting: Bool
 
+    @StateObject private var vm = GameVM()
+    
     @State private var leftOffset: CGFloat = 0
     @State private var rightOffset: CGFloat = 0
     @State private var leftHPAnim: CGFloat
@@ -188,17 +192,20 @@ public struct BattleOverlayView: View {
     @State private var dmgRight: Int = 0
     @State private var isFinished = false
     @State private var useFirstImage = true
+    @State private var hasStartedTimeline = false
     private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
 
     public init(
         left: BattleCombatant,
         right: BattleCombatant,
         attribute: BattleAttribute,
+        isItemSelecting: Binding<Bool>,
         onFinished: @escaping (BattleCombatant, BattleCombatant) -> Void
     ) {
         self.left = left
         self.right = right
         self.attribute = attribute
+        self._isItemSelecting = isItemSelecting
         self.onFinished = onFinished
         _L = State(initialValue: left)
         _R = State(initialValue: right)
@@ -216,67 +223,119 @@ public struct BattleOverlayView: View {
             let totalH: CGFloat = bandH * 2 + centerH + hudH
             
             ZStack {
-                Color.black.opacity(0.6)
-
-                VStack(spacing: 0) {
-                    // 上スライド帯
-                    InfiniteSlidingStrip(imageName: "bandTop", containerWidth: W, height: bandH, direction: .left, opacity: 0.35)
-
-                    // センター：キャラ画像＋ダメージのみ
-                    ZStack {
-                        Rectangle().fill(Color.black).frame(height: centerH)
-
-                        HStack {
-                            Spacer(minLength: 0)
-                            // 画像のみ（HUDは出さない）
-                            fighterSpriteView(isLeft: true, who: L)
-                                .frame(width: W * 0.38)
-                                .offset(x: leftOffset)
-                            Spacer()
-                            fighterSpriteView(isLeft: false, who: R)
-                                .frame(width: W * 0.38)
-                                .offset(x: rightOffset)
-                            Spacer(minLength: 0)
+                ZStack {
+                    Color.black.opacity(0.6)
+                    
+                    VStack(spacing: 0) {
+                        // 上スライド帯
+                        InfiniteSlidingStrip(imageName: "bandTop", containerWidth: W, height: bandH, direction: .left, opacity: 0.35)
+                        
+                        // センター：キャラ画像＋ダメージのみ
+                        ZStack {
+                            Rectangle().fill(Color.black).frame(height: centerH)
+                            
+                            HStack {
+                                Spacer(minLength: 0)
+                                // 画像のみ（HUDは出さない）
+                                fighterSpriteView(isLeft: true, who: L)
+                                    .frame(width: W * 0.38)
+                                    .offset(x: leftOffset)
+                                Spacer()
+                                fighterSpriteView(isLeft: false, who: R)
+                                    .frame(width: W * 0.38)
+                                    .offset(x: rightOffset)
+                                Spacer(minLength: 0)
+                            }
+                            .frame(height: centerH)
+                            .onReceive(timer) { _ in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    useFirstImage.toggle()
+                                }
+                            }
+                            
+                            // ダメージ表示
+                            if showDmgLeft {
+                                Text("-\(dmgLeft)")
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundStyle(.red)
+                                    .shadow(radius: 6)
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                    .position(x: W * 0.18, y: centerH * 0.25)
+                            }
+                            if showDmgRight {
+                                Text("-\(dmgRight)")
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundStyle(.red)
+                                    .shadow(radius: 6)
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                    .position(x: W * 0.82, y: centerH * 0.25)
+                            }
                         }
-                        .frame(height: centerH)
+                        
+                        // 下スライド帯
+                        InfiniteSlidingStrip(imageName: "bandBottom", containerWidth: W, height: bandH, direction: .right, opacity: 0.35)
+                        
+                        // ★帯の「下」に HUD を配置★
+                        hudRow()
+                            .frame(height: hudH)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: totalH) // HUD分も含めて確保
+                }
+                .onAppear {
+                    setupInitialOffsets(W: W)
+                    if !isItemSelecting {
+                        startTimelineIfNeeded(W: W)
+                    }
+                }
+                .onChange(of: isItemSelecting) { oldValue, newValue in
+                    if oldValue == true && newValue == false {
+                        startTimelineIfNeeded(W: W)
+                    }
+                }
+                
+                if isItemSelecting {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(true)
 
-                        // ダメージ表示
-                        if showDmgLeft {
-                            Text("-\(dmgLeft)")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(.red)
-                                .shadow(radius: 6)
-                                .transition(.move(edge: .top).combined(with: .opacity))
-                                .position(x: W * 0.18, y: centerH * 0.25)
-                        }
-                        if showDmgRight {
-                            Text("-\(dmgRight)")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(.red)
-                                .shadow(radius: 6)
-                                .transition(.move(edge: .top).combined(with: .opacity))
-                                .position(x: W * 0.82, y: centerH * 0.25)
+                    VStack(spacing: 16) {
+                        Text("装備品を手札から選択してください")
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+
+                        Button {
+                            isItemSelecting = false
+                        } label: {
+                            Text("使用しない")
+                                .font(.headline)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 10)
+                                .background(Color.white.opacity(0.9))
+                                .foregroundColor(.black)
+                                .cornerRadius(12)
                         }
                     }
-
-                    // 下スライド帯
-                    InfiniteSlidingStrip(imageName: "bandBottom", containerWidth: W, height: bandH, direction: .right, opacity: 0.35)
-
-                    // ★帯の「下」に HUD を配置★
-                    hudRow()
-                        .frame(height: hudH)
+                    .padding(24)
+                    .background(Color.black.opacity(0.8))
+                    .cornerRadius(18)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                    )
+                    .padding()
                 }
-                .frame(maxWidth: .infinity, maxHeight: totalH) // HUD分も含めて確保
-            }
-            .onAppear {
-                setupInitialOffsets(W: W)
-                timeline()
             }
         }
         .ignoresSafeArea()
         .contentShape(Rectangle())
         .allowsHitTesting(true)
         .transition(.opacity)
+        .onChange(of: left) { oldValue, newValue in
+            L = newValue
+        }
+        .onChange(of: right) { oldValue, newValue in
+            R = newValue
+        }
     }
 
     @ViewBuilder
@@ -287,11 +346,6 @@ public struct BattleOverlayView: View {
             .frame(maxHeight: 70)
             .scaleEffect(x: isLeft ? 1 : -1, y: 1)
             .shadow(color: .white.opacity(0.15), radius: 8, x: 0, y: 3)
-            .onReceive(timer) { _ in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    useFirstImage.toggle()
-                }
-            }
     }
 
     
@@ -316,6 +370,13 @@ public struct BattleOverlayView: View {
     private func setupInitialOffsets(W: CGFloat) {
         leftOffset = 0      // left on-screen
         rightOffset = W     // right off-screen to the right
+    }
+    
+    private func startTimelineIfNeeded(W: CGFloat) {
+        guard !hasStartedTimeline else { return }
+        hasStartedTimeline = true
+        setupInitialOffsets(W: W)
+        timeline()
     }
 
     private func timeline() {
@@ -369,7 +430,7 @@ public struct BattleOverlayView: View {
             R.hp = max(0, R.hp - dmg)
             withAnimation(.easeOut(duration: 0.6)) { rightHPAnim = CGFloat(R.hp) }
 
-            if R.hp <= 0 { finishNow() }   // ← 追加
+            if R.hp <= 0 { finishNow() }
         } else {
             let atk = atkValue(of: R)
             let def = defValue(of: L)
@@ -379,7 +440,7 @@ public struct BattleOverlayView: View {
             L.hp = max(0, L.hp - dmg)
             withAnimation(.easeOut(duration: 0.6)) { leftHPAnim = CGFloat(L.hp) }
 
-            if L.hp <= 0 { finishNow() }   // ← 追加
+            if L.hp <= 0 { finishNow() }
         }
     }
 
@@ -404,6 +465,7 @@ public struct BattleOverlayView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             onFinished(L, R)
         }
+        vm.expectBattleCardSelection = false
     }
 }
 

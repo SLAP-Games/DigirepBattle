@@ -95,6 +95,8 @@ final class GameVM: ObservableObject {
         PlayerCardState(collection: CardCollection(), deckList: DeckList()),
         PlayerCardState(collection: CardCollection(), deckList: DeckList())
     ]
+    @Published var doubleDice: [Bool] = [false, false]
+    @Published var isBattleItemSelectionPhase: Bool = false
     
     private var cpuDidBattleThisTurn: Bool = false
     private var spellPool: [Card] = []
@@ -151,22 +153,22 @@ final class GameVM: ObservableObject {
         
         //プレイヤーデッキ
         cardStates[0].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("sp-fireball",       count: 20)
+        cardStates[0].collection.add("sp-hardFang", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 30
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-dice1": 20
+            "sp-hardFang": 20
         ]
         
         //NPCデッキ
-        cardStates[1].collection.add("cre-defaultGecko", count: 30)
-        cardStates[1].collection.add("sp-heal",          count: 20)
+        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
+        cardStates[1].collection.add("sp-hardFang", count: 20)
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultGecko": 30
+            "cre-defaultBeardedDragon": 30
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-dice1": 20
+            "sp-hardFang": 20
         ]
         
         for pid in 0...1 {
@@ -464,13 +466,27 @@ final class GameVM: ObservableObject {
     func rollDice() {
         guard turn == 0, phase == .ready else { return }
         
-        let r = nextForcedRoll[turn] ?? Int.random(in: 1...6)
+        let r: Int
+        if let forced = nextForcedRoll[turn] {
+            // 強制出目が指定されている場合はそれを優先
+            r = forced
+        } else {
+            if doubleDice[turn] {
+                // ダイス2個 → 2〜12
+                let d1 = Int.random(in: 1...6)
+                let d2 = Int.random(in: 1...6)
+                r = d1 + d2
+            } else {
+                // 通常 → 1〜6
+                r = Int.random(in: 1...6)
+            }
+        }
+        doubleDice[turn] = false
         nextForcedRoll[turn] = nil
         forceRollToOneFor[turn] = false
         lastRoll = r
         stepsLeft = r
-        // ★ ここがポイント：現在地がマス5で、これから動くなら、
-        //   プレイヤーは先に分岐を選ばせ、CPUは即ランダム分岐してから移動開始
+
         if players[turn].pos == CROSS_NODE, stepsLeft > 0 {
             focusTile = players[turn].pos
             branchSource = CROSS_NODE
@@ -785,15 +801,11 @@ final class GameVM: ObservableObject {
     }
     
     func useSpellPreRoll(_ card: Card, target: Int) {
-        // 自分ターン・ロール前・スペルカードのみ
         guard turn == 0,
               phase == .ready,
               card.kind == .spell else { return }
         guard (0...1).contains(target) else { return }
-
-        // ダイス固定スペルのみ対象
-        guard case let .fixNextRoll(n)? = card.spell,
-              (1...6).contains(n) else { return }
+        guard let effect = card.spell else { return }
 
         // --- ① GOLDコスト支払い ---
         let cost = spellCost(of: card)
@@ -804,21 +816,29 @@ final class GameVM: ObservableObject {
             }
         }
 
-        // --- ② 効果適用 ---
-        nextForcedRoll[target] = n
+        switch effect {
+        case .fixNextRoll(let n):
+            guard (1...6).contains(n) else { return }
+            nextForcedRoll[target] = n
+            if target == turn {
+                pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+            } else {
+                pushCenterMessage("CPUの次のサイコロを \(n) に固定（コスト\(cost)）")
+            }
 
-        // 手札から消費
-        consumeFromHand(card, for: 0)
+        case .doubleDice:
+            doubleDice[target] = true
+            if target == turn {
+                pushCenterMessage("次のサイコロがダブルダイスになります（コスト\(cost)）")
+            } else {
+                pushCenterMessage("CPUの次のサイコロがダブルダイスになります（コスト\(cost)）")
+            }
 
-        if target == turn {
-            // 自分に使ったときは即ロール
-            pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
-            rollDice()
-        } else {
-            // CPU に使ったときは次ターンの CPU ロールが固定される
-            pushCenterMessage("CPUの次のサイコロを \(n) に固定（コスト\(cost)）")
-            // phaseは .ready のまま。プレイヤーはこのままロール可能。
+        default:
+            // ここで扱わないスペルは何もしない
+            return
         }
+        consumeFromHand(card, for: 0)
     }
 
     func useSpellPreRoll(_ card: Card) {
@@ -891,7 +911,6 @@ final class GameVM: ObservableObject {
             pushCenterMessage("未対応のスペル効果です（コスト\(cost)だけ消費）")
         }
 
-        // 手札から消費
         consumeFromHand(card, for: 0)
     }
     /// 山札ショップなどから買ったスペルの共通適用口
@@ -924,9 +943,43 @@ final class GameVM: ObservableObject {
             pushCenterMessage("このスペル効果はまだ未実装です")
         }
     }
+    
+    func useDoubleDiceSpellForPlayer() {
+        doubleDice[0] = true
+    }
+    
+    func applyBattleEquipment(_ card: Card, by user: Int) {
+        guard var left = battleLeft,
+              var right = battleRight,
+              let attacker = pendingBattleAttacker else { return }
 
+        let isAttacker = (user == attacker)
 
-    private func consumeFromHand(_ card: Card, for pid: Int) {
+        if isAttacker {
+            apply(card: card, to: &left)
+            battleLeft = left
+        } else {
+            apply(card: card, to: &right)
+            battleRight = right
+        }
+    }
+    
+    private func apply(card: Card, to target: inout BattleCombatant) {
+        switch card.id { 
+        case "sp-hardFang":
+            target.itemPower += 10
+        default:
+            break
+        }
+    }
+    
+    func finishBattleItemSelection(_ card: Card, for pid: Int) {
+        // 装備選択フェーズ終了 → BattleOverlayView 側で戦闘アニメ開始トリガーにする
+        isBattleItemSelectionPhase = false
+        consumeFromHand(card, for: 0)
+    }
+
+    func consumeFromHand(_ card: Card, for pid: Int) {
         if let i = hands[pid].firstIndex(of: card) { hands[pid].remove(at: i) }
     }
     
@@ -967,8 +1020,20 @@ final class GameVM: ObservableObject {
         // ロール前にスペル使用
         cpuUseRandomDiceFixSpellIfAvailable()
 
-        // ロール確定
-        lastRoll = nextForcedRoll[1] ?? Int.random(in: 1...6)
+        let r: Int
+        if let forced = nextForcedRoll[1] {
+            r = forced
+        } else {
+            if doubleDice[1] {
+                let d1 = Int.random(in: 1...6)
+                let d2 = Int.random(in: 1...6)
+                r = d1 + d2
+            } else {
+                r = Int.random(in: 1...6)
+            }
+        }
+        lastRoll = r
+        doubleDice[1] = false
         nextForcedRoll[1] = nil
         forceRollToOneFor[1] = false
         stepsLeft = lastRoll
@@ -1008,7 +1073,6 @@ final class GameVM: ObservableObject {
             }
         }
 
-        // 移動後：空き地なら設置
         if owner[t] == nil,
            canPlaceCreature(at: t),
            let creature = hands[1].first(where: { $0.kind == .creature }) {
@@ -1549,6 +1613,44 @@ final class GameVM: ObservableObject {
         return true
     }
     
+    private func cpuUseEquipSkillIfAvailable() {
+        let npcId = 1
+
+        // 手札から「装備スキルカード」を1枚探す
+        guard let index = hands[npcId].firstIndex(where: { isEquipSkillCard($0) }) else {
+            return
+        }
+
+        let equipCard = hands[npcId][index]
+
+        // 戦闘中の装備適用（攻撃側 or 防御側かは applyBattleEquipment が判断）
+        applyBattleEquipment(equipCard, by: npcId)
+
+        // 手札から削除
+        hands[npcId].remove(at: index)
+    }
+    
+    private func isEquipSkillCard(_ card: Card) -> Bool {
+        // spell 以外は装備スキルではない
+        guard card.kind == .spell,
+              let effect = card.spell else {
+            return false
+        }
+
+        switch effect {
+        case .buffPower,
+             .buffDefense,
+             .firstStrike,
+             .poison,
+             .reflectSkill:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    
     // MARK: - 戦闘管理
     private func tryPay(_ amount: Int, by pid: Int) -> Bool {
         guard amount > 0 else { return true }
@@ -1572,7 +1674,7 @@ final class GameVM: ObservableObject {
     func chooseBattle() {
         guard landedOnOpponentTileIndex != nil else { return }
         expectBattleCardSelection = true
-        canEndTurn = false            // ← End無効化
+        canEndTurn = false
         showLogOverlay = false
     }
 
@@ -1614,7 +1716,6 @@ final class GameVM: ObservableObject {
             return resistValue(of: s, for: attr)
         } else {
             // クリーチャー不在などのフォールバック（従来の最高抵抗を使用）
-            // ※手元のプロジェクトに合わせて適宜調整してください
             return highestResistAt(tile: tile)
         }
     }
@@ -1627,7 +1728,6 @@ final class GameVM: ObservableObject {
 
         // 戦闘中は End を押せない
         canEndTurn = false
-
         // 戦闘の対象タイルと攻撃カードを保持（Overlay 終了後に使う）
         currentBattleTile = t
         currentAttackingCard = card
@@ -1661,9 +1761,11 @@ final class GameVM: ObservableObject {
         battleLeft = attacker
         battleRight = defender
         battleAttr = BattleAttribute(rawValue: attr.rawValue) ?? .normal
-        
+        if turn == 1 {
+            cpuUseEquipSkillIfAvailable()
+        }
+        isBattleItemSelectionPhase = true
         showBattleOverlay = true
-        expectBattleCardSelection = false
         landedOnOpponentTileIndex = t
     }
     
@@ -1675,7 +1777,6 @@ final class GameVM: ObservableObject {
               let attackerId = pendingBattleAttacker
         else { return }
 
-        // Overlay を閉じる
         showBattleOverlay = false
         isAwaitingBattleResult = false
 
@@ -1686,6 +1787,9 @@ final class GameVM: ObservableObject {
             placeCreature(from: usedCard, at: t, by: attackerId)
             consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "土地を奪われた" : "土地を奪い取った"
+        } else if finalL.hp <= 0 {
+            consumeFromHand(usedCard, for: attackerId)
+            battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
         } else {
             if hp.indices.contains(t) { hp[t] = finalR.hp; hp = hp }
             if var c = creatureOnTile[t] { c.hp = finalR.hp; creatureOnTile[t] = c }
