@@ -177,12 +177,11 @@ struct ContentView: View {
                         .animation(.spring(response: 0.25, dampingFraction: 0.9), value: vm.activeSpecialSheet)
                     }
                     
-                    if let t = vm.sellConfirmTile {
+                    if vm.sellConfirmTile != nil {
                         ZStack {
                             Color.black.opacity(0.35).ignoresSafeArea()
                             VStack(spacing: 12) {
                                 let before = vm.players[0].gold
-                                let add    = vm.saleValue(for: t)
                                 let after  = vm.sellPreviewAfterGold
 
                                 Text("売却しますか？").font(.headline)

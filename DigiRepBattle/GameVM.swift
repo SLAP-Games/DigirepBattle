@@ -163,12 +163,18 @@ final class GameVM: ObservableObject {
         
         //NPCデッキ
         cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[1].collection.add("sp-hardFang", count: 20)
+        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
+        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
+        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
+        cardStates[1].collection.add("sp-doubleDice", count: 20)
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultBeardedDragon": 30
+            "cre-defaultBeardedDragon": 10,
+            "cre-defaultHornedFrog": 10,
+            "cre-defaultGreenIguana": 10,
+            "cre-defaultBallPython": 10
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-hardFang": 20
+            "sp-doubleDice": 10
         ]
         
         for pid in 0...1 {
@@ -1075,7 +1081,8 @@ final class GameVM: ObservableObject {
 
         if owner[t] == nil,
            canPlaceCreature(at: t),
-           let creature = hands[1].first(where: { $0.kind == .creature }) {
+           let creature = cpuPickCreatureForTile(t) {
+
             placeCreature(from: creature, at: t, by: 1)
             consumeFromHand(creature, for: 1)
         }
@@ -1085,23 +1092,80 @@ final class GameVM: ObservableObject {
     }
     
     private func cpuUseRandomDiceFixSpellIfAvailable() {
-        if nextForcedRoll[1] != nil { return }
-        // hands[1] から fixNextRoll(n) を集めてランダムに1枚使う
-        let candidates: [(idx: Int, n: Int)] = hands[1].enumerated().compactMap { (i, c) in
-            guard c.kind == .spell else { return nil }
-            if case let .fixNextRoll(n)? = c.spell, (1...6).contains(n) {
-                return (i, n)
+        // すでに強制出目 or ダブルダイスが決まっていたら何もしない
+        if nextForcedRoll[1] != nil || doubleDice[1] { return }
+
+        enum Candidate {
+            case fix(idx: Int, n: Int)
+            case double(idx: Int)
+        }
+
+        let candidates: [Candidate] = hands[1].enumerated().compactMap { (i, c) in
+            guard c.kind == .spell, let spell = c.spell else { return nil }
+
+            switch spell {
+            case let .fixNextRoll(n) where (1...6).contains(n):
+                return .fix(idx: i, n: n)
+            case .doubleDice:
+                return .double(idx: i)
+            default:
+                return nil
             }
-            return nil
         }
 
         guard let pick = candidates.randomElement() else { return }
-        // 使ったカードを取り除き、次のサイコロ値を固定
-        let (idx, n) = pick
-        _ = hands[1].remove(at: idx)
-        nextForcedRoll[1] = n
+
+        switch pick {
+        case let .fix(idx, n):
+            _ = hands[1].remove(at: idx)
+            nextForcedRoll[1] = n
+
+        case let .double(idx):
+            _ = hands[1].remove(at: idx)
+            doubleDice[1] = true
+        }
     }
     
+    private func cpuPickCreatureForTile(_ tile: Int) -> Card? {
+        // 1) 手札からクリーチャーだけを抽出
+        let creatures = hands[1].filter { $0.kind == .creature }
+        guard !creatures.isEmpty else { return nil }
+
+        // 2) CPUの所持ゴールド（高すぎるカードは避ける用）
+        let gold = players[1].gold
+
+        // 3) クリーチャーの stats コスト取得用ヘルパー
+        func stats(for card: Card) -> CreatureStats {
+            card.stats ?? CreatureStats.defaultLizard
+        }
+
+        // 4) まず「払えるカード」だけに絞る（全部高すぎるなら妥協して全カード対象）
+        let affordable = creatures.filter { stats(for: $0).cost <= gold }
+        let pool = affordable.isEmpty ? creatures : affordable
+        let attr = tileAttribute(of: tile)
+
+        // 4) 属性ごとのスコア
+        func score(for card: Card) -> Int {
+            let s = stats(for: card)
+            switch attr {
+            case .normal:
+                // ノーマルマス → ランダムで OK
+                return Int.random(in: 0..<1000)
+            case .dry:
+                return s.resistDry
+            case .water:
+                return s.resistWater
+            case .heat:
+                return s.resistHeat
+            case .cold:
+                return s.resistCold
+            }
+        }
+
+        // 5) スコア最大のカードを選ぶ（同点ならどれか1枚）
+        return pool.max { score(for: $0) < score(for: $1) }
+    }
+
     private func bestAttackerCard(in hand: [Card], for attr: TileAttribute) -> Card? {
         // 火力 = power*2 + resist(attr)*4 を最大化
         hand
@@ -1853,6 +1917,13 @@ final class GameVM: ObservableObject {
         addGold(-amount, to: payer)
         addGold(+amount, to: ownerPlayer)
         // addGold 内で必要なら強制売却フローが自動起動
+    }
+    
+    // タイル index → TileAttribute を返すヘルパー
+    private func tileAttribute(of tile: Int) -> TileAttribute {
+        // tile は 0始まり（0..tileCount-1）
+        guard terrain.indices.contains(tile) else { return .normal }
+        return terrain[tile].attribute
     }
 
 }
