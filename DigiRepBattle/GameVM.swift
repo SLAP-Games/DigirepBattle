@@ -77,6 +77,9 @@ final class GameVM: ObservableObject {
     @Published var passedCP2: [Bool] = [false, false]
     @Published var showCreatureMenu: Bool = false
     @Published var creatureMenuTile: Int? = nil
+    @Published var showMyTile = false
+    @Published var myTileIndex: Int?
+    @Published var isSelectingSwapCreature: Bool = false
     @Published var isForcedSaleMode: Bool = false
     @Published var debtAmount: Int = 0
     @Published var sellConfirmTile: Int? = nil
@@ -151,31 +154,51 @@ final class GameVM: ObservableObject {
         self.cost = Array(repeating: 1, count: tileCount)
         self.toll = Array(repeating: 0, count: tileCount)
         
-        //プレイヤーデッキ
+        //プレイヤーテスト
         cardStates[0].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("sp-hardFang", count: 20)
+        cardStates[0].collection.add("sp-dice1", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 30
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-hardFang": 20
+            "sp-dice1": 20
+        ]
+        
+        //プレイヤーデッキ
+//        cardStates[0].collection.add("cre-defaultLizard", count: 30)
+//        cardStates[0].collection.add("sp-hardFang", count: 20)
+//        cardStates[0].deckList.creatureSlots = [
+//            "cre-defaultLizard": 30
+//        ]
+//        cardStates[0].deckList.spellSlots = [
+//            "sp-hardFang": 20
+//        ]
+        
+        //NPCテスト
+        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
+        cardStates[1].collection.add("sp-dice1", count: 20)
+        cardStates[1].deckList.creatureSlots = [
+            "cre-defaultBeardedDragon": 30
+        ]
+        cardStates[1].deckList.spellSlots = [
+            "sp-dice1": 20
         ]
         
         //NPCデッキ
-        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
-        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
-        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[1].collection.add("sp-doubleDice", count: 20)
-        cardStates[1].deckList.creatureSlots = [
-            "cre-defaultBeardedDragon": 10,
-            "cre-defaultHornedFrog": 10,
-            "cre-defaultGreenIguana": 10,
-            "cre-defaultBallPython": 10
-        ]
-        cardStates[1].deckList.spellSlots = [
-            "sp-doubleDice": 10
-        ]
+//        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
+//        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
+//        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
+//        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
+//        cardStates[1].collection.add("sp-doubleDice", count: 20)
+//        cardStates[1].deckList.creatureSlots = [
+//            "cre-defaultBeardedDragon": 10,
+//            "cre-defaultHornedFrog": 10,
+//            "cre-defaultGreenIguana": 10,
+//            "cre-defaultBallPython": 10
+//        ]
+//        cardStates[1].deckList.spellSlots = [
+//            "sp-doubleDice": 10
+//        ]
         
         for pid in 0...1 {
             decks[pid] = cardStates[pid].deckList.buildDeckCards()
@@ -198,6 +221,38 @@ final class GameVM: ObservableObject {
         showCheckpointOverlay = false
         checkpointMessage = nil
     }
+    
+    func startCreatureSwap(from tile: Int) {
+        creatureMenuTile = tile
+        isSelectingSwapCreature = true
+        showCreatureMenu = false      // メニューは一旦閉じる
+    }
+
+    func cancelCreatureSwap() {
+        isSelectingSwapCreature = false
+        // creatureMenuTile は残しても消してもどちらでもOK（好み）
+    }
+
+    /// 止まったときに自軍マスならメニューを開く
+    func openCreatureMenuIfMyTile(_ tile: Int) {
+        // 自軍＆クリーチャーがいるマスだけ開く
+        if owner.indices.contains(tile),
+           owner[tile] == turn,
+           creatureSymbol.indices.contains(tile),
+           creatureSymbol[tile] != nil {
+            showCreatureMenu = true
+            creatureMenuTile = tile
+        }
+    }
+
+    /// 手札タップで交換候補をセット（既存の pendingSwapHandIndex を使う想定）
+    func selectSwapHandIndex(_ idx: Int) {
+        guard isSelectingSwapCreature else { return }
+        pendingSwapHandIndex = idx
+        isSelectingSwapCreature = false
+        // → このあと既存の「交換しますか？」ダイアログが出る
+    }
+    
 // MARK: ---------------------------------------------------------------------------
 //　　　　　　　　　　　　　　　　　　ターン管理
 // MARK: ---------------------------------------------------------------------------
@@ -463,7 +518,17 @@ final class GameVM: ObservableObject {
 
     // 交換キャンセル（［キャンセル］）
     func cancelSwapPending() {
+        // 今表示していた候補は捨てる
         pendingSwapHandIndex = nil
+
+        // 交換対象マスが生きている場合は、再び「交換するデジレプを選択」フェーズへ戻す
+        if creatureMenuTile != nil {
+            isSelectingSwapCreature = true   // ← これで上部のテキストも再表示される
+            // showCreatureMenu は false のままでOK（手札から選ぶフェーズなので）
+        } else {
+            // 念のため、対象マスが失われていた場合は完全リセット
+            isSelectingSwapCreature = false
+        }
     }
 
 // MARK: ---------------------------------------------------------------------------
@@ -723,19 +788,27 @@ final class GameVM: ObservableObject {
             showSpecialMenu = false
         }
         
-        // 追加：自分のクリーチャーが置いてあるマスなら CreatureMenu を出す
+        // ◆ 自軍クリーチャーマスなら CreatureMenuView を出したい
         if isYou,
+           turn == 0,  // プレイヤーのターンだけ
            owner.indices.contains(index),
-           owner[index] == turn,
+           owner[index] == 0,
            level.indices.contains(index),
-           level[index] >= 1,                          // 設置済み
+           level[index] >= 1,
            creatureSymbol.indices.contains(index),
            creatureSymbol[index] != nil {
+
+            // MyTileMenu ではなく、CreatureMenu 用の状態をセット
             creatureMenuTile = index
             showCreatureMenu = true
+
+            // もし MyTileMenu を使わないなら閉じておく
+            closeMyTileMenu()
         } else {
-            creatureMenuTile = nil
             showCreatureMenu = false
+            creatureMenuTile = nil
+            // MyTileMenu も閉じてよければここで
+            closeMyTileMenu()
         }
     }
     
@@ -781,9 +854,9 @@ final class GameVM: ObservableObject {
         }
     }
 
-    // MARK: ---------------------------------------------------------------------------
-    //　　　　　　　　　　　　　　　　　　カード使用
-    // MARK: ---------------------------------------------------------------------------
+// MARK: ---------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　カード使用
+// MARK: ---------------------------------------------------------------------------
     
     func useSpellCard(_ card: Card, by pid: Int, targetTile: Int?) {
         // 1. 定義取得
@@ -1012,9 +1085,9 @@ final class GameVM: ObservableObject {
         activeSpecialSheet = .buySpell
     }
 
-    // MARK: ---------------------------------------------------------------------------
-    //　　　　　　　　　　　　　　　　　　NPC行動ロジック
-    // MARK: ---------------------------------------------------------------------------
+// MARK: ---------------------------------------------------------------------------
+//　　　　　　　　　　　　　　　　　　NPC行動ロジック
+// MARK: ---------------------------------------------------------------------------
 
     @MainActor
     private func runCpuAuto() async {
@@ -1222,7 +1295,46 @@ final class GameVM: ObservableObject {
         }
     }
 
-    // MARK: - マス管理
+// MARK: ------------------------------------------------------------------------------------------------------
+// MARK:       マス管理
+// MARK: ------------------------------------------------------------------------------------------------------
+    
+    // 自軍マスメニューを開く／閉じるヘルパー
+    func openMyTileMenu(at index: Int) {
+        myTileIndex = index
+        showMyTile = true
+
+        // 他メニューは閉じておくと干渉しにくい
+        showCreatureMenu = false
+        showSpecialMenu = false
+    }
+    
+    func closeMyTileMenu() {
+        myTileIndex = nil
+        showMyTile = false
+    }
+
+    // ★ レベルアップ・クリーチャー交換のアクションの入り口
+    func actionLevelUpOnMyTile() {
+        // まずは CreatureMenu 優先で見る
+        let target = creatureMenuTile ?? myTileIndex
+        guard let t = target else { return }
+
+        // メニューは閉じる
+        showCreatureMenu = false
+        closeMyTileMenu()
+
+        // レベルアップ用シートを表示
+        activeSpecialSheet = .levelUp(tile: t)
+    }
+
+    func actionChangeCreatureOnMyTile() {
+        guard let t = myTileIndex else { return }
+        self.creatureMenuTile = t
+        self.showCreatureMenu = true
+        // ついでに自軍マスメニューは閉じてしまう
+        closeMyTileMenu()
+    }
     
     private func buildFixedTerrain() -> [TileTerrain] {
         // 既定は field（ノーマル）
@@ -1535,9 +1647,6 @@ final class GameVM: ObservableObject {
         if level.indices.contains(idx) { level[idx] = 0 }
         if toll.indices.contains(idx)  { toll[idx]  = 0 }
         if creatureSymbol.indices.contains(idx) { creatureSymbol[idx] = nil }
-
-        // TOTAL 表示がある場合はここで再計算を呼ぶ
-        // recalcTotal(for: player)
     }
     
     /// レベルアップ確定
@@ -1714,8 +1823,10 @@ final class GameVM: ObservableObject {
         }
     }
 
+// MARK: -----------------------------------------------------------------------------
+// MARK: - 戦闘管理
+// MARK: -----------------------------------------------------------------------------
     
-    // MARK: - 戦闘管理
     private func tryPay(_ amount: Int, by pid: Int) -> Bool {
         guard amount > 0 else { return true }
         guard players.indices.contains(pid) else { return false }

@@ -116,6 +116,17 @@ struct ContentView: View {
                             .zIndex(900)
                         }
                     }
+                    .overlay(alignment: .top) {
+                        if vm.isSelectingSwapCreature {
+                            Text("交換するクリーチャーを選択")
+                                .font(.headline)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Capsule())
+                                .padding(.top, 8)
+                        }
+                    }
                     
                     if vm.showCheckpointOverlay {
                         ZStack {
@@ -278,6 +289,20 @@ struct ContentView: View {
                         .transition(.opacity.combined(with: .scale))
                         .zIndex(1200)
                     }
+                    
+                    if vm.mustDiscardFor == 0 {
+                        ZStack {
+                            Color.black.opacity(0.7)
+                                .ignoresSafeArea()
+                            VStack {
+                                Spacer()
+                                Text("捨てる手札を選択してください")
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                        }
+                        .allowsHitTesting(false)
+                    }
                 }
 
 // -------------------------------------------------------------------------------
@@ -300,27 +325,23 @@ struct ContentView: View {
                                 Spacer()
                             }
                             .buttonStyle(.borderedProminent)
-                            if vm.mustDiscardFor == 0 {
-                                ZStack {
-                                    Color.black.opacity(0.6)
-                                    VStack {
-                                        Spacer()
-                                        Text("手札を\n捨てて\nください")
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                    }
-                                }
-                                .allowsHitTesting(false)
-                            }
                         }
 
                         Divider().frame(height: controlsH * 0.8)
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
-                                ForEach(vm.hands[0]) { card in
+                                ForEach(Array(vm.hands[0].enumerated()), id: \.element.id) { index, card in
                                     CardView(card: card)
-                                        .onTapGesture { vm.openCard(card)
+                                        .onTapGesture {
+                                            if vm.isSelectingSwapCreature,
+                                               card.kind == .creature {
+                                                // ★ 交換モード中なら、このカードを候補にする
+                                                vm.selectSwapHandIndex(index)
+                                            } else {
+                                                // 通常時は今まで通りカード詳細を開く
+                                                vm.openCard(card)
+                                            }
                                         }
                                 }
                             }
@@ -396,31 +417,6 @@ struct ContentView: View {
                                 }
                                 .clipped()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                            } else if vm.phase == .moved {
-                                ZStack {
-                                    CreatureMenuView(
-                                        vm: vm,
-                                        tile: t,
-                                        selectedCard: card,
-                                        onClose: {
-                                            vm.showCreatureMenu = false
-                                            vm.creatureMenuTile = nil
-                                            vm.closeCardPopup()
-                                        }
-                                    )
-                                    .frame(height: controlsH)
-                                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .background {
-                                    Image("underMenuBackgroundRed")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                }
-                                .onAppear {
-                                    vm.creatureMenuTile = t
-                                    vm.showCreatureMenu = true
-                                }
                             }
                         }
                         // 3) CPUのデジレプが設置済み
@@ -528,6 +524,35 @@ struct ContentView: View {
                             .background(.ultraThinMaterial)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .shadow(radius: 10)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Image("underMenuBackgroundRed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+                    }
+                    
+                    // ★★★ 自軍マスに止まったとき用の CreatureMenuView 表示 ★★★
+                    if vm.showCreatureMenu,
+                       let t = vm.creatureMenuTile,
+                       vm.turn == 0 {
+
+                        ZStack {
+                            CreatureMenuView(
+                                vm: vm,
+                                tile: t,
+                                onChangeCreature: {
+                                    // 交換モード開始
+                                    vm.startCreatureSwap(from: t)
+                                },
+                                onClose: {
+                                    vm.showCreatureMenu = false
+                                    vm.creatureMenuTile = nil
+                                }
+                            )
+                            .frame(height: controlsH)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         .frame(maxWidth: .infinity)
                         .background {
