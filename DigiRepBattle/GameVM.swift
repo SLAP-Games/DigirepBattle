@@ -155,13 +155,13 @@ final class GameVM: ObservableObject {
         self.toll = Array(repeating: 0, count: tileCount)
         
         //プレイヤーテスト
-        cardStates[0].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("sp-dice1", count: 20)
+        cardStates[0].collection.add("cre-defaultBeardedDragon", count: 30)
+        cardStates[0].collection.add("sp-dice5", count: 20)
         cardStates[0].deckList.creatureSlots = [
-            "cre-defaultLizard": 30
+            "cre-defaultBeardedDragon": 30
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-dice1": 20
+            "sp-dice5": 20
         ]
         
         //プレイヤーデッキ
@@ -175,13 +175,13 @@ final class GameVM: ObservableObject {
 //        ]
         
         //NPCテスト
-        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[1].collection.add("sp-dice1", count: 20)
+        cardStates[1].collection.add("cre-defaultLizard", count: 30)
+        cardStates[1].collection.add("sp-dice2", count: 20)
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultBeardedDragon": 30
+            "cre-defaultLizard": 30
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-dice1": 20
+            "sp-dice2": 20
         ]
         
         //NPCデッキ
@@ -332,8 +332,11 @@ final class GameVM: ObservableObject {
             return
         }
 
-        placeCreature(from: card, at: tile, by: pid)
-
+        guard placeCreature(from: card, at: tile, by: pid) else {
+            // G不足などで失敗した場合は何もしない（カードも残す）
+            return
+        }
+        
         if let i = hands[pid].firstIndex(of: card) {
             hands[pid].remove(at: i)
         }
@@ -933,7 +936,6 @@ final class GameVM: ObservableObject {
             useSpellAfterMove(card)
 
         case .creature:
-            // 戦闘選択中なら「このカードで戦闘」
             if expectBattleCardSelection,
                landedOnOpponentTileIndex != nil {
                 startBattle(with: card)
@@ -942,8 +944,9 @@ final class GameVM: ObservableObject {
 
             let t = players[0].pos
             if owner[t] == nil, canPlaceCreature(at: t) {
-                placeCreature(from: card, at: t, by: 0)
-                consumeFromHand(card, for: 0)
+                if placeCreature(from: card, at: t, by: 0) {
+                    consumeFromHand(card, for: 0)
+                }
             }
         }
     }
@@ -1156,8 +1159,9 @@ final class GameVM: ObservableObject {
            canPlaceCreature(at: t),
            let creature = cpuPickCreatureForTile(t) {
 
-            placeCreature(from: creature, at: t, by: 1)
-            consumeFromHand(creature, for: 1)
+            if placeCreature(from: creature, at: t, by: 1) {
+                consumeFromHand(creature, for: 1)
+            }
         }
 
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -1428,17 +1432,20 @@ final class GameVM: ObservableObject {
         }
     }
     
-    func placeCreature(from card: Card, at tile: Int, by pid: Int) {
-        guard canPlaceCreature(at: tile) else { return }
+    @discardableResult
+    func placeCreature(from card: Card, at tile: Int, by pid: Int) -> Bool {
+        guard canPlaceCreature(at: tile) else { return false }
         let s = card.stats ?? CreatureStats.defaultLizard
         let price = max(0, s.cost)
-        
+
+        // コスト支払い
         guard tryPay(price, by: pid) else {
             if pid == 0 {
-                battleResult = "GOLD不足（必要: \(price)）"
+                battleResult = "G不足（必要: \(price)）"
             }
-            return
+            return false
         }
+
         owner[tile] = pid
         level[tile] = max(level[tile], 1)
         creatureSymbol[tile] = card.symbol
@@ -1456,11 +1463,12 @@ final class GameVM: ObservableObject {
         creatureOnTile[tile] = Creature(
             id: UUID().uuidString,
             owner: pid,
-            imageName: card.symbol,  // 専用画像があればそちらに
+            imageName: card.symbol,
             stats: s,
             hp: s.hpMax
         )
         toll[tile] = toll(at: tile)
+        return true
     }
     
     /// マスの属性を返す
@@ -1554,6 +1562,44 @@ final class GameVM: ObservableObject {
         )
     }
     
+    // タイル上のクリーチャー情報をクリアする共通メソッド
+    func clearCreatureInfo(at tile: Int,
+                           clearOwnerAndLevel: Bool = false,
+                           resetToll: Bool = false) {
+        guard (0..<tileCount).contains(tile) else { return }
+
+        // クリーチャー関連ステータスをクリア
+        if creatureSymbol.indices.contains(tile) { creatureSymbol[tile] = nil }
+        if hp.indices.contains(tile)           { hp[tile] = 0 }
+        if hpMax.indices.contains(tile)        { hpMax[tile] = 0 }
+        if aff.indices.contains(tile)          { aff[tile] = 0 }
+        if pow.indices.contains(tile)          { pow[tile] = 0 }
+        if dur.indices.contains(tile)          { dur[tile] = 0 }
+        if rDry.indices.contains(tile)         { rDry[tile] = 0 }
+        if rWat.indices.contains(tile)         { rWat[tile] = 0 }
+        if rHot.indices.contains(tile)         { rHot[tile] = 0 }
+        if rCold.indices.contains(tile)        { rCold[tile] = 0 }
+        if cost.indices.contains(tile)         { cost[tile] = 0 }
+
+        // Creature辞書からも削除
+        creatureOnTile.removeValue(forKey: tile)
+
+        // 土地自体も空にしたい場合
+        if clearOwnerAndLevel {
+            if owner.indices.contains(tile) { owner[tile] = nil }
+            if level.indices.contains(tile) { level[tile] = 0 }
+        }
+
+        // 通行料リセット
+        if resetToll, toll.indices.contains(tile) {
+            toll[tile] = 0
+        }
+
+        // View更新用
+        hp = hp
+        objectWillChange.send()
+    }
+    
     // タイルタップ時ハンドラ（クリーチャーがいないタイルは無視）
     func tapTileForInspect(_ index: Int) {
         // ← 先に特別アクション選択モードを優先処理
@@ -1643,10 +1689,9 @@ final class GameVM: ObservableObject {
         if players.indices.contains(player) {
             players[player].gold += v
         }
-        if owner.indices.contains(idx) { owner[idx] = nil }
-        if level.indices.contains(idx) { level[idx] = 0 }
-        if toll.indices.contains(idx)  { toll[idx]  = 0 }
-        if creatureSymbol.indices.contains(idx) { creatureSymbol[idx] = nil }
+        clearCreatureInfo(at: idx,
+                          clearOwnerAndLevel: true,
+                          resetToll: true)
     }
     
     /// レベルアップ確定
@@ -1702,13 +1747,10 @@ final class GameVM: ObservableObject {
             creatureOnTile.removeValue(forKey: from)
         }
 
-        // 元をクリア
-        owner[from] = nil
-        level[from] = 0
-        creatureSymbol[from] = nil
-        hp[from] = 0
-        hpMax[from] = 0
-        toll[from] = 0
+        // 元をクリア（更地にする）
+        clearCreatureInfo(at: from,
+                          clearOwnerAndLevel: true,
+                          resetToll: true)
 
         pushCenterMessage("デジレプを移動")
         activeSpecialSheet = nil

@@ -220,6 +220,7 @@ struct ContentView: View {
                         vm.hands[0].indices.contains(idx) {
 
                         let price = vm.hands[0][idx].stats?.cost ?? 0
+                        let canSwap = vm.canSwapCreature(withHandIndex: idx)
                         ZStack {
                             Color.black.opacity(0.35).ignoresSafeArea()
                             VStack(spacing: 12) {
@@ -231,11 +232,12 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
 
                                 HStack(spacing: 12) {
-                                    Button("交換") {
+                                    Button(canSwap ? "交換" : "G不足") {
+                                        guard canSwap else { return }
                                         vm.confirmSwapPending()
                                     }
                                     .buttonStyle(.borderedProminent)
-                                    .disabled(!vm.canSwapCreature(withHandIndex: idx))
+                                    .disabled(!canSwap)
 
                                     Button("キャンセル") {
                                         vm.cancelSwapPending()
@@ -370,12 +372,16 @@ struct ContentView: View {
                                         .font(.subheadline).bold()
                                     
                                     HStack(spacing: 12) {
-                                        Button("配置") {
-                                            // 現在地に配置してカード消費
+                                        let price = card.stats?.cost ?? 0
+                                        let enoughGold = vm.players[0].gold >= price
+
+                                        Button(enoughGold ? "配置" : "G不足") {
+                                            guard enoughGold else { return }
                                             vm.confirmPlaceCreatureFromHand(card, at: t, by: 0)
                                             vm.closeCardPopup()
                                         }
                                         .buttonStyle(.borderedProminent)
+                                        .disabled(!enoughGold)
                                         
                                         Button("キャンセル") {
                                             vm.closeCardPopup()
@@ -565,7 +571,6 @@ struct ContentView: View {
                     if let card = vm.presentingCard,
                        card.kind == .spell,
                        vm.turn == 0,
-                       vm.phase == .ready,
                        vm.mustDiscardFor == nil,
                        isPreRollTargetSpell(card) {
                         ZStack {
@@ -666,33 +671,107 @@ struct CardDetailOverlay: View {
     private let frameImageName = "cardL"
     private let backImageName  = "cardLreverse"
     private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
+
+        // コスト取得ヘルパー
+        func spellCostForUI(_ card: Card) -> Int {
+            // スペルは CardDatabase の定義からコストを取得
+            CardDatabase.definition(for: card.id)?.cost ?? 0
+        }
+
+        func creatureCostForUI(_ card: Card) -> Int {
+            // クリーチャーは stats.cost を使用
+            card.stats?.cost ?? 0
+        }
+
+        let gold = vm.players[vm.turn].gold
+
+        // ① バトル中の装備アイテム使用
         if vm.isBattleItemSelectionPhase {
+            // 装備は基本的に stats.cost を優先し、なければスペルコストを参照
+            let cost = card.stats?.cost ?? spellCostForUI(card)
+            let hasEnoughGold = gold >= cost
+            let title = hasEnoughGold ? "装備を使用" : "G不足"
+
             return (
-                "装備を使用",
-                {
-                    vm.applyBattleEquipment(card, by: vm.turn)
-                    vm.finishBattleItemSelection(card, for: 0)
-                    onClose()
-                },
-                vm.turn == 0
+                title,
+                (vm.turn == 0 && hasEnoughGold)
+                    ? {
+                        vm.applyBattleEquipment(card, by: vm.turn)
+                        vm.finishBattleItemSelection(card, for: 0)
+                        onClose()
+                      }
+                    : nil,
+                vm.turn == 0 && hasEnoughGold
             )
         }
-        if vm.mustDiscardFor == 0 { return ("捨てる", {
-            vm.discard(card, for: 0); onClose() }, true)
+
+        // ② 手札捨て（コスト関係なし）
+        if vm.mustDiscardFor == 0 {
+            return (
+                "捨てる",
+                { vm.discard(card, for: 0); onClose() },
+                true
+            )
         }
+
+        // ③ スペル使用（事前スペル：ロール前）
         if vm.phase == .ready && card.kind == .spell {
-            return ("スペル使用", { vm.useSpellPreRoll(card); onClose() }, vm.turn == 0)
+            let cost = spellCostForUI(card)
+            let hasEnoughGold = gold >= cost
+            let title = hasEnoughGold ? "スペル使用" : "G不足"
+
+            return (
+                title,
+                (vm.turn == 0 && hasEnoughGold)
+                    ? { vm.useSpellPreRoll(card); onClose() }
+                    : nil,
+                vm.turn == 0 && hasEnoughGold
+            )
         }
+
+        // ④ 移動後のカード使用
         if vm.turn == 0 && vm.phase == .moved {
+
+            // 「戦闘する」：クリーチャーカードをバトル用に選択
             if vm.expectBattleCardSelection && card.kind == .creature {
-                return ("戦闘する", { vm.startBattle(with: card); onClose() }, true)
+                let cost = creatureCostForUI(card)
+                let hasEnoughGold = gold >= cost
+                let title = hasEnoughGold ? "戦闘する" : "G不足"
+
+                return (
+                    title,
+                    hasEnoughGold
+                        ? { vm.startBattle(with: card); onClose() }
+                        : nil,
+                    hasEnoughGold
+                )
             } else {
-                return ("カードを使用", { vm.useCardAfterMove(card); onClose() }, true)
+                // 通常のカード使用（クリーチャー／スペル共通）
+                let cost: Int
+                switch card.kind {
+                case .spell:
+                    cost = spellCostForUI(card)
+                case .creature:
+                    cost = creatureCostForUI(card)
+                }
+
+                let hasEnoughGold = gold >= cost
+                let title = hasEnoughGold ? "カードを使用" : "G不足"
+
+                return (
+                    title,
+                    hasEnoughGold
+                        ? { vm.useCardAfterMove(card); onClose() }
+                        : nil,
+                    hasEnoughGold
+                )
             }
         }
+
+        // デフォルト：何もできない
         return ("使用できません", nil, false)
     }
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Text(card.name)

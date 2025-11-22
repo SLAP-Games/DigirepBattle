@@ -468,32 +468,3 @@ public struct BattleOverlayView: View {
         vm.expectBattleCardSelection = false
     }
 }
-
-//#Preview("BattleOverlay – heat") {
-//    let left = BattleCombatant(
-//        name: "defaultGecko", imageName: "defaultGecko1",
-//        hp: 85, hpMax: 100,
-//        power: 20, durability: 18,
-//        itemPower: 10, itemDurability: 5,
-//        resist: 10 // ← マス属性に対する耐性値
-//    )
-//    let right = BattleCombatant(
-//        name: "defaultSnake", imageName: "defaultSnake1",
-//        hp: 70, hpMax: 100,
-//        power: 14, durability: 20,
-//        itemPower: 0, itemDurability: 0,
-//        resist: 8
-//    )
-//
-//    return ZStack {
-//        // 背景（実機ではボードの上に重ねる想定）
-//        LinearGradient(colors: [.black, .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-//
-//        BattleOverlayView(left: left, right: right, attribute: .heat) { finalL, finalR in
-//            // プレビューなので何もしない
-//            print("finished L=\(finalL.hp) R=\(finalR.hp)")
-//        }
-//    }
-//    .frame(width: 430, height: 260)      // 上部ボード相当の高さに調整
-//    .preferredColorScheme(.dark)
-//}

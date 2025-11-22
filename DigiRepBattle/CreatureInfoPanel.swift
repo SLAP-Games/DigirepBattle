@@ -20,7 +20,7 @@ struct CreatureInfoPanel: View {
             // ヘッダ：マップ情報
             HStack {
                 HStack(spacing: 8) {
-                    Image(iv.mapImageName)           // 地形サムネ（任意）
+                    Image(iv.mapImageName)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 36, height: 36)
