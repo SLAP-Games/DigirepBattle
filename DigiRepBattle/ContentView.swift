@@ -41,7 +41,9 @@ struct ContentView: View {
                                 vm.tapTileForInspect(idx)
                             }
                         },
-                        focusTile: vm.focusTile
+                        focusTile: vm.focusTile,
+                        isHealingAnimating: vm.isHealingAnimating,
+                        healingAmounts: vm.healingAmounts
                     )
                     .frame(height: boardH)
                     .background {

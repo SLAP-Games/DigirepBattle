@@ -100,6 +100,8 @@ final class GameVM: ObservableObject {
     ]
     @Published var doubleDice: [Bool] = [false, false]
     @Published var isBattleItemSelectionPhase: Bool = false
+    @Published var isHealingAnimating: Bool = false
+    @Published var healingAmounts: [Int: Int] = [:]
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -170,7 +172,7 @@ final class GameVM: ObservableObject {
         cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[0].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[0].collection.add("sp-hardFang", count: 20)
+        cardStates[0].collection.add("sp-sharpFang", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -180,7 +182,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-hardFang": 20
+            "sp-sharpFang": 20
         ]
         
         //NPCテスト
@@ -294,9 +296,9 @@ final class GameVM: ObservableObject {
         guard !isTurnTransition else { return }
         isTurnTransition = true
 
-        // 3秒後にターン交代して演出終了
+        // ★ 3秒後にターン交代＆回復シーケンス開始
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_600_000_000)
+            try? await Task.sleep(nanoseconds: 2_700_000_000)
             finishTurnTransition()
         }
     }
@@ -306,35 +308,97 @@ final class GameVM: ObservableObject {
         turn = 1 - turn
         phase = .ready
         lastRoll = 0
+        Task { @MainActor in
+            await self.runHealSequenceAndStartTurn()
+        }
+    }
+    
+    @MainActor
+    private func runHealSequenceAndStartTurn() async {
+        isTurnTransition = false
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        // --- どのマスがどれだけ回復するか計算 ---
+        var healMap: [Int: Int] = [:]
+
+        for i in 0..<tileCount {
+            // ★ 新しいターンのプレイヤーのマスだけ対象
+            guard owner.indices.contains(i),
+                  owner[i] == turn,
+                  hpMax.indices.contains(i),
+                  hpMax[i] > 0,
+                  hp.indices.contains(i),
+                  hp[i] < hpMax[i],          // ★ HP が最大ではない
+                  aff.indices.contains(i) else { continue }
+
+            let heal = aff[i] / 2           // なつき度に応じた回復
+            guard heal > 0 else { continue } // ★ 回復量 1 以上のみ対象
+
+            healMap[i] = heal
+        }
+
+        // 一つも回復がなければ、そのまま通常処理へ
+        if healMap.isEmpty {
+            startTurnIfNeeded()
+            focusTile = players[turn].pos
+            if turn == 1 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    Task { await self.runCpuAuto() }
+                }
+            }
+            isTurnTransition = false
+            return
+        }
+
+        // --- 回復アニメーション開始 ---
+        isHealingAnimating = true
+
+        // 自分マスだけなので一応ソートするだけ
+        let sequence = healMap.keys.sorted()
+
+        for tile in sequence {
+            guard let heal = healMap[tile], heal > 0 else { continue }
+
+            // 1) 実際の HP を更新
+            let beforeHP = hp[tile]
+            let newHP = min(hpMax[tile], beforeHP + heal)
+            if newHP != beforeHP {
+                hp[tile] = newHP
+                if var c = creatureOnTile[tile] {
+                    c.hp = newHP
+                    creatureOnTile[tile] = c
+                }
+                hp = hp   // 再描画トリガ
+            }
+
+            // 2) カメラをそのタイルへ寄せる
+            focusTile = tile
+
+            // 3) 数字ポップを表示（RingBoardView側で "+heal" を描画）
+            healingAmounts = [tile: heal]
+
+            // 表示時間
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1.0秒
+
+            // 数字を消す
+            healingAmounts.removeAll()
+
+            // 次のマスに移る前の間
+            try? await Task.sleep(nanoseconds: 300_000_000)   // 0.3秒
+        }
+
+        // --- 回復アニメーション終了 ---
+        isHealingAnimating = false
+
+        // ここから通常のターン開始処理
         startTurnIfNeeded()
-        healOnBoard()
         focusTile = players[turn].pos
         if turn == 1 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 Task { await self.runCpuAuto() }
             }
         }
-        isTurnTransition = false
     }
-    
-    // 毎ターンなつき度分回復
-    private func healOnBoard() {
-        var touched = false
-        for i in 0..<tileCount {
-            guard owner[i] != nil, hpMax[i] > 0, hp[i] < hpMax[i] else { continue }
-            let heal = max(0, aff[i] / 2)
-            let newHP = min(hpMax[i], hp[i] + heal)
-            if newHP != hp[i] {
-                hp[i] = newHP
-                touched = true
-            }
-            if var c = creatureOnTile[i] {
-                c.hp = newHP
-                creatureOnTile[i] = c
-            }
-        }
-        if touched { hp = hp } // ← 再描画トリガ
-    }
+
     
     func actionEndTurnFromSpecialNode() {
         // TODO: ターン終了の処理
@@ -1176,6 +1240,12 @@ final class GameVM: ObservableObject {
         switch card.id { 
         case "sp-hardFang":
             target.itemPower += 10
+        case "sp-sharpFang":
+            target.itemPower += 20
+        case "sp-bigScale":
+            target.itemDurability += 10
+        case "sp-hardScale":
+            target.itemDurability += 20
         default:
             break
         }
@@ -2134,6 +2204,11 @@ final class GameVM: ObservableObject {
             consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "土地を奪われた" : "土地を奪い取った"
         } else if finalL.hp <= 0 {
+            if hp.indices.contains(t) { hp[t] = finalR.hp; hp = hp }
+            if var c = creatureOnTile[t] {
+                c.hp = finalR.hp
+                creatureOnTile[t] = c
+            }
             transferToll(from: attackerId, to: defenderId, tile: t)
             consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"

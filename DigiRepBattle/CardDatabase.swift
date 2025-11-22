@@ -242,14 +242,14 @@ enum CardDatabase {
             name: "鋭牙",
             symbol: "🩸",
             effect: .buffPower(20),
-            cost: 30
+            cost: 40
         ),
         "sp-poisonFang": .spell(
             id: "sp-poisonFang",
             name: "毒牙",
             symbol: "☠️",
             effect: .poison,
-            cost: 30
+            cost: 40
         ),
 
         // --- 鱗系（防御力） ---
@@ -265,14 +265,14 @@ enum CardDatabase {
             name: "硬鱗",
             symbol: "🛡🛡",
             effect: .buffDefense(20),
-            cost: 30
+            cost: 40
         ),
         "sp-reflectScale": .spell(
             id: "sp-reflectScale",
             name: "反射鱗",
             symbol: "🔁",
             effect: .reflectSkill,
-            cost: 30
+            cost: 40
         ),
 
         // --- 手札操作 ---

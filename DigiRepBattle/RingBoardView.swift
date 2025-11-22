@@ -53,6 +53,10 @@ struct RingBoardView: View {
     var onPickBranch: ((Int) -> Void)? = nil
     var onTapTile: ((Int) -> Void)? = nil
     var focusTile: Int? = nil
+    
+    // ★ 回復アニメーション制御用
+    var isHealingAnimating: Bool = false
+    var healingAmounts: [Int: Int] = [:]
 
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -102,7 +106,9 @@ struct RingBoardView: View {
                 // タイル
                 ForEach(graph) { node in
                     let idx = node.id
-                    let pos = pointNoOrigin(for: node.grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
 
                     let safeOwner   = owner.indices.contains(idx) ? owner[idx] : nil
                     let safeLevel   = level.indices.contains(idx) ? level[idx] : 0
@@ -112,23 +118,35 @@ struct RingBoardView: View {
                     let safeToll    = (idx < owner.count) ? toll(idx) : 0
                     let terr = terrains.indices.contains(idx) ? terrains[idx] : TileTerrain(imageName: "field", attribute: .normal)
 
-                    TileView(index: idx,
-                             size: tileSize,
-                             hasP1: idx == p1Pos,
-                             hasP2: idx == p2Pos,
-                             owner: safeOwner,
-                             level: safeLevel,
-                             creatureSymbol: safeSymbol,
-                             toll: safeToll,
-                             hp: safeHp,
-                             hpMax: safeHpMax,
-                             bgImageName: terr.imageName,
-                             attribute: terr.attribute,
-                             highlightTargets: highlightTargets
-                    )
+                    ZStack {
+                        TileView(
+                            index: idx,
+                            size: tileSize,
+                            hasP1: idx == p1Pos,
+                            hasP2: idx == p2Pos,
+                            owner: safeOwner,
+                            level: safeLevel,
+                            creatureSymbol: safeSymbol,
+                            toll: safeToll,
+                            hp: safeHp,
+                            hpMax: safeHpMax,
+                            bgImageName: terr.imageName,
+                            attribute: terr.attribute,
+                            highlightTargets: highlightTargets
+                        )
+
+                        // ★ 回復アニメーションの数字表示
+                        if let heal = healingAmounts[idx], heal > 0 {
+                            Text("+\(heal)")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(.green)
+                                .shadow(radius: 6)
+                                .offset(y: -tileSize * 0.4)   // タイルの少し上に浮かせる
+                        }
+                    }
                     .position(pos)
                     .onTapGesture {
-                        onTapTile?(idx) 
+                        onTapTile?(idx)
                     }
                 }
                 
@@ -189,7 +207,7 @@ struct RingBoardView: View {
             .gesture(
                 MagnificationGesture()
                     .onChanged { value in
-                        autoFollowCamera = false                      // ← 追従停止
+                        autoFollowCamera = false
                         // 既存の拡大処理
                         let newS = min(max(scale * value, 0.6), 2.5)
                         let pivot = boardPointAtScreenCenter(viewSize: geo.size, boardCenter: boardCenter, s: scale)
@@ -238,7 +256,7 @@ struct RingBoardView: View {
                 }
             }
             .onChange(of: focusTile) { _, new in
-                guard let idx = new, autoFollowCamera else { return }
+                guard let idx = new, (autoFollowCamera || isHealingAnimating) else { return }
                 DispatchQueue.main.async {
                     centerOnTile(idx,
                                  in: geo.size,
