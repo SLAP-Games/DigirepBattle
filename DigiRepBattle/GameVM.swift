@@ -155,13 +155,13 @@ final class GameVM: ObservableObject {
         self.toll = Array(repeating: 0, count: tileCount)
         
         //プレイヤーテスト
-        cardStates[0].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[0].collection.add("sp-dice5", count: 20)
+        cardStates[0].collection.add("cre-defaultLizard", count: 30)
+        cardStates[0].collection.add("sp-dice2", count: 20)
         cardStates[0].deckList.creatureSlots = [
-            "cre-defaultBeardedDragon": 30
+            "cre-defaultLizard": 30
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-dice5": 20
+            "sp-dice2": 20
         ]
         
         //プレイヤーデッキ
@@ -175,10 +175,10 @@ final class GameVM: ObservableObject {
 //        ]
         
         //NPCテスト
-        cardStates[1].collection.add("cre-defaultLizard", count: 30)
+        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
         cardStates[1].collection.add("sp-dice2", count: 20)
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultLizard": 30
+            "cre-defaultBeardedDragon": 30
         ]
         cardStates[1].deckList.spellSlots = [
             "sp-dice2": 20
@@ -610,10 +610,11 @@ final class GameVM: ObservableObject {
         // 敵マスに止まった
         landedOnOpponentTileIndex = t
 
+        // 攻撃側（= 今動いた側）がクリーチャーカードを持っているか
         let hasCreature = hands[turn].contains(where: { $0.kind == .creature })
 
+        // 1) そもそも攻撃側がクリーチャーを持っていない → 共通で通行料
         if !hasCreature {
-            // ★ 強制通行料（プレイヤー/CPU共通）
             transferToll(from: turn, to: own, tile: t)
             battleResult = (turn == 1)
                 ? "通行料を奪った"      // CPUが払ってあなたが受取
@@ -624,17 +625,64 @@ final class GameVM: ObservableObject {
             return
         }
 
+        // 2) CPUが攻撃側のときだけ「G不足チェック」を挟む
         if turn == 1 {
-            // ★ CPUは自動で戦闘
+            let gold = players[1].gold
+
+            // CPUの手札の中で「コストを払えるクリーチャー」が1枚でもあるか
+            let hasAffordableCreature = hands[1].contains {
+                $0.kind == .creature && (($0.stats?.cost ?? 0) <= gold)
+            }
+
+            if !hasAffordableCreature {
+                // G不足で戦闘できない → 通行料処理
+                transferToll(from: turn, to: own, tile: t)
+                battleResult = "通行料を奪った"  // turn==1確定
+                landedOnOpponentTileIndex = nil
+                expectBattleCardSelection = false
+                canEndTurn = true
+                return
+            }
+
+            // コストを払える中で一番強いカードを選んで戦闘
             let attr = attributeAt(tile: t)
-            if let creature = bestAttackerCard(in: hands[1], for: attr) {
-                startBattle(with: creature)
+            if let creature = bestAffordableAttacker(in: hands[1], for: attr, gold: gold) {
+                startBattle(with: creature)   // ここに来るときは必ず cost <= gold
+                return
+            } else {
+                // 一応フォールバック：ありえないはずだけど、安全のため通行料
+                transferToll(from: turn, to: own, tile: t)
+                battleResult = "通行料を奪った"
+                landedOnOpponentTileIndex = nil
+                expectBattleCardSelection = false
+                canEndTurn = true
                 return
             }
         } else {
+            // 3) プレイヤーが攻撃側のときの処理（元のロジックを維持）
+            //   ※ここは今まで通りでOK。コスト不足かどうかは
+            //     primaryActionや placeCreature 側で判定済み。
+
             // ★ プレイヤーは選択待ち（Endは有効のまま、"戦う"を押したら無効化）
             expectBattleCardSelection = false
             canEndTurn = true
+        }
+    }
+    
+    func bestAffordableAttacker(in hand: [Card], for attr: TileAttribute, gold: Int) -> Card? {
+        // 「コストが払えるクリーチャー」の中から bestAttackerCard と同じロジックで最大値を取る
+        let pool = hand.filter { card in
+            guard card.kind == .creature else { return false }
+            let cost = card.stats?.cost ?? 0
+            return cost <= gold
+        }
+
+        return pool.max { lhs, rhs in
+            let ls = lhs.stats ?? .defaultLizard
+            let rs = rhs.stats ?? .defaultLizard
+            let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4
+            let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4
+            return lScore < rScore
         }
     }
 
