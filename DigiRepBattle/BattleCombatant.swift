@@ -175,10 +175,11 @@ public struct BattleOverlayView: View {
     public let right: BattleCombatant
     public let attribute: BattleAttribute
     public let onFinished: (BattleCombatant, BattleCombatant) -> Void
+    let defenderHasFirstStrike: Bool
     
     @Binding public var isItemSelecting: Bool
 
-    @StateObject private var vm = GameVM()
+//    @StateObject private var vm = GameVM()
     
     @State private var leftOffset: CGFloat = 0
     @State private var rightOffset: CGFloat = 0
@@ -199,12 +200,14 @@ public struct BattleOverlayView: View {
         left: BattleCombatant,
         right: BattleCombatant,
         attribute: BattleAttribute,
+        defenderHasFirstStrike: Bool,
         isItemSelecting: Binding<Bool>,
         onFinished: @escaping (BattleCombatant, BattleCombatant) -> Void
     ) {
         self.left = left
         self.right = right
         self.attribute = attribute
+        self.defenderHasFirstStrike = defenderHasFirstStrike
         self._isItemSelecting = isItemSelecting
         self.onFinished = onFinished
         _L = State(initialValue: left)
@@ -380,30 +383,92 @@ public struct BattleOverlayView: View {
     }
 
     private func timeline() {
-        // 0s: intro (left on, right off)
+        // 0s: intro（左だけ見せる）
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
             guard !isFinished else { return }
-            withAnimation(.easeInOut(duration: 0.6)) {
-                leftOffset = -600
-                rightOffset = 0
+
+            if defenderHasFirstStrike {
+                // ★ 先制あり
+                runFirstStrikeTimeline()
+            } else {
+                // ★ 通常
+                runNormalTimeline()
             }
-            // resolve attack 1 (left -> right) after slide
+        }
+    }
+    
+    private func runNormalTimeline() {
+        // 1) 左→右へスライドして、右にダメージ
+        withAnimation(.easeInOut(duration: 0.6)) {
+            leftOffset = -600
+            rightOffset = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
+            guard !isFinished else { return }
+
+            // 通常：先に左→右へ攻撃
+            resolveAttack(attackerIsLeft: true)
+
+            // 2) 3秒眺めてから、右→左へ戻して左にダメージ
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
+                guard !isFinished else { return }
+
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    leftOffset = 0
+                    rightOffset = 600
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
+                    guard !isFinished else { return }
+
+                    // 反撃：右→左へ攻撃
+                    resolveAttack(attackerIsLeft: false)
+
+                    // 3) 3秒眺めて通常終了
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
+                        guard !isFinished else { return }
+                        onFinished(L, R)
+                    }
+                }
+            }
+        }
+    }
+
+    private func runFirstStrikeTimeline() {
+        // 1) まず右へフォーカス（ここではまだダメージなし）
+        withAnimation(.easeInOut(duration: 0.6)) {
+            leftOffset = -600
+            rightOffset = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
+            guard !isFinished else { return }
+
+            // 2) 左へ戻してから、左にダメージ表示（＝防御側の先制）
+            withAnimation(.easeInOut(duration: 0.6)) {
+                leftOffset = 0
+                rightOffset = 600
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
                 guard !isFinished else { return }
-                resolveAttack(attackerIsLeft: true)
-                
-                // 3s later: reverse slide
+
+                // 先制攻撃：右→左（attackerIsLeft = false）
+                resolveAttack(attackerIsLeft: false)
+
+                // 左が死んだら finishNow() 内で isFinished が立つので、以降の guard で止まる
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
                     guard !isFinished else { return }
+
+                    // 3) まだ生きていれば、右へフォーカスして右にダメージ（反撃）
                     withAnimation(.easeInOut(duration: 0.6)) {
-                        leftOffset = 0
-                        rightOffset = 600
+                        leftOffset = -600
+                        rightOffset = 0
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
                         guard !isFinished else { return }
-                        resolveAttack(attackerIsLeft: false)
-                        
-                        // 3s after left settles, finish（生存していたら通常終了）
+
+                        // 反撃：左→右（attackerIsLeft = true）
+                        resolveAttack(attackerIsLeft: true)
+
+                        // 4) 3秒眺めて終了
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
                             guard !isFinished else { return }
                             onFinished(L, R)
@@ -413,7 +478,7 @@ public struct BattleOverlayView: View {
             }
         }
     }
-    
+
     // MARK: - Damage + HP animation
     private func resolveAttack(attackerIsLeft: Bool) {
         func atkValue(of c: BattleCombatant) -> Int { c.power * 2 + c.resist * 4 + c.itemPower }
@@ -465,6 +530,6 @@ public struct BattleOverlayView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             onFinished(L, R)
         }
-        vm.expectBattleCardSelection = false
+//        vm.expectBattleCardSelection = false
     }
 }

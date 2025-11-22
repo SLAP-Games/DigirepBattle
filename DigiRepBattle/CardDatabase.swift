@@ -249,7 +249,7 @@ enum CardDatabase {
             name: "毒牙",
             symbol: "☠️",
             effect: .poison,
-            cost: 40
+            cost: 60
         ),
 
         // --- 鱗系（防御力） ---
@@ -272,7 +272,7 @@ enum CardDatabase {
             name: "反射鱗",
             symbol: "🔁",
             effect: .reflectSkill,
-            cost: 40
+            cost: 60
         ),
 
         // --- 手札操作 ---

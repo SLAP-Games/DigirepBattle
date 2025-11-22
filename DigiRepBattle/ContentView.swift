@@ -269,6 +269,7 @@ struct ContentView: View {
                             left: L,
                             right: R,
                             attribute: vm.battleAttr,
+                            defenderHasFirstStrike: vm.defenderHasFirstStrike,
                             isItemSelecting: $vm.isBattleItemSelectionPhase
                         ) { finalL, finalR in
                             vm.finishBattle(finalL: finalL, finalR: finalR)
@@ -695,7 +696,7 @@ struct CardDetailOverlay: View {
 
             return (
                 title,
-                (vm.turn == 0 && hasEnoughGold)
+                (hasEnoughGold)
                     ? {
                         // ★ コスト支払い＋効果適用＋手札削除は
                         //   GameVM.finishBattleItemSelection に集約
@@ -703,7 +704,7 @@ struct CardDetailOverlay: View {
                         onClose()
                       }
                     : nil,
-                vm.turn == 0 && hasEnoughGold
+                hasEnoughGold
             )
         }
 

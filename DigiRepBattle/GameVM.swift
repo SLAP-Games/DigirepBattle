@@ -103,6 +103,7 @@ final class GameVM: ObservableObject {
     @Published var isHealingAnimating: Bool = false
     @Published var healingAmounts: [Int: Int] = [:]
     @Published var poisonedTiles: [Bool]
+    @Published var defenderHasFirstStrike: Bool = false
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -175,7 +176,7 @@ final class GameVM: ObservableObject {
         cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[0].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[0].collection.add("sp-poisonFang", count: 20)
+        cardStates[0].collection.add("sp-firstStrike", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -185,7 +186,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-poisonFang": 20
+            "sp-firstStrike": 20
         ]
         
         //NPCテスト
@@ -205,7 +206,7 @@ final class GameVM: ObservableObject {
         cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[1].collection.add("sp-poisonFang", count: 20)
+        cardStates[1].collection.add("sp-firstStrike", count: 20)
         cardStates[1].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -215,7 +216,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-poisonFang": 20
+            "sp-firstStrike": 20
         ]
         
         for pid in 0...1 {
@@ -1115,6 +1116,12 @@ final class GameVM: ObservableObject {
               card.kind == .spell else { return }
         guard (0...1).contains(target) else { return }
         guard let effect = card.spell else { return }
+        
+        // ★ 戦闘中専用
+        if case .firstStrike = effect, case .buffPower = effect, case .buffDefense = effect, case .poison = effect, case .reflectSkill = effect {
+            pushCenterMessage("戦闘中のみ使用できます")
+            return
+        }
 
         // --- ① GOLDコスト支払い ---
         let cost = spellCost(of: card)
@@ -1186,6 +1193,12 @@ final class GameVM: ObservableObject {
               card.kind == .spell else { return }
 
         guard let effect = card.spell else { return }
+        
+        // ★ 戦闘中専用
+        if case .firstStrike = effect, case .buffPower = effect, case .buffDefense = effect, case .poison = effect, case .reflectSkill = effect {
+            pushCenterMessage("戦闘中のみ使用できます")
+            return
+        }
 
         let cost = spellCost(of: card)
         if cost > 0 {
@@ -1261,6 +1274,27 @@ final class GameVM: ObservableObject {
     
     @discardableResult
     func applyBattleEquipment(_ card: Card, by user: Int) -> Bool {
+
+        // ② 戦闘データが揃っているか
+        guard var left = battleLeft,
+              var right = battleRight,
+              let attacker = pendingBattleAttacker else { return false }
+
+        let defender = 1 - attacker
+        let isAttacker = (user == attacker)
+        let isDefender = (user == defender)
+
+        // ★ 先制：防御側のみ使用可
+        if card.id == "sp-firstStrike" {
+            guard isDefender else {
+                if user == 0 {
+                    battleResult = "『先制』は防御側のみ使用できます"
+                }
+                return false
+            }
+            defenderHasFirstStrike = true
+        }
+        
         // ① コスト計算
         let cost = equipmentCost(of: card)
         if cost > 0 {
@@ -1272,14 +1306,7 @@ final class GameVM: ObservableObject {
                 return false
             }
         }
-
-        // ② 戦闘データが揃っているか
-        guard var left = battleLeft,
-              var right = battleRight,
-              let attacker = pendingBattleAttacker else { return false }
-
-        let isAttacker = (user == attacker)
-
+        
         if isAttacker && card.id == "sp-poisonFang" {
             willPoisonDefender = true
         }
@@ -1314,12 +1341,10 @@ final class GameVM: ObservableObject {
     }
     
     func finishBattleItemSelection(_ card: Card, for pid: Int) {
-        // 装備選択フェーズ終了
-        isBattleItemSelectionPhase = false
-
         // ★ 支払い＋効果適用に成功した場合だけ手札から削除
         if applyBattleEquipment(card, by: pid) {
             consumeFromHand(card, for: pid)
+            isBattleItemSelectionPhase = false
         }
     }
 
@@ -2200,6 +2225,8 @@ final class GameVM: ObservableObject {
     }
 
     func startBattle(with card: Card) {
+        defenderHasFirstStrike = false      // ★ 先制フラグをリセット
+
         guard let t = landedOnOpponentTileIndex,
               let defOwner = owner[t], defOwner != turn,
               card.kind == .creature
