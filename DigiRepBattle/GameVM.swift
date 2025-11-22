@@ -102,6 +102,7 @@ final class GameVM: ObservableObject {
     @Published var isBattleItemSelectionPhase: Bool = false
     @Published var isHealingAnimating: Bool = false
     @Published var healingAmounts: [Int: Int] = [:]
+    @Published var poisonedTiles: [Bool]
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -113,6 +114,7 @@ final class GameVM: ObservableObject {
     private var forceRollToOneFor: [Bool] = [false, false]
     private var pendingBattleAttacker: Int? = nil
     private var pendingBattleDefender: Int? = nil
+    private var willPoisonDefender: Bool = false
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
     private let CHECKPOINTS: Set<Int> = [0, 4, 20]
@@ -154,6 +156,7 @@ final class GameVM: ObservableObject {
         self.rCold = Array(repeating: 0, count: tileCount)
         self.cost = Array(repeating: 1, count: tileCount)
         self.toll = Array(repeating: 0, count: tileCount)
+        self.poisonedTiles = Array(repeating: false, count: tileCount)
         
         //プレイヤーテスト
 //        cardStates[0].collection.add("cre-defaultLizard", count: 30)
@@ -172,7 +175,7 @@ final class GameVM: ObservableObject {
         cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[0].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[0].collection.add("sp-sharpFang", count: 20)
+        cardStates[0].collection.add("sp-poisonFang", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -182,7 +185,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-sharpFang": 20
+            "sp-poisonFang": 20
         ]
         
         //NPCテスト
@@ -202,7 +205,7 @@ final class GameVM: ObservableObject {
         cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[1].collection.add("sp-doubleDice", count: 20)
+        cardStates[1].collection.add("sp-poisonFang", count: 20)
         cardStates[1].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -212,7 +215,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-doubleDice": 10
+            "sp-poisonFang": 20
         ]
         
         for pid in 0...1 {
@@ -317,21 +320,87 @@ final class GameVM: ObservableObject {
     private func runHealSequenceAndStartTurn() async {
         isTurnTransition = false
         try? await Task.sleep(nanoseconds: 300_000_000)
-        // --- どのマスがどれだけ回復するか計算 ---
+
+        // --------------------------------------------------
+        // ① 毒ダメージ（そのクリーチャーの持ち主のターンだけ）
+        // --------------------------------------------------
+        var poisonMap: [Int: Int] = [:]
+
+        for i in 0..<tileCount {
+            guard owner.indices.contains(i),
+                  owner[i] == turn,                         // ★ 持ち主のターンのみ
+                  poisonedTiles.indices.contains(i),
+                  poisonedTiles[i] == true,
+                  hpMax.indices.contains(i), hpMax[i] > 0,
+                  hp.indices.contains(i), hp[i] > 0
+            else { continue }
+
+            let raw = hpMax[i] * 20 / 100
+            let dmg = max(1, raw)
+            guard dmg > 0 else { continue }
+
+            poisonMap[i] = dmg
+        }
+
+        if !poisonMap.isEmpty {
+            isHealingAnimating = true
+
+            let sequence = poisonMap.keys.sorted()
+            for tile in sequence {
+                guard let dmg = poisonMap[tile], dmg > 0 else { continue }
+
+                // 実際のHP更新
+                let beforeHP = hp[tile]
+                let newHP = max(0, beforeHP - dmg)
+                if newHP != beforeHP {
+                    hp[tile] = newHP
+                    if var c = creatureOnTile[tile] {
+                        c.hp = newHP
+                        creatureOnTile[tile] = c
+                    }
+                    hp = hp
+                }
+
+                // HP0になったらそのマスのクリーチャーは死亡＋毒解除
+                if newHP <= 0 {
+                    clearCreatureInfo(at: tile,
+                                      clearOwnerAndLevel: true,
+                                      resetToll: true)
+                    if poisonedTiles.indices.contains(tile) {
+                        poisonedTiles[tile] = false
+                    }
+                }
+
+                // カメラを寄せる
+                focusTile = tile
+
+                // ★ ダメージ表示用に「マイナス値」を入れる
+                healingAmounts = [tile: -dmg]
+
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                healingAmounts.removeAll()
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
+
+            isHealingAnimating = false
+        }
+
+        // --------------------------------------------------
+        // ② このあと「通常の回復シーケンス」
+        // --------------------------------------------------
         var healMap: [Int: Int] = [:]
 
         for i in 0..<tileCount {
-            // ★ 新しいターンのプレイヤーのマスだけ対象
             guard owner.indices.contains(i),
                   owner[i] == turn,
                   hpMax.indices.contains(i),
                   hpMax[i] > 0,
                   hp.indices.contains(i),
-                  hp[i] < hpMax[i],          // ★ HP が最大ではない
+                  hp[i] < hpMax[i],
                   aff.indices.contains(i) else { continue }
 
-            let heal = aff[i] / 2           // なつき度に応じた回復
-            guard heal > 0 else { continue } // ★ 回復量 1 以上のみ対象
+            let heal = aff[i] / 2
+            guard heal > 0 else { continue }
 
             healMap[i] = heal
         }
@@ -345,20 +414,17 @@ final class GameVM: ObservableObject {
                     Task { await self.runCpuAuto() }
                 }
             }
-            isTurnTransition = false
+            // isTurnTransition はすでに false 済み
             return
         }
 
         // --- 回復アニメーション開始 ---
         isHealingAnimating = true
 
-        // 自分マスだけなので一応ソートするだけ
         let sequence = healMap.keys.sorted()
-
         for tile in sequence {
             guard let heal = healMap[tile], heal > 0 else { continue }
 
-            // 1) 実際の HP を更新
             let beforeHP = hp[tile]
             let newHP = min(hpMax[tile], beforeHP + heal)
             if newHP != beforeHP {
@@ -367,29 +433,19 @@ final class GameVM: ObservableObject {
                     c.hp = newHP
                     creatureOnTile[tile] = c
                 }
-                hp = hp   // 再描画トリガ
+                hp = hp
             }
 
-            // 2) カメラをそのタイルへ寄せる
             focusTile = tile
+            healingAmounts = [tile: heal]    // 回復はプラス値
 
-            // 3) 数字ポップを表示（RingBoardView側で "+heal" を描画）
-            healingAmounts = [tile: heal]
-
-            // 表示時間
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1.0秒
-
-            // 数字を消す
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             healingAmounts.removeAll()
-
-            // 次のマスに移る前の間
-            try? await Task.sleep(nanoseconds: 300_000_000)   // 0.3秒
+            try? await Task.sleep(nanoseconds: 300_000_000)
         }
 
-        // --- 回復アニメーション終了 ---
         isHealingAnimating = false
 
-        // ここから通常のターン開始処理
         startTurnIfNeeded()
         focusTile = players[turn].pos
         if turn == 1 {
@@ -494,7 +550,7 @@ final class GameVM: ObservableObject {
         case .firstStrike:
             return "この戦闘で先に攻撃を行う"
         case .poison:
-            return "敵クリーチャーに毒を付与する"
+            return "敵クリーチャーに毎ターン最大HPの20%の毒ダメージを付与する"
         case .reflectSkill:
             return "敵の特殊スキルを跳ね返す"
 
@@ -1224,6 +1280,10 @@ final class GameVM: ObservableObject {
 
         let isAttacker = (user == attacker)
 
+        if isAttacker && card.id == "sp-poisonFang" {
+            willPoisonDefender = true
+        }
+
         // ③ 効果適用
         if isAttacker {
             apply(card: card, to: &left)
@@ -1246,6 +1306,8 @@ final class GameVM: ObservableObject {
             target.itemDurability += 10
         case "sp-hardScale":
             target.itemDurability += 20
+        case "sp-poisonFang":
+            break
         default:
             break
         }
@@ -1651,6 +1713,9 @@ final class GameVM: ObservableObject {
         rHot[tile] = s.resistHeat
         rCold[tile] = s.resistCold
         cost[tile]  = s.cost
+        if poisonedTiles.indices.contains(tile) {
+            poisonedTiles[tile] = false
+        }
         hp = hp
         creatureOnTile[tile] = Creature(
             id: UUID().uuidString,
@@ -1772,6 +1837,9 @@ final class GameVM: ObservableObject {
         if rHot.indices.contains(tile)         { rHot[tile] = 0 }
         if rCold.indices.contains(tile)        { rCold[tile] = 0 }
         if cost.indices.contains(tile)         { cost[tile] = 0 }
+        if poisonedTiles.indices.contains(tile) {
+            poisonedTiles[tile] = false
+        }
 
         // Creature辞書からも削除
         creatureOnTile.removeValue(forKey: tile)
@@ -2137,6 +2205,8 @@ final class GameVM: ObservableObject {
               card.kind == .creature
         else { return }
         
+        willPoisonDefender = false
+        
         let pid = turn
         guard paySummonCostIfNeeded(for: card, by: pid) else {
             return
@@ -2217,6 +2287,14 @@ final class GameVM: ObservableObject {
             if var c = creatureOnTile[t] { c.hp = finalR.hp; creatureOnTile[t] = c }
             transferToll(from: attackerId, to: defenderId, tile: t)
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
+        }
+        if willPoisonDefender {
+            // 防御側がまだ生きている場合だけ毒を付与
+            if hp.indices.contains(t), hp[t] > 0 {
+                poisonedTiles[t] = true
+            }
+            // 一度使ったらフラグをリセット
+            willPoisonDefender = false
         }
 
         landedOnOpponentTileIndex = nil

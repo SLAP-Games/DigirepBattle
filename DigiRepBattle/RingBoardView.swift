@@ -136,12 +136,20 @@ struct RingBoardView: View {
                         )
 
                         // ★ 回復アニメーションの数字表示
-                        if let heal = healingAmounts[idx], heal > 0 {
-                            Text("+\(heal)")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundStyle(.green)
-                                .shadow(radius: 6)
-                                .offset(y: -tileSize * 0.4)   // タイルの少し上に浮かせる
+                        if let heal = healingAmounts[idx] {
+                            if heal >= 0 {
+                                Text("+\(heal)")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundStyle(.green)
+                                    .shadow(radius: 6)
+                                    .offset(y: -tileSize * 0.4)   // タイルの少し上に浮かせる
+                            } else {
+                                Text("-\(-heal)")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundStyle(.red)
+                                    .shadow(radius: 6)
+                                    .offset(y: -tileSize * 0.4)   // タイルの少し上に浮かせる
+                            }
                         }
                     }
                     .position(pos)
