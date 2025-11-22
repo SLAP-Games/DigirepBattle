@@ -687,7 +687,6 @@ struct CardDetailOverlay: View {
 
         // ① バトル中の装備アイテム使用
         if vm.isBattleItemSelectionPhase {
-            // 装備は基本的に stats.cost を優先し、なければスペルコストを参照
             let cost = card.stats?.cost ?? spellCostForUI(card)
             let hasEnoughGold = gold >= cost
             let title = hasEnoughGold ? "装備を使用" : "G不足"
@@ -696,7 +695,8 @@ struct CardDetailOverlay: View {
                 title,
                 (vm.turn == 0 && hasEnoughGold)
                     ? {
-                        vm.applyBattleEquipment(card, by: vm.turn)
+                        // ★ コスト支払い＋効果適用＋手札削除は
+                        //   GameVM.finishBattleItemSelection に集約
                         vm.finishBattleItemSelection(card, for: 0)
                         onClose()
                       }

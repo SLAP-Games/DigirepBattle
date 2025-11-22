@@ -101,7 +101,6 @@ final class GameVM: ObservableObject {
     @Published var doubleDice: [Bool] = [false, false]
     @Published var isBattleItemSelectionPhase: Bool = false
     
-    private var cpuDidBattleThisTurn: Bool = false
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
     private var moveDir: [Dir] = [.cw, .cw]
@@ -155,50 +154,64 @@ final class GameVM: ObservableObject {
         self.toll = Array(repeating: 0, count: tileCount)
         
         //プレイヤーテスト
-        cardStates[0].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("sp-dice2", count: 20)
-        cardStates[0].deckList.creatureSlots = [
-            "cre-defaultLizard": 30
-        ]
-        cardStates[0].deckList.spellSlots = [
-            "sp-dice2": 20
-        ]
-        
-        //プレイヤーデッキ
 //        cardStates[0].collection.add("cre-defaultLizard", count: 30)
-//        cardStates[0].collection.add("sp-hardFang", count: 20)
+//        cardStates[0].collection.add("sp-dice2", count: 20)
 //        cardStates[0].deckList.creatureSlots = [
 //            "cre-defaultLizard": 30
 //        ]
 //        cardStates[0].deckList.spellSlots = [
-//            "sp-hardFang": 20
+//            "sp-dice2": 20
 //        ]
+        
+        //プレイヤーデッキ
+        cardStates[0].collection.add("cre-defaultLizard", count: 30)
+        cardStates[0].collection.add("cre-defaultTurtle", count: 30)
+        cardStates[0].collection.add("cre-defaultBeardedDragon", count: 30)
+        cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
+        cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
+        cardStates[0].collection.add("cre-defaultBallPython", count: 30)
+        cardStates[0].collection.add("sp-hardFang", count: 20)
+        cardStates[0].deckList.creatureSlots = [
+            "cre-defaultLizard": 5,
+            "cre-defaultTurtle": 5,
+            "cre-defaultBeardedDragon": 5,
+            "cre-defaultHornedFrog": 5,
+            "cre-defaultGreenIguana": 5,
+            "cre-defaultBallPython": 5
+        ]
+        cardStates[0].deckList.spellSlots = [
+            "sp-hardFang": 20
+        ]
         
         //NPCテスト
-        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[1].collection.add("sp-dice2", count: 20)
-        cardStates[1].deckList.creatureSlots = [
-            "cre-defaultBeardedDragon": 30
-        ]
-        cardStates[1].deckList.spellSlots = [
-            "sp-dice2": 20
-        ]
-        
-        //NPCデッキ
 //        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-//        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
-//        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
-//        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-//        cardStates[1].collection.add("sp-doubleDice", count: 20)
+//        cardStates[1].collection.add("sp-dice2", count: 20)
 //        cardStates[1].deckList.creatureSlots = [
-//            "cre-defaultBeardedDragon": 10,
-//            "cre-defaultHornedFrog": 10,
-//            "cre-defaultGreenIguana": 10,
-//            "cre-defaultBallPython": 10
+//            "cre-defaultBeardedDragon": 30
 //        ]
 //        cardStates[1].deckList.spellSlots = [
-//            "sp-doubleDice": 10
+//            "sp-dice2": 20
 //        ]
+        
+        //NPCデッキ
+        cardStates[1].collection.add("cre-defaultLizard", count: 30)
+        cardStates[1].collection.add("cre-defaultTurtle", count: 30)
+        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
+        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
+        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
+        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
+        cardStates[1].collection.add("sp-doubleDice", count: 20)
+        cardStates[1].deckList.creatureSlots = [
+            "cre-defaultLizard": 5,
+            "cre-defaultTurtle": 5,
+            "cre-defaultBeardedDragon": 5,
+            "cre-defaultHornedFrog": 5,
+            "cre-defaultGreenIguana": 5,
+            "cre-defaultBallPython": 5
+        ]
+        cardStates[1].deckList.spellSlots = [
+            "sp-doubleDice": 10
+        ]
         
         for pid in 0...1 {
             decks[pid] = cardStates[pid].deckList.buildDeckCards()
@@ -257,6 +270,22 @@ final class GameVM: ObservableObject {
 //　　　　　　　　　　　　　　　　　　ターン管理
 // MARK: ---------------------------------------------------------------------------
     func endTurn() {
+        // ★ プレイヤーが敵マスで「戦闘する」を選んだものの、
+        //   カードを選ばずに End を押した場合は、自動で通行料を払ってから終了
+        if turn == 0,
+           phase == .moved,
+           let t = landedOnOpponentTileIndex,
+           expectBattleCardSelection {
+
+            if let own = owner.indices.contains(t) ? owner[t] : nil {
+                transferToll(from: turn, to: own, tile: t)
+                battleResult = "通行料を奪われた"
+            }
+            landedOnOpponentTileIndex = nil
+            expectBattleCardSelection = false
+            canEndTurn = true
+        }
+
         showSpecialMenu = false
         beginTurnTransition()
     }
@@ -332,8 +361,11 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard paySummonCostIfNeeded(for: card, by: pid) else {
+            return
+        }
+
         guard placeCreature(from: card, at: tile, by: pid) else {
-            // G不足などで失敗した場合は何もしない（カードも残す）
             return
         }
         
@@ -345,6 +377,7 @@ final class GameVM: ObservableObject {
         showCreatureMenu = false
         creatureMenuTile = nil
     }
+
     
     private func drawOne(for pid: Int) {
         guard !decks[pid].isEmpty else { return }
@@ -930,6 +963,32 @@ final class GameVM: ObservableObject {
         CardDatabase.definition(for: card.id)?.cost ?? 0
     }
     
+    private func equipmentCost(of card: Card) -> Int {
+        if let s = card.stats {
+            return s.cost
+        }
+        // stats がない spell 装備は定義から取得
+        return CardDatabase.definition(for: card.id)?.cost ?? 0
+    }
+    
+    private func summonCost(of card: Card) -> Int {
+        max(0, card.stats?.cost ?? 0)
+    }
+
+    private func paySummonCostIfNeeded(for card: Card, by pid: Int) -> Bool {
+        let price = summonCost(of: card)
+        if price <= 0 { return true }
+
+        if tryPay(price, by: pid) {
+            return true
+        } else {
+            if pid == 0 {
+                battleResult = "G不足（必要: \(price)）"
+            }
+            return false
+        }
+    }
+    
     func useSpellPreRoll(_ card: Card, target: Int) {
         guard turn == 0,
               phase == .ready,
@@ -980,7 +1039,6 @@ final class GameVM: ObservableObject {
 
         switch card.kind {
         case .spell:
-            // マス移動後に使うスペルの入口
             useSpellAfterMove(card)
 
         case .creature:
@@ -992,12 +1050,15 @@ final class GameVM: ObservableObject {
 
             let t = players[0].pos
             if owner[t] == nil, canPlaceCreature(at: t) {
-                if placeCreature(from: card, at: t, by: 0) {
+                // ★ ここで支払い → 設置
+                if paySummonCostIfNeeded(for: card, by: 0),
+                   placeCreature(from: card, at: t, by: 0) {
                     consumeFromHand(card, for: 0)
                 }
             }
         }
     }
+
     
     func useSpellAfterMove(_ card: Card) {
         guard turn == 0,
@@ -1078,13 +1139,28 @@ final class GameVM: ObservableObject {
         doubleDice[0] = true
     }
     
-    func applyBattleEquipment(_ card: Card, by user: Int) {
+    @discardableResult
+    func applyBattleEquipment(_ card: Card, by user: Int) -> Bool {
+        // ① コスト計算
+        let cost = equipmentCost(of: card)
+        if cost > 0 {
+            // GOLD 支払い
+            guard tryPay(cost, by: user) else {
+                if user == 0 {
+                    battleResult = "G不足（必要: \(cost)）"
+                }
+                return false
+            }
+        }
+
+        // ② 戦闘データが揃っているか
         guard var left = battleLeft,
               var right = battleRight,
-              let attacker = pendingBattleAttacker else { return }
+              let attacker = pendingBattleAttacker else { return false }
 
         let isAttacker = (user == attacker)
 
+        // ③ 効果適用
         if isAttacker {
             apply(card: card, to: &left)
             battleLeft = left
@@ -1092,6 +1168,8 @@ final class GameVM: ObservableObject {
             apply(card: card, to: &right)
             battleRight = right
         }
+
+        return true
     }
     
     private func apply(card: Card, to target: inout BattleCombatant) {
@@ -1104,9 +1182,13 @@ final class GameVM: ObservableObject {
     }
     
     func finishBattleItemSelection(_ card: Card, for pid: Int) {
-        // 装備選択フェーズ終了 → BattleOverlayView 側で戦闘アニメ開始トリガーにする
+        // 装備選択フェーズ終了
         isBattleItemSelectionPhase = false
-        consumeFromHand(card, for: 0)
+
+        // ★ 支払い＋効果適用に成功した場合だけ手札から削除
+        if applyBattleEquipment(card, by: pid) {
+            consumeFromHand(card, for: pid)
+        }
     }
 
     func consumeFromHand(_ card: Card, for pid: Int) {
@@ -1185,12 +1267,11 @@ final class GameVM: ObservableObject {
         // ★ ここで“本当に”移動完了を待つ
         await continueMoveAnimated()
 
-        // ここに来た時点で players[1].pos は“移動後”
         let t = players[1].pos
 
-        if cpuDidBattleThisTurn {
-            cpuDidBattleThisTurn = false
-            endTurn()
+        // ★ 戦闘が発生している場合は、この先のレベルアップ・設置・ターン終了は
+        //   BattleOverlay の onFinished → finishBattle 側で行う
+        if isAwaitingBattleResult || showBattleOverlay {
             return
         }
 
@@ -1207,7 +1288,8 @@ final class GameVM: ObservableObject {
            canPlaceCreature(at: t),
            let creature = cpuPickCreatureForTile(t) {
 
-            if placeCreature(from: creature, at: t, by: 1) {
+            if paySummonCostIfNeeded(for: creature, by: 1),
+               placeCreature(from: creature, at: t, by: 1) {
                 consumeFromHand(creature, for: 1)
             }
         }
@@ -1483,16 +1565,8 @@ final class GameVM: ObservableObject {
     @discardableResult
     func placeCreature(from card: Card, at tile: Int, by pid: Int) -> Bool {
         guard canPlaceCreature(at: tile) else { return false }
+        
         let s = card.stats ?? CreatureStats.defaultLizard
-        let price = max(0, s.cost)
-
-        // コスト支払い
-        guard tryPay(price, by: pid) else {
-            if pid == 0 {
-                battleResult = "G不足（必要: \(price)）"
-            }
-            return false
-        }
 
         owner[tile] = pid
         level[tile] = max(level[tile], 1)
@@ -1878,19 +1952,21 @@ final class GameVM: ObservableObject {
     
     private func cpuUseEquipSkillIfAvailable() {
         let npcId = 1
+        let gold = players.indices.contains(npcId) ? players[npcId].gold : 0
 
-        // 手札から「装備スキルカード」を1枚探す
-        guard let index = hands[npcId].firstIndex(where: { isEquipSkillCard($0) }) else {
+        // コストを払える「装備スキルカード」だけを対象にする
+        guard let index = hands[npcId].firstIndex(where: {
+            isEquipSkillCard($0) && equipmentCost(of: $0) <= gold
+        }) else {
             return
         }
 
         let equipCard = hands[npcId][index]
 
-        // 戦闘中の装備適用（攻撃側 or 防御側かは applyBattleEquipment が判断）
-        applyBattleEquipment(equipCard, by: npcId)
-
-        // 手札から削除
-        hands[npcId].remove(at: index)
+        // 支払い＋効果適用成功時のみ手札から削除
+        if applyBattleEquipment(equipCard, by: npcId) {
+            hands[npcId].remove(at: index)
+        }
     }
     
     private func isEquipSkillCard(_ card: Card) -> Bool {
@@ -1939,7 +2015,7 @@ final class GameVM: ObservableObject {
     func chooseBattle() {
         guard landedOnOpponentTileIndex != nil else { return }
         expectBattleCardSelection = true
-        canEndTurn = false
+        canEndTurn = true
         showLogOverlay = false
     }
 
@@ -1990,6 +2066,11 @@ final class GameVM: ObservableObject {
               let defOwner = owner[t], defOwner != turn,
               card.kind == .creature
         else { return }
+        
+        let pid = turn
+        guard paySummonCostIfNeeded(for: card, by: pid) else {
+            return
+        }
 
         // 戦闘中は End を押せない
         canEndTurn = false
@@ -2053,12 +2134,12 @@ final class GameVM: ObservableObject {
             consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "土地を奪われた" : "土地を奪い取った"
         } else if finalL.hp <= 0 {
+            transferToll(from: attackerId, to: defenderId, tile: t)
             consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
         } else {
             if hp.indices.contains(t) { hp[t] = finalR.hp; hp = hp }
             if var c = creatureOnTile[t] { c.hp = finalR.hp; creatureOnTile[t] = c }
-
             transferToll(from: attackerId, to: defenderId, tile: t)
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
         }
@@ -2068,7 +2149,14 @@ final class GameVM: ObservableObject {
         currentAttackingCard = nil
         pendingBattleAttacker = nil
 
-        canEndTurn = true
+        if attackerIsCPU {
+            // ★ NPC が攻撃側だった場合：
+            //   戦闘終了と同時にターン終了まで進める
+            endTurn()
+        } else {
+            // プレイヤーが攻撃側のときは今まで通り
+            canEndTurn = true
+        }
     }
     
     private func transferToll(from payer: Int, to ownerPid: Int, tile: Int) {
