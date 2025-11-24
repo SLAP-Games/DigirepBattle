@@ -320,6 +320,136 @@ struct ContentView: View {
                         }
                         .allowsHitTesting(false)
                     }
+                    
+                    // ★ 相手手札削除用：NPC 手札一覧表示オーバーレイ
+                    if vm.isSelectingOpponentHandToDelete,
+                       let target = vm.deletingTargetPlayer {
+
+                        ZStack {
+                            Color.black.opacity(0.4)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 16) {
+                                Text("削除するカードを選択")
+                                    .font(.headline)
+                                    .padding(.top, 20)
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(Array(vm.hands[target].enumerated()), id: \.element.id) { idx, card in
+                                            CardView(card: card)
+                                                .onTapGesture {
+                                                    // ここで「どのカードか」を GameVM に記録するだけ
+                                                    vm.pendingDeleteHandIndex = idx
+                                                    vm.deletePreviewCard = card
+                                                }
+                                        }
+                                    }
+                                    .padding()
+                                }
+
+                                Button("閉じる") {
+                                    vm.isSelectingOpponentHandToDelete = false
+                                    vm.pendingDeleteHandIndex = nil
+                                    vm.deletingTargetPlayer = nil
+                                    vm.deletePreviewCard = nil
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .padding(.bottom, 20)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .padding()
+                        }
+                        .zIndex(1500)
+                    }
+
+                    // ★ 相手手札削除用：削除確認オーバーレイ
+                    if let delCard = vm.deletePreviewCard,
+                       vm.pendingDeleteHandIndex != nil,
+                       vm.isSelectingOpponentHandToDelete {
+
+                        ZStack {
+                            Color.black.opacity(0.6)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 16) {
+                                Text("このカードを削除しますか？")
+                                    .font(.headline)
+
+                                // 単純にカード絵だけ大きく見せる
+                                CardView(card: delCard)
+                                    .frame(width: 150)
+
+                                HStack(spacing: 20) {
+                                    Button("削除") {
+                                        if let target = vm.deletingTargetPlayer,
+                                           let idx = vm.pendingDeleteHandIndex,
+                                           vm.hands[target].indices.contains(idx)
+                                        {
+                                            vm.hands[target].remove(at: idx)
+                                            vm.battleResult = "カードを削除しました"
+                                        }
+                                        // 状態リセット
+                                        vm.deletePreviewCard = nil
+                                        vm.pendingDeleteHandIndex = nil
+                                        vm.isSelectingOpponentHandToDelete = false
+                                        vm.deletingTargetPlayer = nil
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button("戻る") {
+                                        // 一覧画面に戻るだけ（削除モードは継続）
+                                        vm.deletePreviewCard = nil
+                                        vm.pendingDeleteHandIndex = nil
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .padding()
+                        }
+                        .zIndex(2000)
+                    }
+
+                    // ★ NPC による削除結果表示（プレイヤー手札が消されたとき）
+                    if let delCard = vm.deletePreviewCard,
+                       !vm.isSelectingOpponentHandToDelete,
+                       vm.deletingTargetPlayer == 0 {   // 消されたのがプレイヤー側
+
+                        ZStack {
+                            Color.black.opacity(0.5)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 16) {
+                                Text("このカードが削除されました")
+                                    .font(.headline)
+
+                                CardView(card: delCard)
+                                    .frame(width: 150)
+
+                                Button("OK") {
+                                    vm.deletePreviewCard = nil
+                                    vm.deletingTargetPlayer = nil
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .padding(20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .padding()
+                        }
+                        .zIndex(2000)
+                    }
                 }
 
 // -------------------------------------------------------------------------------

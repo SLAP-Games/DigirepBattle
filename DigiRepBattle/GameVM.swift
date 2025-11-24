@@ -106,6 +106,10 @@ final class GameVM: ObservableObject {
     @Published var defenderHasFirstStrike: Bool = false
     @Published var drawPreviewCard: Card? = nil
     @Published var pendingDrawPreviewQueue: [Card] = []
+    @Published var isSelectingOpponentHandToDelete: Bool = false
+    @Published var deletingTargetPlayer: Int? = nil
+    @Published var pendingDeleteHandIndex: Int? = nil
+    @Published var deletePreviewCard: Card? = nil
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -179,7 +183,7 @@ final class GameVM: ObservableObject {
         cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[0].collection.add("cre-defaultBallPython", count: 30)
         cardStates[0].collection.add("sp-bigScale", count: 20)
-        cardStates[0].collection.add("sp-hardScale", count: 20)
+        cardStates[0].collection.add("sp-deleteHand", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -189,7 +193,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-draw2": 20
+            "sp-deleteHand": 20
         ]
         
         //NPCテスト
@@ -210,7 +214,7 @@ final class GameVM: ObservableObject {
         cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[1].collection.add("cre-defaultBallPython", count: 30)
         cardStates[1].collection.add("sp-bigScale", count: 20)
-        cardStates[1].collection.add("sp-hardScale", count: 20)
+        cardStates[1].collection.add("sp-deleteHand", count: 20)
         cardStates[1].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -220,8 +224,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-bigScale": 10,
-            "sp-hardScale": 10
+            "sp-deleteHand": 20
         ]
         
         for pid in 0...1 {
@@ -1222,6 +1225,33 @@ final class GameVM: ObservableObject {
             // ★ ここでターン開始時と同じプレビューアニメを使って n枚ドロー
             queuePreviewDraws(n, for: 0)
             pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
+            
+        case .discardOpponentCards(_):
+            // プレイヤー側
+            let opponent = 1
+
+            // GOLD コストはすでに払われている
+            if turn == 0 {
+                // NPC の手札が空なら何もできない
+                if hands[opponent].isEmpty {
+                    pushCenterMessage("相手の手札がありません")
+                } else {
+                    // NPC手札選択モードへ
+                    isSelectingOpponentHandToDelete = true
+                    deletingTargetPlayer = opponent
+                }
+                consumeFromHand(card, for: 0)
+            } else {
+                // ★ NPC が使った場合：プレイヤーの手札からランダム削除
+                let player = 0
+                if let removed = hands[player].randomElement(),
+                   let idx = hands[player].firstIndex(of: removed)
+                {
+                    hands[player].remove(at: idx)
+                    deletePreviewCard = removed   // Overlay に表示
+                    battleResult = "このカードが削除されました"
+                }
+            }
 
         default:
             // ここで扱わないスペルは何もしない
@@ -1294,9 +1324,35 @@ final class GameVM: ObservableObject {
         case .drawCards(let n):
             queuePreviewDraws(n, for: 0)
             pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
+            
+        case .discardOpponentCards(_):
+            // プレイヤー側
+            let opponent = 1
+
+            // GOLD コストはすでに払われている
+            if turn == 0 {
+                // NPC の手札が空なら何もできない
+                if hands[opponent].isEmpty {
+                    pushCenterMessage("相手の手札がありません")
+                } else {
+                    // NPC手札選択モードへ
+                    isSelectingOpponentHandToDelete = true
+                    deletingTargetPlayer = opponent
+                }
+                consumeFromHand(card, for: 0)
+            } else {
+                // ★ NPC が使った場合：プレイヤーの手札からランダム削除
+                let player = 0
+                if let removed = hands[player].randomElement(),
+                   let idx = hands[player].firstIndex(of: removed)
+                {
+                    hands[player].remove(at: idx)
+                    deletePreviewCard = removed   // Overlay に表示
+                    battleResult = "このカードが削除されました"
+                }
+            }
 
         case .teleport, .healHP,
-             .discardOpponentCards,
              .fullHealAnyCreature, .changeLandLevel,
              .setLandTollZero, .multiplyLandToll,
              .damageAnyCreature,
@@ -1475,6 +1531,7 @@ final class GameVM: ObservableObject {
 
         // ロール前にスペル使用
         cpuUseRandomDiceFixSpellIfAvailable()
+        cpuUseDeleteHandIfAvailable()
 
         let r: Int
         if let forced = nextForcedRoll[1] {
@@ -1575,6 +1632,60 @@ final class GameVM: ObservableObject {
             _ = hands[1].remove(at: idx)
             doubleDice[1] = true
         }
+    }
+    
+    private func cpuUseDeleteHandIfAvailable() {
+        let npcId = 1          // CPU
+        let playerId = 0       // プレイヤー
+
+        // プレイヤーの手札がないなら何もできない
+        guard hands.indices.contains(playerId),
+              !hands[playerId].isEmpty else { return }
+
+        // CPUの手札から「discardOpponentCards」のスペルを探す
+        guard hands.indices.contains(npcId) else { return }
+
+        guard let idx = hands[npcId].firstIndex(where: { card in
+            guard card.kind == .spell,
+                  let effect = card.spell else { return false }
+
+            // sp-deleteHand: .discardOpponentCards(1) のみ対象
+            switch effect {
+            case .discardOpponentCards:
+                // GOLD が足りているかもこの場でチェック
+                let c = spellCost(of: card)
+                return c <= (players.indices.contains(npcId) ? players[npcId].gold : 0)
+            default:
+                return false
+            }
+        }) else {
+            return
+        }
+
+        let spellCard = hands[npcId][idx]
+        let cost = spellCost(of: spellCard)
+
+        // GOLD 支払い（足りなければ使わない）
+        if cost > 0 {
+            guard tryPay(cost, by: npcId) else { return }
+        }
+
+        // スペルカード自体をCPU手札から削除
+        hands[npcId].remove(at: idx)
+
+        // プレイヤー手札からランダムに1枚削除
+        guard !hands[playerId].isEmpty else { return }
+        let removeIdx = Int.random(in: 0..<hands[playerId].count)
+        let removedCard = hands[playerId].remove(at: removeIdx)
+
+        // オーバーレイ表示用に保存
+        deletePreviewCard = removedCard
+        deletingTargetPlayer = playerId
+        isSelectingOpponentHandToDelete = false
+        pendingDeleteHandIndex = nil
+
+        // 中央メッセージ
+        pushCenterMessage("NPCがあなたの手札を1枚削除")
     }
     
     private func cpuPickCreatureForTile(_ tile: Int) -> Card? {
