@@ -104,6 +104,8 @@ final class GameVM: ObservableObject {
     @Published var healingAmounts: [Int: Int] = [:]
     @Published var poisonedTiles: [Bool]
     @Published var defenderHasFirstStrike: Bool = false
+    @Published var drawPreviewCard: Card? = nil
+    @Published var pendingDrawPreviewQueue: [Card] = []
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -176,7 +178,8 @@ final class GameVM: ObservableObject {
         cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[0].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[0].collection.add("sp-firstStrike", count: 20)
+        cardStates[0].collection.add("sp-bigScale", count: 20)
+        cardStates[0].collection.add("sp-hardScale", count: 20)
         cardStates[0].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -186,7 +189,7 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-firstStrike": 20
+            "sp-draw2": 20
         ]
         
         //NPCテスト
@@ -206,7 +209,8 @@ final class GameVM: ObservableObject {
         cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[1].collection.add("sp-firstStrike", count: 20)
+        cardStates[1].collection.add("sp-bigScale", count: 20)
+        cardStates[1].collection.add("sp-hardScale", count: 20)
         cardStates[1].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
             "cre-defaultTurtle": 5,
@@ -216,7 +220,8 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-firstStrike": 20
+            "sp-bigScale": 10,
+            "sp-hardScale": 10
         ]
         
         for pid in 0...1 {
@@ -467,12 +472,81 @@ final class GameVM: ObservableObject {
 // MARK: ---------------------------------------------------------------------------
 //　　　　　　　　　　　　　　　　　　山札・手札
 // MARK: ---------------------------------------------------------------------------
+    
+    /// 山札から1枚ランダムに抜き取って返す（手札にはまだ追加しない）
+    private func drawOneFromDeck(for pid: Int) -> Card? {
+        guard !decks[pid].isEmpty else { return nil }
+        let idx = Int.random(in: 0..<decks[pid].count)
+        return decks[pid].remove(at: idx)
+    }
+
+    /// 従来の「即手札に加える」ドロー（スペル用など）
+    private func drawOne(for pid: Int) {
+        guard let picked = drawOneFromDeck(for: pid) else { return }
+        hands[pid].append(picked)
+    }
+    
+    /// プレイヤー用：カードをn枚、ターン開始ドローアニメと同じ方式で順番に表示
+    func queuePreviewDraws(_ n: Int, for pid: Int) {
+        // 現状はプレイヤー(0)専用。CPUなら即ドローでフォールバック
+        guard pid == 0 else {
+            for _ in 0..<n { drawOne(for: pid) }
+            if pid == turn { handleHandOverflowIfNeeded() }
+            return
+        }
+
+        guard n > 0 else { return }
+
+        var picked: [Card] = []
+        for _ in 0..<n {
+            if let c = drawOneFromDeck(for: pid) {
+                picked.append(c)
+            }
+        }
+        guard !picked.isEmpty else { return }
+
+        // まだアニメ中でない＆キューが空なら、1枚目をすぐ表示
+        if drawPreviewCard == nil && pendingDrawPreviewQueue.isEmpty {
+            let first = picked.removeFirst()
+            drawPreviewCard = first
+        }
+
+        // 残り（0枚かもしれない）はキューへ
+        if !picked.isEmpty {
+            pendingDrawPreviewQueue.append(contentsOf: picked)
+        }
+    }
+    
+    func confirmDrawPreview() {
+        guard let card = drawPreviewCard else { return }
+        drawPreviewCard = nil
+        hands[0].append(card)
+        handleHandOverflowIfNeeded()
+
+        // ★ まだキューが残っていれば、少し待って次のアニメを開始
+        if !pendingDrawPreviewQueue.isEmpty {
+            let next = pendingDrawPreviewQueue.removeFirst()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒ほど待つ
+                drawPreviewCard = next
+            }
+        }
+    }
+    
     func startTurnIfNeeded() {
         guard phase == .ready else { return }
-        // 手番のドロー
-        drawOne(for: turn)
-        // 6枚超過なら捨てフェーズ
-        if hands[turn].count > 5 { mustDiscardFor = turn }
+
+        // ★ ターン開始ドロー：プレイヤーだけプレビュー表示
+        guard let picked = drawOneFromDeck(for: turn) else { return }
+
+        if turn == 0 {
+            // あなたのターン：まず中央に表示して、OK後に手札へ
+            drawPreviewCard = picked
+        } else {
+            // CPUターン：従来通り即手札へ
+            hands[turn].append(picked)
+            handleHandOverflowIfNeeded()
+        }
     }
     
     func confirmPlaceCreatureFromHand(_ card: Card, at tile: Int, by pid: Int) {
@@ -497,14 +571,6 @@ final class GameVM: ObservableObject {
         canEndTurn = true
         showCreatureMenu = false
         creatureMenuTile = nil
-    }
-
-    
-    private func drawOne(for pid: Int) {
-        guard !decks[pid].isEmpty else { return }
-        let idx = Int.random(in: 0..<decks[pid].count)
-        let picked = decks[pid].remove(at: idx)   // ← ランダムで抜き取る
-        hands[pid].append(picked)
     }
     
     /// 手札上限処理（>5 のとき捨てフェーズ等へ）
@@ -1149,6 +1215,13 @@ final class GameVM: ObservableObject {
             } else {
                 pushCenterMessage("CPUの次のサイコロがダブルダイスになります（コスト\(cost)）")
             }
+            
+        case .drawCards(let n):
+            guard target == 0 else { break }    // 念のため CPU には使わせない
+
+            // ★ ここでターン開始時と同じプレビューアニメを使って n枚ドロー
+            queuePreviewDraws(n, for: 0)
+            pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
 
         default:
             // ここで扱わないスペルは何もしない
@@ -1215,11 +1288,15 @@ final class GameVM: ObservableObject {
             pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
 
         case .doubleDice:
-            pushCenterMessage("スペル『\(card.name)』の効果（ダブルダイス）は未実装です")
+            doubleDice[0] = true
+            pushCenterMessage("次のサイコロがダブルダイスになります（コスト\(cost)）")
+            
+        case .drawCards(let n):
+            queuePreviewDraws(n, for: 0)
+            pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
 
-        case .buffPower, .buffDefense, .teleport, .healHP,
-             .firstStrike, .poison, .reflectSkill,
-             .drawCards, .discardOpponentCards,
+        case .teleport, .healHP,
+             .discardOpponentCards,
              .fullHealAnyCreature, .changeLandLevel,
              .setLandTollZero, .multiplyLandToll,
              .damageAnyCreature,
@@ -1261,6 +1338,16 @@ final class GameVM: ObservableObject {
             addGold(-stolen, to: other)
             addGold(+stolen, to: pid)
             pushCenterMessage("\(stolen)GOLD を奪った")
+            
+        case let .drawCards(n):
+            guard (0...1).contains(pid) else { return }
+            for _ in 0..<n {
+                drawOne(for: pid)
+            }
+            pushCenterMessage("プレイヤー\(pid) がカードを \(n) 枚ドロー")
+            if pid == turn {
+                handleHandOverflowIfNeeded()
+            }
 
         // それ以外はあとで個別実装
         default:

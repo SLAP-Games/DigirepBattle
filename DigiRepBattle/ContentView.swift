@@ -155,6 +155,18 @@ struct ContentView: View {
                         .zIndex(999)
                     }
                     
+                    if let drawCard = vm.drawPreviewCard {
+                        DrawCardOverlay(
+                            vm: vm,
+                            card: drawCard,
+                            onFinished: {
+                                vm.confirmDrawPreview()
+                            }
+                        )
+                        .transition(.opacity)
+                        .zIndex(1300)
+                    }
+                    
                     if let idx = vm.inspectTarget,
                        let iv = vm.makeInspectView(for: idx, viewer: 0) {
                         CreatureInfoPanel(iv: iv, onClose: { vm.closeInspect() })
@@ -854,6 +866,83 @@ struct CardDetailOverlay: View {
         }
     }
 }
+
+struct DrawCardOverlay: View {
+    @ObservedObject var vm: GameVM
+    let card: Card
+    let onFinished: () -> Void
+
+    @State private var offsetY: CGFloat = -40
+    @State private var opacity: Double = 0
+    @State private var spinAngle: Double = 0
+
+    private let frameImageName = "cardL"
+    private let backImageName  = "cardLreverse"
+
+    var body: some View {
+        ZStack {
+            // 背景を暗くして他の操作を封じる
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                Text("カードをドロー")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                // 既存の Flip 表現を再利用
+                FlipAngle(angle: spinAngle) {
+                    FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
+                } back: {
+                    BackCardFace(frameImageName: backImageName)
+                }
+                .frame(maxWidth: 430)
+                .onTapGesture {
+                    // カードタップでクルッと回転だけさせる
+                    withAnimation(.linear(duration: 0.75)) {
+                        spinAngle += 360
+                    }
+                }
+
+                Button("OK") {
+                    dismissWithFlyToHand()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(20)
+            .offset(y: offsetY)
+            .opacity(opacity)
+            .onAppear {
+                // ふわっと上から出てくる
+                offsetY = -40
+                opacity = 0
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+                    offsetY = 0
+                    opacity = 1
+                }
+                // 最初に一回転
+                spinAngle = 0
+                withAnimation(.linear(duration: 0.6)) {
+                    spinAngle = 360
+                }
+            }
+        }
+    }
+
+    private func dismissWithFlyToHand() {
+        // 下方向へ移動しながらフェードアウト
+        withAnimation(.easeInOut(duration: 0.6)) {
+            offsetY = 300   // 画面下部方向へ
+            opacity = 0
+        }
+
+        // アニメーション終了後に手札へ追加＆オーバーレイ終了
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            onFinished()
+        }
+    }
+}
+
 
 #Preview {
     ContentView()

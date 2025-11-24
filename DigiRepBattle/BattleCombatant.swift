@@ -439,7 +439,7 @@ public struct BattleOverlayView: View {
             leftOffset = -600
             rightOffset = 0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
             guard !isFinished else { return }
 
             // 2) 左へ戻してから、左にダメージ表示（＝防御側の先制）
