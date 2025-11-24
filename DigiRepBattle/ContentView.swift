@@ -717,7 +717,8 @@ struct ContentView: View {
                        card.kind == .spell,
                        vm.turn == 0,
                        vm.mustDiscardFor == nil,
-                       isPreRollTargetSpell(card) {
+                       isPreRollTargetSpell(card),
+                       vm.shopSpellForDetail == nil {
                         ZStack {
                             VStack {
                                 Text("スペル使用先を選択")
@@ -828,8 +829,15 @@ struct CardDetailOverlay: View {
             card.stats?.cost ?? 0
         }
 
-        let gold = vm.players[vm.turn].gold
-
+        let gold: Int
+        if vm.isBattleItemSelectionPhase {
+            // バトルアイテムを操作するのは常にプレイヤー（ID 0）
+            gold = vm.players[0].gold
+        } else {
+            // 通常時はターンプレイヤーのGOLD
+            gold = vm.players[vm.turn].gold
+        }
+        
         // ① バトル中の装備アイテム使用
         if vm.isBattleItemSelectionPhase {
             let cost = card.stats?.cost ?? spellCostForUI(card)
@@ -945,17 +953,46 @@ struct CardDetailOverlay: View {
                     spinAngle = 0
                 }
 
-            HStack(spacing: 10) {
-                Button(primaryAction.title) { primaryAction.action?() }
+            if let shopSpell = vm.shopSpellForDetail {
+                // ★ スペルショップから開いたとき
+                let canBuy = vm.players[vm.turn].gold >= shopSpell.price
+
+                HStack(spacing: 10) {
+                    Button(canBuy ? "購入" : "G不足") {
+                        guard canBuy else { return }
+                        vm.confirmPurchaseSpell(shopSpell)   // GOLD 消費 + 手札に追加 + シート閉じ
+                        vm.shopSpellForDetail = nil         // コンテキストクリア
+                        onClose()                           // カード詳細を閉じる（presentingCard=nil）
+                    }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!primaryAction.enabled)
-                Button("閉じる") { onClose() }
+                    .disabled(!canBuy)
+
+                    Button("閉じる") {
+                        vm.shopSpellForDetail = nil
+                        onClose()
+                    }
                     .buttonStyle(.bordered)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(UIColor.systemBackground))
                             .shadow(radius: 12)
                     )
+                }
+
+            } else {
+                // ★ 従来どおりの通常モード
+                HStack(spacing: 10) {
+                    Button(primaryAction.title) { primaryAction.action?() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!primaryAction.enabled)
+                    Button("閉じる") { onClose() }
+                        .buttonStyle(.bordered)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(UIColor.systemBackground))
+                                .shadow(radius: 12)
+                        )
+                }
             }
         }
         .padding(.horizontal, 20)

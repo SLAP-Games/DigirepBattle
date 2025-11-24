@@ -73,6 +73,7 @@ final class GameVM: ObservableObject {
     @Published var activeSpecialSheet: SpecialActionSheet? = nil
     @Published var specialPending: SpecialPendingAction? = nil
     @Published var presentingCard: Card? = nil
+    @Published var shopSpellForDetail: ShopSpell? = nil
     @Published var passedCP1: [Bool] = [false, false]
     @Published var passedCP2: [Bool] = [false, false]
     @Published var showCreatureMenu: Bool = false
@@ -166,35 +167,63 @@ final class GameVM: ObservableObject {
         self.poisonedTiles = Array(repeating: false, count: tileCount)
         
         //プレイヤーテスト
-//        cardStates[0].collection.add("cre-defaultLizard", count: 30)
-//        cardStates[0].collection.add("sp-dice2", count: 20)
-//        cardStates[0].deckList.creatureSlots = [
-//            "cre-defaultLizard": 30
-//        ]
-//        cardStates[0].deckList.spellSlots = [
-//            "sp-dice2": 20
-//        ]
-        
-        //プレイヤーデッキ
         cardStates[0].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("cre-defaultTurtle", count: 30)
-        cardStates[0].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
-        cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
-        cardStates[0].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[0].collection.add("sp-bigScale", count: 20)
-        cardStates[0].collection.add("sp-deleteHand", count: 20)
+        cardStates[0].collection.add("sp-dice2", count: 20)
         cardStates[0].deckList.creatureSlots = [
-            "cre-defaultLizard": 5,
-            "cre-defaultTurtle": 5,
-            "cre-defaultBeardedDragon": 5,
-            "cre-defaultHornedFrog": 5,
-            "cre-defaultGreenIguana": 5,
-            "cre-defaultBallPython": 5
+            "cre-defaultLizard": 30
         ]
         cardStates[0].deckList.spellSlots = [
-            "sp-deleteHand": 20
+            "sp-dice2": 20
         ]
+        
+        //プレイヤーデッキ
+//        cardStates[0].collection.add("cre-defaultLizard", count: 30)
+//        cardStates[0].collection.add("cre-defaultTurtle", count: 30)
+//        cardStates[0].collection.add("cre-defaultBeardedDragon", count: 30)
+//        cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
+//        cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
+//        cardStates[0].collection.add("cre-defaultBallPython", count: 30)
+//        cardStates[0].collection.add("sp-dice1", count: 3)
+//        cardStates[0].collection.add("sp-dice2", count: 3)
+//        cardStates[0].collection.add("sp-dice3", count: 3)
+//        cardStates[0].collection.add("sp-dice4", count: 3)
+//        cardStates[0].collection.add("sp-dice5", count: 3)
+//        cardStates[0].collection.add("sp-dice6", count: 3)
+//        cardStates[0].collection.add("sp-doubleDice", count: 3)
+//        cardStates[0].collection.add("sp-firstStrike", count: 3)
+//        cardStates[0].collection.add("sp-hardFang", count: 3)
+//        cardStates[0].collection.add("sp-sharpFang", count: 3)
+//        cardStates[0].collection.add("sp-poisonFang", count: 3)
+//        cardStates[0].collection.add("sp-hardScale", count: 3)
+//        cardStates[0].collection.add("sp-draw2", count: 3)
+//        cardStates[0].collection.add("sp-bigScale", count: 3)
+//        cardStates[0].collection.add("sp-deleteHand", count: 3)
+//        cardStates[0].deckList.creatureSlots = [
+//            "cre-defaultLizard": 5,
+//            "cre-defaultCrocodile": 5,
+//            "cre-defaultTurtle": 5,
+//            "cre-defaultBeardedDragon": 5,
+//            "cre-defaultHornedFrog": 5,
+//            "cre-defaultGreenIguana": 5,
+//            "cre-defaultBallPython": 5
+//        ]
+//        cardStates[0].deckList.spellSlots = [
+//            "sp-dice1": 1,
+//            "sp-dice2": 1,
+//            "sp-dice3": 1,
+//            "sp-dice4": 1,
+//            "sp-dice5": 1,
+//            "sp-dice6": 1,
+//            "sp-doubleDice": 1,
+//            "sp-firstStrike": 1,
+//            "sp-hardFang": 1,
+//            "sp-sharpFang": 1,
+//            "sp-poisonFang": 1,
+//            "sp-hardScale": 1,
+//            "sp-bigScale": 1,
+//            "sp-draw2": 1,
+//            "sp-deleteHand": 1
+//        ]
         
         //NPCテスト
 //        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
@@ -224,7 +253,10 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-deleteHand": 20
+            "sp-hardScale": 5,
+            "sp-bigScale": 5,
+            "sp-deleteHand": 5,
+            "sp-doubleDice": 5
         ]
         
         for pid in 0...1 {
@@ -594,8 +626,17 @@ final class GameVM: ObservableObject {
         presentingCard = card
     }
 
+    // ★ 追加：スペルショップからカード詳細を開く用
+    func openShopSpellDetail(_ spell: ShopSpell) {
+        guard let def = CardDatabase.definition(for: spell.id) else { return }
+        let card = def.makeInstance()
+        shopSpellForDetail = spell
+        openCard(card)
+    }
+    
     func closeCardPopup() {
         presentingCard = nil
+        shopSpellForDetail = nil
     }
     
     func spellDescription(for card: Card) -> String {
@@ -2627,11 +2668,14 @@ struct ShopSpell: Identifiable, Equatable {
 
 extension ShopSpell {
     static let catalog: [ShopSpell] = [
-        .init(id: "heal_small",  name: "薬小",   price: 30),
-        .init(id: "heal_mid",    name: "薬大",   price: 60),
-        .init(id: "atk_up",      name: "赤プロテイン小", price: 60),
-        .init(id: "atk_up_big",      name: "赤プロテイン大", price: 200),
-        .init(id: "def_up",      name: "青プロテイン小", price: 60),
-        .init(id: "def_up_big",      name: "青プロテイン大", price: 200)
+        .init(id: "sp-dice1",  name: "ダイス1",   price: 10),
+        .init(id: "sp-dice2",    name: "ダイス2",   price: 10),
+        .init(id: "sp-dice3",      name: "ダイス3", price: 10),
+        .init(id: "sp-dice4",      name: "ダイス4", price: 20),
+        .init(id: "sp-dice5",      name: "ダイス5", price: 20),
+        .init(id: "sp-dice6",      name: "ダイス6", price: 20),
+        .init(id: "sp-hardFang",      name: "硬牙", price: 20),
+        .init(id: "sp-bigScale",      name: "大鱗", price: 20),
+        .init(id: "sp-draw2",      name: "ドロー2", price: 40)
     ]
 }
