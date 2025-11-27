@@ -148,7 +148,7 @@ final class GameVM: ObservableObject {
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
     
-    init() {
+    init(selectedDeck: DeckList? = nil) {
         self.tileCount = 31  // RingBoardView のグラフと一致させる
         self.owner = Array(repeating: nil, count: tileCount)
         self.level = Array(repeating: 0, count: tileCount)
@@ -166,64 +166,9 @@ final class GameVM: ObservableObject {
         self.toll = Array(repeating: 0, count: tileCount)
         self.poisonedTiles = Array(repeating: false, count: tileCount)
         
-        //プレイヤーテスト
-        cardStates[0].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("sp-dice2", count: 20)
-        cardStates[0].deckList.creatureSlots = [
-            "cre-defaultLizard": 30
-        ]
-        cardStates[0].deckList.spellSlots = [
-            "sp-dice2": 20
-        ]
-        
-        //プレイヤーデッキ
-//        cardStates[0].collection.add("cre-defaultLizard", count: 30)
-//        cardStates[0].collection.add("cre-defaultTurtle", count: 30)
-//        cardStates[0].collection.add("cre-defaultBeardedDragon", count: 30)
-//        cardStates[0].collection.add("cre-defaultHornedFrog", count: 30)
-//        cardStates[0].collection.add("cre-defaultGreenIguana", count: 30)
-//        cardStates[0].collection.add("cre-defaultBallPython", count: 30)
-//        cardStates[0].collection.add("sp-dice1", count: 3)
-//        cardStates[0].collection.add("sp-dice2", count: 3)
-//        cardStates[0].collection.add("sp-dice3", count: 3)
-//        cardStates[0].collection.add("sp-dice4", count: 3)
-//        cardStates[0].collection.add("sp-dice5", count: 3)
-//        cardStates[0].collection.add("sp-dice6", count: 3)
-//        cardStates[0].collection.add("sp-doubleDice", count: 3)
-//        cardStates[0].collection.add("sp-firstStrike", count: 3)
-//        cardStates[0].collection.add("sp-hardFang", count: 3)
-//        cardStates[0].collection.add("sp-sharpFang", count: 3)
-//        cardStates[0].collection.add("sp-poisonFang", count: 3)
-//        cardStates[0].collection.add("sp-hardScale", count: 3)
-//        cardStates[0].collection.add("sp-draw2", count: 3)
-//        cardStates[0].collection.add("sp-bigScale", count: 3)
-//        cardStates[0].collection.add("sp-deleteHand", count: 3)
-//        cardStates[0].deckList.creatureSlots = [
-//            "cre-defaultLizard": 5,
-//            "cre-defaultCrocodile": 5,
-//            "cre-defaultTurtle": 5,
-//            "cre-defaultBeardedDragon": 5,
-//            "cre-defaultHornedFrog": 5,
-//            "cre-defaultGreenIguana": 5,
-//            "cre-defaultBallPython": 5
-//        ]
-//        cardStates[0].deckList.spellSlots = [
-//            "sp-dice1": 1,
-//            "sp-dice2": 1,
-//            "sp-dice3": 1,
-//            "sp-dice4": 1,
-//            "sp-dice5": 1,
-//            "sp-dice6": 1,
-//            "sp-doubleDice": 1,
-//            "sp-firstStrike": 1,
-//            "sp-hardFang": 1,
-//            "sp-sharpFang": 1,
-//            "sp-poisonFang": 1,
-//            "sp-hardScale": 1,
-//            "sp-bigScale": 1,
-//            "sp-draw2": 1,
-//            "sp-deleteHand": 1
-//        ]
+        if let deck = selectedDeck {
+            cardStates[0].deckList = deck
+        }
         
         //NPCテスト
 //        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
@@ -237,15 +182,21 @@ final class GameVM: ObservableObject {
         
         //NPCデッキ
         cardStates[1].collection.add("cre-defaultLizard", count: 30)
+        cardStates[0].collection.add("cre-defaultCrocodile", count: 30)
         cardStates[1].collection.add("cre-defaultTurtle", count: 30)
         cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
         cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
         cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
         cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[1].collection.add("sp-bigScale", count: 20)
-        cardStates[1].collection.add("sp-deleteHand", count: 20)
+        cardStates[1].collection.add("sp-hardFang", count: 5)
+        cardStates[1].collection.add("sp-bigScale", count: 5)
+        cardStates[1].collection.add("sp-deleteHand", count: 5)
+        cardStates[1].collection.add("sp-doubleDice", count: 5)
+        cardStates[1].collection.add("sp-firstStrike", count: 5)
+        
         cardStates[1].deckList.creatureSlots = [
             "cre-defaultLizard": 5,
+            "cre-defaultCrocodile": 5,
             "cre-defaultTurtle": 5,
             "cre-defaultBeardedDragon": 5,
             "cre-defaultHornedFrog": 5,
@@ -253,10 +204,11 @@ final class GameVM: ObservableObject {
             "cre-defaultBallPython": 5
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-hardScale": 5,
+            "sp-hardFang": 5,
             "sp-bigScale": 5,
             "sp-deleteHand": 5,
-            "sp-doubleDice": 5
+            "sp-doubleDice": 5,
+            "sp-firstStrike": 5
         ]
         
         for pid in 0...1 {

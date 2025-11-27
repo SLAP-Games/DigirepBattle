@@ -9,6 +9,9 @@ import SwiftUI
 
 struct CardView: View {
     let card: Card
+    /// 左上に表示する枚数バッジ（nil の場合は非表示）
+    var badgeCount: Int? = nil
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4)
@@ -30,6 +33,25 @@ struct CardView: View {
                     .frame(width: 60, height: 60)
             }
             .padding(6)
+
+            // 左上バッジ
+            if let badgeCount {
+                VStack {
+                    HStack {
+                        Text("\(badgeCount)")
+                            .font(.caption2.bold())
+                            .padding(4)
+                            .background(
+                                Circle()
+                                    .fill(Color.red.opacity(0.9))
+                            )
+                            .foregroundColor(.white)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(4)
+            }
         }
     }
 }

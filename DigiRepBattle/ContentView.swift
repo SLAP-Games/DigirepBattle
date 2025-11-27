@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var vm = GameVM()
+    @EnvironmentObject var vm: GameVM
 
     var body: some View {
         GeometryReader { geo in
@@ -789,6 +789,7 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(edges: .bottom)
     }
     
@@ -1113,4 +1114,5 @@ struct DrawCardOverlay: View {
 
 #Preview {
     ContentView()
+        .environmentObject(GameVM(selectedDeck: .previewSample))
 }
