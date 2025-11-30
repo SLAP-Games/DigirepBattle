@@ -450,6 +450,45 @@ struct ContentView: View {
                         }
                         .zIndex(2000)
                     }
+                    
+                    if let tile = vm.pendingFullHealTile,
+                       vm.hp.indices.contains(tile),
+                       vm.hpMax.indices.contains(tile) {
+
+                        let currentHP = vm.hp[tile]
+                        let maxHP = vm.hpMax[tile]
+
+                        ZStack {
+                            Color.black.opacity(0.6)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 16) {
+                                Text("回復しますか？")
+                                    .font(.headline)
+
+                                Text("現在の体力: \(currentHP)/\(maxHP)")
+                                    .font(.subheadline)
+
+                                HStack(spacing: 20) {
+                                    Button("OK") {
+                                        vm.confirmFullHeal()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button("閉じる") {
+                                        vm.cancelFullHealConfirm()
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(16)
+                            .frame(maxWidth: 300)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(12)
+                            .shadow(radius: 10)
+                        }
+                        .transition(.opacity)
+                    }
                 }
 
 // -------------------------------------------------------------------------------
@@ -668,8 +707,11 @@ struct ContentView: View {
                                     .font(.title3.bold())
                                     .padding(.vertical, 4)
 
-                                Button("閉じる") { vm.battleResult = nil }
-                                    .buttonStyle(.borderedProminent)
+                                Button("閉じる") {
+                                    vm.battleResult = nil
+                                    vm.cancelFullHealSelection()
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
                             .padding(16)
                             .background(.ultraThinMaterial)
@@ -769,6 +811,24 @@ struct ContentView: View {
                                 .aspectRatio(contentMode: .fill)
                         }
                     }
+                    
+//                    if vm.isSelectingFullHealTarget {
+//                        VStack(spacing: 8) {
+//                            Text("回復するマスを選択してください")
+//                                .font(.subheadline).bold()
+//
+//                            Button("キャンセル") {
+//                                vm.cancelFullHealSelection()
+//                            }
+//                            .buttonStyle(.bordered)
+//                        }
+//                        .padding(8)
+//                        .background(.ultraThinMaterial)
+//                        .cornerRadius(12)
+//                        .padding(.bottom, 8)
+//                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+//                    }
+                    
                     VStack {
                         Image("line")
                             .resizable()

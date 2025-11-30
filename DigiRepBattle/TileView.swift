@@ -40,6 +40,8 @@ struct TileView: View {
     var body: some View {
         let hpBarWidth = size * 0.5
         let hpBarHeight: CGFloat = 6
+        let isHighlighted = highlightTargets.contains(index)
+        let blinkAlpha: CGFloat = useFirstImage ? 1.0 : 0.0
 
         ZStack {
             // タイル本体
@@ -57,18 +59,26 @@ struct TileView: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 )
+            // 通常枠
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(owner == nil ? .secondary.opacity(0.8) : accent,
                                 lineWidth: owner == nil ? 1 : 3)
                 )
+                // ★ 点滅する青枠
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.yellow, lineWidth: highlightTargets.contains(index) ? 4 : 0)
+                        .stroke(
+                            Color.yellow.opacity(isHighlighted ? blinkAlpha : 0),
+                            lineWidth: isHighlighted ? 5 : 0
+                        )
                 )
+                // ★ 中のハイライトも青＋点滅に変更
                 .overlay(
                     RoundedRectangle(cornerRadius: 15)
-                        .fill(Color.yellow.opacity(highlightTargets.contains(index) ? 0.18 : 0))
+                        .fill(
+                            Color.yellow.opacity(isHighlighted ? 0.22 * blinkAlpha : 0)
+                        )
                 )
                 .frame(width: size, height: size)
 

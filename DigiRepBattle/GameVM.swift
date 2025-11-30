@@ -111,6 +111,10 @@ final class GameVM: ObservableObject {
     @Published var deletingTargetPlayer: Int? = nil
     @Published var pendingDeleteHandIndex: Int? = nil
     @Published var deletePreviewCard: Card? = nil
+    // === ここから追加: sp-elixir 用 ===
+    @Published var isSelectingFullHealTarget: Bool = false
+    @Published var fullHealCandidateTiles: Set<Int> = []
+    @Published var pendingFullHealTile: Int? = nil
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -1245,6 +1249,34 @@ final class GameVM: ObservableObject {
                     battleResult = "このカードが削除されました"
                 }
             }
+            
+        case .fullHealAnyCreature:
+            // 自軍の、HPが減っているマスだけを候補にする
+            var candidates: Set<Int> = []
+
+            for i in 0..<tileCount {
+                guard owner.indices.contains(i),
+                      owner[i] == 0,                   // 自軍
+                      level.indices.contains(i),
+                      level[i] > 0,                    // 何かしら置かれている
+                      hp.indices.contains(i),
+                      hpMax.indices.contains(i),
+                      hp[i] < hpMax[i]                // ダメージを受けている
+                else { continue }
+
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("回復できるマスがありません")
+            } else {
+                // 選択モードに入る
+                isSelectingFullHealTarget = true
+                fullHealCandidateTiles = candidates
+                // 既存の highlight を流用してボード側を強調
+                branchLandingTargets = candidates
+                battleResult = "回復するマスを選択してください"
+            }
 
         default:
             // ここで扱わないスペルは何もしない
@@ -1344,9 +1376,37 @@ final class GameVM: ObservableObject {
                     battleResult = "このカードが削除されました"
                 }
             }
+            
+        case .fullHealAnyCreature:
+            // 自軍の、HPが減っているマスだけを候補にする
+            var candidates: Set<Int> = []
+
+            for i in 0..<tileCount {
+                guard owner.indices.contains(i),
+                      owner[i] == 0,                   // 自軍
+                      level.indices.contains(i),
+                      level[i] > 0,                    // 何かしら置かれている
+                      hp.indices.contains(i),
+                      hpMax.indices.contains(i),
+                      hp[i] < hpMax[i]                // ダメージを受けている
+                else { continue }
+
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("回復できるマスがありません")
+            } else {
+                // 選択モードに入る
+                isSelectingFullHealTarget = true
+                fullHealCandidateTiles = candidates
+                // 既存の highlight を流用してボード側を強調
+                branchLandingTargets = candidates
+                battleResult = "回復するマスを選択してください"
+            }
 
         case .teleport, .healHP,
-             .fullHealAnyCreature, .changeLandLevel,
+             .changeLandLevel,
              .setLandTollZero, .multiplyLandToll,
              .damageAnyCreature,
              .gainGold, .stealGold,
@@ -2078,6 +2138,13 @@ final class GameVM: ObservableObject {
     
     // タイルタップ時ハンドラ（クリーチャーがいないタイルは無視）
     func tapTileForInspect(_ index: Int) {
+        // === ここから追加: sp-elixir のターゲット選択 ===
+        if isSelectingFullHealTarget {
+            // 候補外のマスは無視
+            guard fullHealCandidateTiles.contains(index) else { return }
+            pendingFullHealTile = index   // 確認ウインドウ表示用
+            return
+        }
         // ← 先に特別アクション選択モードを優先処理
         if let pending = specialPending {
             switch pending {
@@ -2586,9 +2653,88 @@ final class GameVM: ObservableObject {
         return terrain[tile].attribute
     }
 
+    // MARK: -----------------------------------------------------------------------------
+    // MARK: - スペル管理
+    // MARK: -----------------------------------------------------------------------------
+    
+    // MARK: - sp-elixir（任意マス全回復）用ヘルパー
+    func cancelFullHealSelection() {
+        isSelectingFullHealTarget = false
+        pendingFullHealTile = nil
+        fullHealCandidateTiles = []
+        branchLandingTargets = []
+    }
+
+    func cancelFullHealConfirm() {
+        // 「閉じる」で確認ウィンドウだけ閉じて、選択モードには戻る
+        pendingFullHealTile = nil
+    }
+
+    func confirmFullHeal() {
+        guard let tile = pendingFullHealTile else {
+            cancelFullHealSelection()
+            return
+        }
+
+        // 対象の妥当性チェック
+        guard fullHealCandidateTiles.contains(tile),
+              owner.indices.contains(tile),
+              owner[tile] == 0,
+              hp.indices.contains(tile),
+              hpMax.indices.contains(tile)
+        else {
+            cancelFullHealSelection()
+            return
+        }
+
+        let beforeHP = hp[tile]
+        let maxHP = hpMax[tile]
+        let heal = maxHP - beforeHP
+        guard heal > 0 else {
+            cancelFullHealSelection()
+            return
+        }
+
+        // アニメーション付きで全回復
+        Task { @MainActor in
+            await self.applyFullHealAnimation(at: tile, heal: heal)
+        }
+
+        // 選択モード終了
+        isSelectingFullHealTarget = false
+        fullHealCandidateTiles = []
+        branchLandingTargets = []
+        pendingFullHealTile = nil
+    }
+
+    @MainActor
+    private func applyFullHealAnimation(at tile: Int, heal: Int) async {
+        // HP更新
+        let maxHP = hpMax[tile]
+        hp[tile] = maxHP
+        if var c = creatureOnTile[tile] {
+            c.hp = maxHP
+            creatureOnTile[tile] = c
+        }
+        hp = hp  // Published の再通知
+
+        // 既存の回復アニメと同じスタイルで表示
+        isHealingAnimating = true
+        focusTile = tile
+        healingAmounts = [tile: heal]     // プラス値で回復表示
+
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        healingAmounts.removeAll()
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        isHealingAnimating = false
+    }
+    // MARK: - sp-elixir（任意マス全回復）用ヘルパーここまで
+    
+    
+
 }
 
-// MARK: - Special Node Actions
 enum SpecialNodeKind { case castle, tower }
 
 private let SPECIAL_NODES: [Int: SpecialNodeKind] = [

@@ -324,8 +324,29 @@ enum CardDatabase {
             id: "sp-greatStorm",
             name: "大嵐",
             symbol: "🌪",
+            effect: .damageAnyCreature(40),
+            cost: 50
+        ),
+        "sp-disaster": .spell(
+            id: "sp-disaster",
+            name: "天災",
+            symbol: "🌪",
+            effect: .damageAnyCreature(80),
+            cost: 150
+        ),
+        "sp-poisonSmoke": .spell(
+            id: "sp-poisonSmoke",
+            name: "毒煙",
+            symbol: "💨",
             effect: .damageAnyCreature(30),
-            cost: 30
+            cost: 100
+        ),
+        "sp-cure": .spell(
+            id: "sp-cure",
+            name: "浄化",
+            symbol: "💫",
+            effect: .damageAnyCreature(30),
+            cost: 60
         ),
 
         // --- GOLD ---
@@ -436,10 +457,10 @@ enum CardDatabase {
             cost: 30
         ),
 
-        // --- 浄化 ---
+        // --- バグ ---
         "sp-purification": .spell(
             id: "sp-purification",
-            name: "浄化",
+            name: "バグ",
             symbol: "✨",
             effect: .purgeAllCreatures,
             cost: 500
