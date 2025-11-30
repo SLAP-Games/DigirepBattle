@@ -50,6 +50,8 @@ struct RootDeckBuilderScreen: View {
         c.add("sp-draw2", count: 3)
         c.add("sp-bigScale", count: 3)
         c.add("sp-deleteHand", count: 3)
+        c.add("sp-elixir", count: 3)
+        c.add("sp-decay", count: 3)
 
         return c
     }()

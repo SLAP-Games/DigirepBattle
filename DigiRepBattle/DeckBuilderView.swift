@@ -126,16 +126,18 @@ struct DeckBuilderView: View {
             "sp-dice3":        1,
             "sp-dice4":        1,
             "sp-dice5":        1,
-            "sp-dice6":        2,
-            "sp-doubleDice":   2,
-            "sp-firstStrike":  2,
-            "sp-hardFang":     2,
+            "sp-dice6":        1,
+            "sp-doubleDice":   1,
+            "sp-firstStrike":  1,
+            "sp-hardFang":     1,
             "sp-sharpFang":    2,
             "sp-poisonFang":   2,
             "sp-hardScale":    2,
             "sp-bigScale":     2,
             "sp-draw2":        2,
-            "sp-deleteHand":   2
+            "sp-deleteHand":   2,
+            "sp-elixir":   2,
+            "sp-decay":   2
         ]
 
         return deck

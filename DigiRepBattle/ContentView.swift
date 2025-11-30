@@ -89,7 +89,7 @@ struct ContentView: View {
                                 Image(systemName: cp2Player ? "star.fill" : "star")
                                     .foregroundStyle(cp2Player ? .yellow : .gray)
                             }
-                            .font(.caption) // 大きさはお好みで
+                            .font(.caption)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -489,6 +489,45 @@ struct ContentView: View {
                         }
                         .transition(.opacity)
                     }
+                    
+                    // sp-decay 用：レベルダウン確認ウインドウ
+                    if let tile = vm.pendingLandLevelChangeTile,
+                       vm.level.indices.contains(tile) {
+
+                        let currentLevel = vm.level[tile]
+
+                        ZStack {
+                            Color.black.opacity(0.6)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 16) {
+                                Text("レベルを１下げますか？")
+                                    .font(.headline)
+
+                                Text("現在のレベル: Lv\(currentLevel)")
+                                    .font(.subheadline)
+
+                                HStack(spacing: 20) {
+                                    Button("OK") {
+                                        vm.confirmLandLevelChange()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button("閉じる") {
+                                        vm.cancelLandLevelChangeConfirm()
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(16)
+                            .frame(maxWidth: 300)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(12)
+                            .shadow(radius: 10)
+                        }
+                        .transition(.opacity)
+                    }
+
                 }
 
 // -------------------------------------------------------------------------------

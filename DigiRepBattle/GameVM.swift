@@ -115,6 +115,10 @@ final class GameVM: ObservableObject {
     @Published var isSelectingFullHealTarget: Bool = false
     @Published var fullHealCandidateTiles: Set<Int> = []
     @Published var pendingFullHealTile: Int? = nil
+    // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
+    @Published var isSelectingLandLevelChangeTarget: Bool = false
+    @Published var landLevelChangeCandidateTiles: Set<Int> = []
+    @Published var pendingLandLevelChangeTile: Int? = nil
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -175,45 +179,45 @@ final class GameVM: ObservableObject {
         }
         
         //NPCテスト
-//        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-//        cardStates[1].collection.add("sp-dice2", count: 20)
-//        cardStates[1].deckList.creatureSlots = [
-//            "cre-defaultBeardedDragon": 30
-//        ]
-//        cardStates[1].deckList.spellSlots = [
-//            "sp-dice2": 20
-//        ]
-        
-        //NPCデッキ
-        cardStates[1].collection.add("cre-defaultLizard", count: 30)
-        cardStates[0].collection.add("cre-defaultCrocodile", count: 30)
-        cardStates[1].collection.add("cre-defaultTurtle", count: 30)
         cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
-        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
-        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-        cardStates[1].collection.add("sp-hardFang", count: 5)
-        cardStates[1].collection.add("sp-bigScale", count: 5)
-        cardStates[1].collection.add("sp-deleteHand", count: 5)
-        cardStates[1].collection.add("sp-doubleDice", count: 5)
-        cardStates[1].collection.add("sp-firstStrike", count: 5)
-        
+        cardStates[1].collection.add("sp-dice2", count: 20)
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultLizard": 5,
-            "cre-defaultCrocodile": 5,
-            "cre-defaultTurtle": 5,
-            "cre-defaultBeardedDragon": 5,
-            "cre-defaultHornedFrog": 5,
-            "cre-defaultGreenIguana": 5,
-            "cre-defaultBallPython": 5
+            "cre-defaultBeardedDragon": 35
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-hardFang": 5,
-            "sp-bigScale": 5,
-            "sp-deleteHand": 5,
-            "sp-doubleDice": 5,
-            "sp-firstStrike": 5
+            "sp-decay": 25
         ]
+        
+        //NPCデッキ
+//        cardStates[1].collection.add("cre-defaultLizard", count: 30)
+//        cardStates[0].collection.add("cre-defaultCrocodile", count: 30)
+//        cardStates[1].collection.add("cre-defaultTurtle", count: 30)
+//        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
+//        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
+//        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
+//        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
+//        cardStates[1].collection.add("sp-hardFang", count: 5)
+//        cardStates[1].collection.add("sp-bigScale", count: 5)
+//        cardStates[1].collection.add("sp-deleteHand", count: 5)
+//        cardStates[1].collection.add("sp-doubleDice", count: 5)
+//        cardStates[1].collection.add("sp-firstStrike", count: 5)
+//        
+//        cardStates[1].deckList.creatureSlots = [
+//            "cre-defaultLizard": 5,
+//            "cre-defaultCrocodile": 5,
+//            "cre-defaultTurtle": 5,
+//            "cre-defaultBeardedDragon": 5,
+//            "cre-defaultHornedFrog": 5,
+//            "cre-defaultGreenIguana": 5,
+//            "cre-defaultBallPython": 5
+//        ]
+//        cardStates[1].deckList.spellSlots = [
+//            "sp-hardFang": 5,
+//            "sp-bigScale": 5,
+//            "sp-deleteHand": 5,
+//            "sp-doubleDice": 5,
+//            "sp-firstStrike": 5
+//        ]
         
         for pid in 0...1 {
             decks[pid] = cardStates[pid].deckList.buildDeckCards()
@@ -1277,10 +1281,48 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates
                 battleResult = "回復するマスを選択してください"
             }
+            
+        case .changeLandLevel(let delta):
+            // 今回は sp-decay（delta = -1）だけ対応
+            guard delta < 0 else {
+                pushCenterMessage("この土地レベル変更はできません")
+                break
+            }
 
+            // レベル2以上のマスだけを候補にする（敵味方問わず）
+            var candidates: Set<Int> = []
+            for i in 0..<tileCount {
+                guard level.indices.contains(i),
+                      level[i] >= 2
+                else { continue }
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("レベルを下げられるマスがありません")
+            } else {
+                // 選択モードに入る
+                isSelectingLandLevelChangeTarget = true
+                landLevelChangeCandidateTiles = candidates
+                pendingLandLevelChangeTile = nil
+                // ボード側のハイライトに既存のプロパティを流用
+                branchLandingTargets = candidates
+                battleResult = "レベルを下げるマスを選択してください"
+            }
+
+        case .teleport, .healHP,
+             .setLandTollZero, .multiplyLandToll,
+             .damageAnyCreature,
+             .gainGold, .stealGold,
+             .inspectCreature,
+             .aoeDamageByResist,
+             .changeTileAttribute,
+             .purgeAllCreatures:
+            pushCenterMessage("スペル『\(card.name)』の効果はまだ未実装です（コスト\(cost)だけ消費）")
+
+        // ★ 追加：万一新しいケースが増えてもここで拾う
         default:
-            // ここで扱わないスペルは何もしない
-            return
+            pushCenterMessage("未対応のスペル効果です（コスト\(cost)だけ消費）")
         }
         consumeFromHand(card, for: 0)
     }
@@ -1404,9 +1446,36 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates
                 battleResult = "回復するマスを選択してください"
             }
+            
+        case .changeLandLevel(let delta):
+            // 今回は sp-decay（delta = -1）だけ対応
+            guard delta < 0 else {
+                pushCenterMessage("この土地レベル変更はできません")
+                break
+            }
+
+            // レベル2以上のマスだけを候補にする（敵味方問わず）
+            var candidates: Set<Int> = []
+            for i in 0..<tileCount {
+                guard level.indices.contains(i),
+                      level[i] >= 2
+                else { continue }
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("レベルを下げられるマスがありません")
+            } else {
+                // 選択モードに入る
+                isSelectingLandLevelChangeTarget = true
+                landLevelChangeCandidateTiles = candidates
+                pendingLandLevelChangeTile = nil
+                // ボード側のハイライトに既存のプロパティを流用
+                branchLandingTargets = candidates
+                battleResult = "レベルを下げるマスを選択してください"
+            }
 
         case .teleport, .healHP,
-             .changeLandLevel,
              .setLandTollZero, .multiplyLandToll,
              .damageAnyCreature,
              .gainGold, .stealGold,
@@ -2145,6 +2214,13 @@ final class GameVM: ObservableObject {
             pendingFullHealTile = index   // 確認ウインドウ表示用
             return
         }
+        // === sp-decay のターゲット選択 ===
+        if isSelectingLandLevelChangeTarget {
+            // レベルダウン候補外のマスは無視
+            guard landLevelChangeCandidateTiles.contains(index) else { return }
+            pendingLandLevelChangeTile = index   // レベルダウン確認ウインドウ表示用
+            return
+        }
         // ← 先に特別アクション選択モードを優先処理
         if let pending = specialPending {
             switch pending {
@@ -2659,9 +2735,15 @@ final class GameVM: ObservableObject {
     
     // MARK: - sp-elixir（任意マス全回復）用ヘルパー
     func cancelFullHealSelection() {
+        // sp-elixir 用
         isSelectingFullHealTarget = false
         pendingFullHealTile = nil
         fullHealCandidateTiles = []
+        // sp-decay 用もまとめてリセットしておく
+        isSelectingLandLevelChangeTarget = false
+        pendingLandLevelChangeTile = nil
+        landLevelChangeCandidateTiles = []
+        // ボードのハイライトも解除
         branchLandingTargets = []
     }
 
@@ -2705,6 +2787,59 @@ final class GameVM: ObservableObject {
         fullHealCandidateTiles = []
         branchLandingTargets = []
         pendingFullHealTile = nil
+    }
+    
+    /// 選択モード全体を終了（ウインドウもハイライトもまとめて解除）
+    func cancelLandLevelChangeSelection() {
+        isSelectingLandLevelChangeTarget = false
+        pendingLandLevelChangeTile = nil
+        landLevelChangeCandidateTiles = []
+        branchLandingTargets = []
+    }
+
+    /// 「閉じる」で確認ダイアログだけ閉じ、選択モードには戻る
+    func cancelLandLevelChangeConfirm() {
+        pendingLandLevelChangeTile = nil
+    }
+
+    /// OK ボタンでレベルを 1 下げる
+    func confirmLandLevelChange() {
+        guard let tile = pendingLandLevelChangeTile else {
+            cancelLandLevelChangeSelection()
+            return
+        }
+
+        // 対象がまだ候補に含まれている & レベル情報があるかチェック
+        guard landLevelChangeCandidateTiles.contains(tile),
+              level.indices.contains(tile)
+        else {
+            cancelLandLevelChangeSelection()
+            return
+        }
+
+        let curLevel = level[tile]
+        // レベル2以上のみ対象のはずだが、念のため
+        guard curLevel >= 2 else {
+            cancelLandLevelChangeSelection()
+            return
+        }
+
+        let newLevel = curLevel - 1
+        level[tile] = newLevel
+
+        // レベルアップ時と同じロジックで通行料を更新
+        if toll.indices.contains(tile) {
+            // confirmLevelUp と同じ 100×レベル 方式
+            toll[tile] = 100 * newLevel
+        }
+
+        pushCenterMessage("土地のレベルを1下げました（Lv\(curLevel) → Lv\(newLevel)）")
+
+        // 選択モード終了
+        isSelectingLandLevelChangeTarget = false
+        landLevelChangeCandidateTiles = []
+        pendingLandLevelChangeTile = nil
+        branchLandingTargets = []
     }
 
     @MainActor
