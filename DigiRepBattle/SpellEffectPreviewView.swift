@@ -55,6 +55,7 @@ struct SpellEffectPreviewView: View {
         case .damage: return "Damage Effect"
         case .buff:   return "Buff Effect"
         case .debuff: return "Debuff Effect"
+        case .poison: return "Poison Effect"
         }
     }
 
@@ -74,17 +75,22 @@ struct SpellEffectPreviewView: View {
         .frame(width: 300, height: 300)
 }
 
-#Preview("Damage") {
-    SpellEffectPreviewView(kind: .damage)
-        .frame(width: 300, height: 300)
-}
+//#Preview("Damage") {
+//    SpellEffectPreviewView(kind: .damage)
+//        .frame(width: 300, height: 300)
+//}
+//
+//#Preview("Buff") {
+//    SpellEffectPreviewView(kind: .buff)
+//        .frame(width: 300, height: 300)
+//}
+//
+//#Preview("Debuff") {
+//    SpellEffectPreviewView(kind: .debuff)
+//        .frame(width: 300, height: 300)
+//}
 
-#Preview("Buff") {
-    SpellEffectPreviewView(kind: .buff)
-        .frame(width: 300, height: 300)
-}
-
-#Preview("Debuff") {
-    SpellEffectPreviewView(kind: .debuff)
+#Preview("Poison") {
+    SpellEffectPreviewView(kind: .poison)
         .frame(width: 300, height: 300)
 }

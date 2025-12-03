@@ -44,7 +44,8 @@ struct ContentView: View {
                         focusTile: vm.focusTile,
                         isHealingAnimating: vm.isHealingAnimating,
                         healingAmounts: vm.healingAmounts,
-                        spellEffectTile: vm.healEffectTile
+                        spellEffectTile: vm.spellEffectTile,
+                        spellEffectKind: vm.spellEffectKind
                     )
                     .frame(height: boardH)
                     .background {

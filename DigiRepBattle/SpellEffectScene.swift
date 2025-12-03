@@ -15,6 +15,7 @@ final class SpellEffectScene: SKScene {
         case damage
         case buff
         case debuff
+        case poison
     }
 
     /// 再生完了時に呼ばれる（プレビューでは無視してもOK）
@@ -43,10 +44,11 @@ final class SpellEffectScene: SKScene {
         case .damage: runDamageEffect()
         case .buff:   runBuffEffect()
         case .debuff: runDebuffEffect()
+        case .poison: runPoisonEffect()
         }
     }
 
-    // MARK: - 各エフェクト例
+    // MARK: - 各エフェクト
 
     private func runHealEffect() {
         let unit = min(size.width, size.height)
@@ -143,7 +145,6 @@ final class SpellEffectScene: SKScene {
         emitter.run(sequence)
     }
 
-
     private func runDamageEffect() {
         let radius: CGFloat = 50
         let node = SKShapeNode(circleOfRadius: radius)
@@ -225,5 +226,84 @@ final class SpellEffectScene: SKScene {
             .run { [weak self] in self?.onFinished?() }
         ])
         node.run(seq)
+    }
+    
+    private func runPoisonEffect() {
+        let unit = min(size.width, size.height)
+
+        // 1) 足元の紫＋緑の円
+        let baseRadius: CGFloat = min(unit * 0.2, 40)
+        let baseCircle = SKShapeNode(circleOfRadius: baseRadius)
+        baseCircle.position = CGPoint(x: size.width / 2,
+                                      y: unit * 0.2)
+        baseCircle.fillColor  = UIColor.purple.withAlphaComponent(0.45)
+        baseCircle.strokeColor = UIColor.green.withAlphaComponent(0.9)
+        baseCircle.glowWidth  = 8
+        baseCircle.lineWidth  = 3
+        baseCircle.alpha = 0.0
+        baseCircle.zPosition = 8
+        addChild(baseCircle)
+
+        let baseAnim = SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeAlpha(to: 1.0, duration: 0.12),
+                SKAction.scale(to: 1.05, duration: 0.12)
+            ]),
+            SKAction.group([
+                SKAction.scale(to: 1.4, duration: 0.6),
+                SKAction.fadeOut(withDuration: 0.6)
+            ]),
+            .removeFromParent()
+        ])
+        baseCircle.setScale(0.7)
+        baseCircle.run(baseAnim)
+
+        // 2) 毒の煙（緑色パーティクル）
+        let emitter = SKEmitterNode()
+
+        // 特に専用テクスチャがなければ heal と同じ "effectStar" を流用
+        emitter.particleTexture = SKTexture(imageNamed: "effectStar")
+
+        emitter.position = baseCircle.position
+        emitter.particlePositionRange = CGVector(dx: baseRadius * 1.2,
+                                                 dy: unit * 0.08)
+
+        emitter.particleBirthRate = 55
+        emitter.particleLifetime = 1.3
+        emitter.particleLifetimeRange = 0.4
+
+        // 全方向にふわっと広がる煙
+        emitter.emissionAngleRange = .pi * 2
+        emitter.particleSpeed = 80
+        emitter.particleSpeedRange = 30
+        emitter.yAcceleration = 10
+
+        let scaleFactor = min(size.width, 120) / 120.0
+        emitter.particleScale = 0.16 * scaleFactor
+        emitter.particleScaleRange = 0.05 * scaleFactor
+        emitter.particleScaleSpeed = -0.10 * scaleFactor
+
+        emitter.particleColor = .green
+        emitter.particleColorBlendFactor = 1.0
+
+        emitter.particleAlpha = 0.9
+        emitter.particleAlphaSpeed = -0.7
+
+        emitter.particleRotationRange = .pi * 2
+        emitter.particleRotationSpeed = 1.5
+
+        emitter.zPosition = 10
+        addChild(emitter)
+
+        let seq = SKAction.sequence([
+            .wait(forDuration: 0.7),
+            .run { emitter.particleBirthRate = 0 },
+            .wait(forDuration: 0.6),
+            .removeFromParent(),
+            .run { [weak self] in
+                self?.onFinished?()
+            }
+        ])
+        emitter.run(seq)
     }
 }

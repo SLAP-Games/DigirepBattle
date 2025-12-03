@@ -60,7 +60,8 @@ struct RingBoardView: View {
     var healingAmounts: [Int: Int] = [:]
     // ★ SpellEffectScene 用：回復エフェクトを出すマス
     var spellEffectTile: Int? = nil
-
+    var spellEffectKind: SpellEffectScene.EffectKind = .heal
+    
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
@@ -138,9 +139,8 @@ struct RingBoardView: View {
                             highlightTargets: highlightTargets
                         )
                         
-                        // ★ sp-elixir 用：選択したマス上に SpellEffectScene(heal) を表示
                         if spellEffectTile == idx {
-                            SpellEffectTileOverlay(size: tileSize, kind: .heal)
+                            SpellEffectTileOverlay(size: tileSize, kind: spellEffectKind)
                                 .allowsHitTesting(false)
                         }
 

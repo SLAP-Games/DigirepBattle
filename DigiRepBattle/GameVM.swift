@@ -115,8 +115,9 @@ final class GameVM: ObservableObject {
     @Published var isSelectingFullHealTarget: Bool = false
     @Published var fullHealCandidateTiles: Set<Int> = []
     @Published var pendingFullHealTile: Int? = nil
-    // ★ SpellEffectScene 用：回復エフェクトを出すマス（sp-elixir 専用）
-    @Published var healEffectTile: Int? = nil
+    // ★ SpellEffectScene 用：タイル上に出すエフェクト（回復／毒 など）
+    @Published var spellEffectTile: Int? = nil
+    @Published var spellEffectKind: SpellEffectScene.EffectKind = .heal
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
@@ -377,17 +378,23 @@ final class GameVM: ObservableObject {
                 // カメラを寄せる
                 focusTile = tile
 
-                // ★ ダメージ表示用に「マイナス値」を入れる
+                // ★ 毒エフェクト＆ダメージ表示
+                spellEffectTile = tile
+                spellEffectKind = .poison
                 healingAmounts = [tile: -dmg]
 
+                // SpellEffectScene と数字を同時に出す
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
+
                 healingAmounts.removeAll()
+                spellEffectTile = nil
+
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
 
             isHealingAnimating = false
         }
-
+        
         // --------------------------------------------------
         // ② このあと「通常の回復シーケンス」
         // --------------------------------------------------
@@ -2655,6 +2662,19 @@ final class GameVM: ObservableObject {
             // 防御側がまだ生きている場合だけ毒を付与
             if hp.indices.contains(t), hp[t] > 0 {
                 poisonedTiles[t] = true
+
+                // ★ バトル終了直後に毒エフェクトを1回再生
+                let tileForPoison = t
+                Task { @MainActor in
+                    self.spellEffectTile = tileForPoison
+                    self.spellEffectKind = .poison
+                    // エフェクトの長さに合わせて 1 秒ほど表示
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    if self.spellEffectTile == tileForPoison &&
+                        self.spellEffectKind == .poison {
+                        self.spellEffectTile = nil
+                    }
+                }
             }
             // 一度使ったらフラグをリセット
             willPoisonDefender = false
@@ -2854,8 +2874,9 @@ final class GameVM: ObservableObject {
 
         let actualHeal = newHp - oldHp
 
-        // --- SpellEffectScene 用：このマスにエフェクトを出す ---
-        healEffectTile = tile
+        // --- SpellEffectScene 用：このマスにエフェクトを出す（回復） ---
+        spellEffectTile = tile
+        spellEffectKind = .heal
 
         // --- 既存の「数字が浮く」回復アニメ ---
         isHealingAnimating = true
@@ -2872,7 +2893,7 @@ final class GameVM: ObservableObject {
         isHealingAnimating = false
 
         // SpellEffectScene の SpriteView を消す
-        healEffectTile = nil
+        spellEffectTile = nil
     }
 }
 

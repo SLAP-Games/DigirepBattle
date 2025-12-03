@@ -57,12 +57,12 @@ extension DeckList {
 //        list.setCount(for: "sp-firstStrike", kind: .spell, count: 2)
 //        list.setCount(for: "sp-hardFang", kind: .spell, count: 2)
 //        list.setCount(for: "sp-sharpFang", kind: .spell, count: 2)
-//        list.setCount(for: "sp-poisonFang", kind: .spell, count: 2)
+        list.setCount(for: "sp-poisonFang", kind: .spell, count: 12)
 //        list.setCount(for: "sp-hardScale", kind: .spell, count: 2)
 //        list.setCount(for: "sp-bigScale", kind: .spell, count: 2)
 //        list.setCount(for: "sp-draw2", kind: .spell, count: 2)
 //        list.setCount(for: "sp-deleteHand", kind: .spell, count: 2)
-        list.setCount(for: "sp-elixir", kind: .spell, count: 25)
+        list.setCount(for: "sp-elixir", kind: .spell, count: 13)
 //        list.setCount(for: "sp-decay", kind: .spell, count: 25)
 
         return list
