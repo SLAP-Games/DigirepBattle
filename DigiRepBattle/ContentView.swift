@@ -43,7 +43,8 @@ struct ContentView: View {
                         },
                         focusTile: vm.focusTile,
                         isHealingAnimating: vm.isHealingAnimating,
-                        healingAmounts: vm.healingAmounts
+                        healingAmounts: vm.healingAmounts,
+                        spellEffectTile: vm.healEffectTile
                     )
                     .frame(height: boardH)
                     .background {
@@ -890,6 +891,45 @@ struct ContentView: View {
         }
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(edges: .bottom)
+        .onAppear {
+            SoundManager.shared.playBGM(.map)
+        }
+        // 画面から消えるときは一旦停止（任意）
+        .onDisappear {
+            SoundManager.shared.stopBGM()
+        }
+        // ターンチェンジ状態の変化に応じて BGM 切り替え
+        .onChange(of: vm.isTurnTransition) { oldValue, newValue in
+            if newValue {
+                // ターンチェンジ開始 → ターンBGM
+                SoundManager.shared.playBGM(.turn)
+            } else {
+                // ターンチェンジ終了
+                if vm.showBattleOverlay {
+                    // もしこの時すでにバトルに入っていたらバトルBGM
+                    SoundManager.shared.playBGM(.battle)
+                } else {
+                    // 通常マップ状態に戻る
+                    SoundManager.shared.playBGM(.map)
+                }
+            }
+        }
+        // バトルオーバーレイ表示状態の変化に応じて BGM 切り替え
+        .onChange(of: vm.showBattleOverlay) { oldValue, newValue in
+            if newValue {
+                // バトル開始
+                SoundManager.shared.playBGM(.battle)
+            } else {
+                // バトル終了
+                if vm.isTurnTransition {
+                    // まだターンチェンジ演出中ならターンBGMを維持
+                    SoundManager.shared.playBGM(.turn)
+                } else {
+                    // それ以外は通常マップBGMへ
+                    SoundManager.shared.playBGM(.map)
+                }
+            }
+        }
     }
     
     private func isPreRollTargetSpell(_ card: Card) -> Bool {

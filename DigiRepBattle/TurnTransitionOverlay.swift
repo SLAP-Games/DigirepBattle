@@ -69,16 +69,15 @@ struct TurnTransitionOverlay: View {
                     pulseBottom = 0.35
                 }
 
-                // テキスト：右外 → 中央(0.5s) → 少し左(1.5s) → 左外(0.5s)
                 textOffsetX = W * 2
-                withAnimation(.easeOut(duration: 0.5)) { textOffsetX = 0 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.linear(duration: 1.5)) {
-                        textOffsetX = -min(40, W * 0.08)
+                withAnimation(.easeOut(duration: 0.75)) { textOffsetX = 0 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    withAnimation(.linear(duration: 2.5)) {
+                        textOffsetX = -min(40, W * 0.06)
                     }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    withAnimation(.easeIn(duration: 0.5)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.25) {
+                    withAnimation(.easeIn(duration: 0.75)) {
                         textOffsetX = -W * 2
                     }
                 }

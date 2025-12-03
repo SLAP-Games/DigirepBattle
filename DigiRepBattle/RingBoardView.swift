@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SpriteKit
 
 enum TileAttribute: String {
     case normal, dry, water, heat, cold
@@ -57,6 +58,8 @@ struct RingBoardView: View {
     // ★ 回復アニメーション制御用
     var isHealingAnimating: Bool = false
     var healingAmounts: [Int: Int] = [:]
+    // ★ SpellEffectScene 用：回復エフェクトを出すマス
+    var spellEffectTile: Int? = nil
 
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -134,6 +137,12 @@ struct RingBoardView: View {
                             attribute: terr.attribute,
                             highlightTargets: highlightTargets
                         )
+                        
+                        // ★ sp-elixir 用：選択したマス上に SpellEffectScene(heal) を表示
+                        if spellEffectTile == idx {
+                            SpellEffectTileOverlay(size: tileSize, kind: .heal)
+                                .allowsHitTesting(false)
+                        }
 
                         // ★ 回復アニメーションの数字表示
                         if let heal = healingAmounts[idx] {

@@ -115,6 +115,8 @@ final class GameVM: ObservableObject {
     @Published var isSelectingFullHealTarget: Bool = false
     @Published var fullHealCandidateTiles: Set<Int> = []
     @Published var pendingFullHealTile: Int? = nil
+    // ★ SpellEffectScene 用：回復エフェクトを出すマス（sp-elixir 専用）
+    @Published var healEffectTile: Int? = nil
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
@@ -302,7 +304,7 @@ final class GameVM: ObservableObject {
 
         // ★ 3秒後にターン交代＆回復シーケンス開始
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_700_000_000)
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
             finishTurnTransition()
         }
     }
@@ -2844,30 +2846,34 @@ final class GameVM: ObservableObject {
 
     @MainActor
     private func applyFullHealAnimation(at tile: Int, heal: Int) async {
-        // HP更新
-        let maxHP = hpMax[tile]
-        hp[tile] = maxHP
-        if var c = creatureOnTile[tile] {
-            c.hp = maxHP
-            creatureOnTile[tile] = c
-        }
-        hp = hp  // Published の再通知
+        // --- まず HP を更新 ---
+        let oldHp = hp[tile]
+        let maxHp = hpMax[tile]
+        let newHp = min(maxHp, oldHp + heal)
+        hp[tile] = newHp
 
-        // 既存の回復アニメと同じスタイルで表示
+        let actualHeal = newHp - oldHp
+
+        // --- SpellEffectScene 用：このマスにエフェクトを出す ---
+        healEffectTile = tile
+
+        // --- 既存の「数字が浮く」回復アニメ ---
         isHealingAnimating = true
         focusTile = tile
-        healingAmounts = [tile: heal]     // プラス値で回復表示
+        healingAmounts = [tile: actualHeal]
 
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        // 数字を少し表示
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒
         healingAmounts.removeAll()
-        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        // ちょっと余韻
+        try? await Task.sleep(nanoseconds: 300_000_000)   // 0.3秒
 
         isHealingAnimating = false
-    }
-    // MARK: - sp-elixir（任意マス全回復）用ヘルパーここまで
-    
-    
 
+        // SpellEffectScene の SpriteView を消す
+        healEffectTile = nil
+    }
 }
 
 enum SpecialNodeKind { case castle, tower }

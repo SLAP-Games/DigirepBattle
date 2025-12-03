@@ -102,6 +102,12 @@ struct DeckBuilderView: View {
         )) { msg in
             Alert(title: Text("注意"), message: Text(msg.text), dismissButton: .default(Text("OK")))
         }
+        .onAppear {
+            SoundManager.shared.playBGM(.deck)
+        }
+        .onDisappear {
+            SoundManager.shared.stopBGM()
+        }
     }
     
     /// デッキ1用の固定デッキ
