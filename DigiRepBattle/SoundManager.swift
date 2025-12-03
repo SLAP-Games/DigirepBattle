@@ -242,5 +242,9 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
             }
         }
     }
+    
+    func playDiceFixSE() {
+        playSE(named: "diceSound")   // 実際のファイル名に合わせてください
+    }
 }
 

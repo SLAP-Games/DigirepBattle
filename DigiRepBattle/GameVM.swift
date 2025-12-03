@@ -122,6 +122,8 @@ final class GameVM: ObservableObject {
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
     @Published var pendingLandLevelChangeTile: Int? = nil
+    @Published var isShowingDiceGlitch: Bool = false
+    @Published var diceGlitchNumber: Int? = nil
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -1217,8 +1219,10 @@ final class GameVM: ObservableObject {
             nextForcedRoll[target] = n
             if target == turn {
                 pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+                showDiceGlitch(number: n)
             } else {
                 pushCenterMessage("CPUの次のサイコロを \(n) に固定（コスト\(cost)）")
+                showDiceGlitch(number: n)
             }
 
         case .doubleDice:
@@ -1647,6 +1651,12 @@ final class GameVM: ObservableObject {
     /// スペル購入シートを表示
     func actionPurchaseSkillOnSpecialNode() {
         activeSpecialSheet = .buySpell
+    }
+    
+    func showDiceGlitch(number: Int) {
+        diceGlitchNumber = number
+        isShowingDiceGlitch = true
+        SoundManager.shared.playDiceFixSE()
     }
 
 // MARK: ---------------------------------------------------------------------------

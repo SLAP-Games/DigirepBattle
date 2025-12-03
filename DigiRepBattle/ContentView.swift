@@ -529,6 +529,17 @@ struct ContentView: View {
                         }
                         .transition(.opacity)
                     }
+                    
+                    if vm.isShowingDiceGlitch, let n = vm.diceGlitchNumber {
+                        DiceGlitchView(number: n, duration: 0.6) {
+                            // 終了時にフラグを落とす
+                            vm.isShowingDiceGlitch = false
+                            vm.diceGlitchNumber = nil
+                        }
+                        // ボード全体を覆うようにして中央に固定
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)   // 入力は下のボードに通す
+                    }
 
                 }
 

@@ -283,7 +283,7 @@ final class SpellEffectScene: SKScene {
         emitter.particleScaleRange = 0.05 * scaleFactor
         emitter.particleScaleSpeed = -0.10 * scaleFactor
 
-        emitter.particleColor = .green
+        emitter.particleColor = .purple
         emitter.particleColorBlendFactor = 1.0
 
         emitter.particleAlpha = 0.9

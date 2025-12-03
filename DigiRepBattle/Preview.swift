@@ -6,17 +6,30 @@
 //
 import SwiftUI
 
-#Preview {
-    DeckBuilderView(collection: CardCollection(), onStartBattle: { _ in })
-}
-
-#Preview {
-    RootDeckBuilderScreen()
-}
-
-#Preview {
+//#Preview {
+//    DeckBuilderView(collection: CardCollection(), onStartBattle: { _ in })
+//}
+//
+//#Preview {
+//    RootDeckBuilderScreen()
+//}
+//
+#Preview("メイン") {
     ContentView()
         .environmentObject(GameVM(selectedDeck: .previewSample))
+}
+
+#Preview("グリッチ") {
+    ZStack {
+        Color.black
+            .ignoresSafeArea()
+
+        DiceGlitchView(number: 1, duration: 2.0) {
+            // プレビューでは何もしない
+            print("finished")
+        }
+        .frame(width: 200, height: 200)
+    }
 }
 
 #Preview("Heal") {
