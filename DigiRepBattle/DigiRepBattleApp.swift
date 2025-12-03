@@ -73,7 +73,3 @@ struct RootDeckBuilderScreen: View {
         }
     }
 }
-
-#Preview {
-    RootDeckBuilderScreen()
-}

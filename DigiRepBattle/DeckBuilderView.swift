@@ -532,7 +532,3 @@ struct CardDetailSimple: View {
         .padding(.top, 8)
     }
 }
-
-#Preview {
-    DeckBuilderView(collection: CardCollection(), onStartBattle: { _ in })
-}

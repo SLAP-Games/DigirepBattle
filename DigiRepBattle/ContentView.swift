@@ -1250,9 +1250,3 @@ struct DrawCardOverlay: View {
         }
     }
 }
-
-
-#Preview {
-    ContentView()
-        .environmentObject(GameVM(selectedDeck: .previewSample))
-}

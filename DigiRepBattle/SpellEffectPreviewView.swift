@@ -69,28 +69,3 @@ struct SpellEffectPreviewView: View {
         return scene
     }
 }
-
-#Preview("Heal") {
-    SpellEffectPreviewView(kind: .heal)
-        .frame(width: 300, height: 300)
-}
-
-//#Preview("Damage") {
-//    SpellEffectPreviewView(kind: .damage)
-//        .frame(width: 300, height: 300)
-//}
-//
-//#Preview("Buff") {
-//    SpellEffectPreviewView(kind: .buff)
-//        .frame(width: 300, height: 300)
-//}
-//
-//#Preview("Debuff") {
-//    SpellEffectPreviewView(kind: .debuff)
-//        .frame(width: 300, height: 300)
-//}
-
-#Preview("Poison") {
-    SpellEffectPreviewView(kind: .poison)
-        .frame(width: 300, height: 300)
-}
