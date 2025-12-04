@@ -530,6 +530,43 @@ struct ContentView: View {
                         .transition(.opacity)
                     }
                     
+                    // ★ sp-devastation の確認ダイアログ
+                    if let tile = vm.pendingLandTollZeroTile,
+                       vm.toll.indices.contains(tile)
+                    {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                            .zIndex(100)
+
+                        VStack(spacing: 12) {
+                            Text("通行量を 0 にしますか？")
+                                .font(.headline)
+                                .multilineTextAlignment(.center)
+
+                            Text("現在の通行量: \(vm.toll[tile])G")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 12) {
+                                Button("OK") {
+                                    vm.confirmLandTollZero()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button("閉じる") {
+                                    vm.cancelLandTollZeroConfirm()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: 260)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                        .shadow(radius: 8)
+                        .zIndex(101)
+                    }
+                    
                     if vm.isShowingDiceGlitch, let n = vm.diceGlitchNumber {
                         DiceGlitchView(number: n, duration: 0.6) {
                             // 終了時にフラグを落とす

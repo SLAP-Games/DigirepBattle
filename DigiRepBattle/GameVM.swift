@@ -124,6 +124,12 @@ final class GameVM: ObservableObject {
     @Published var pendingLandLevelChangeTile: Int? = nil
     @Published var isShowingDiceGlitch: Bool = false
     @Published var diceGlitchNumber: Int? = nil
+    // === ここから追加: sp-devastation 用（通行量 0） ===
+    @Published var isSelectingLandTollZeroTarget: Bool = false
+    @Published var landTollZeroCandidateTiles: Set<Int> = []
+    @Published var pendingLandTollZeroTile: Int? = nil
+    // ★ 追加: sp-devastation などで通行量が 0 になっているマス
+    @Published var devastatedTiles: Set<Int> = []
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -178,6 +184,7 @@ final class GameVM: ObservableObject {
         self.cost = Array(repeating: 1, count: tileCount)
         self.toll = Array(repeating: 0, count: tileCount)
         self.poisonedTiles = Array(repeating: false, count: tileCount)
+        self.devastatedTiles = []
         
         if let deck = selectedDeck {
             cardStates[0].deckList = deck
@@ -1322,9 +1329,29 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates
                 battleResult = "レベルを下げるマスを選択してください"
             }
+            
+        case .setLandTollZero:
+            // 通行量 > 0 のマスだけを候補にする（敵味方・レベル問わず）
+            var candidates: Set<Int> = []
+
+            for i in 0..<tileCount {
+                guard toll.indices.contains(i),
+                      toll[i] > 0
+                else { continue }
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("通行量が設定されているマスがありません")
+            } else {
+                isSelectingLandTollZeroTarget = true
+                landTollZeroCandidateTiles = candidates
+                branchLandingTargets = candidates   // ボード側のハイライトに流用
+                battleResult = "通行量を 0 にするマスを選択してください"
+            }
 
         case .teleport, .healHP,
-             .setLandTollZero, .multiplyLandToll,
+             .multiplyLandToll,
              .damageAnyCreature,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1487,9 +1514,29 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates
                 battleResult = "レベルを下げるマスを選択してください"
             }
+            
+        case .setLandTollZero:
+            // 通行量 > 0 のマスだけを候補にする（敵味方・レベル問わず）
+            var candidates: Set<Int> = []
+
+            for i in 0..<tileCount {
+                guard toll.indices.contains(i),
+                      toll[i] > 0
+                else { continue }
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("通行量が設定されているマスがありません")
+            } else {
+                isSelectingLandTollZeroTarget = true
+                landTollZeroCandidateTiles = candidates
+                branchLandingTargets = candidates   // ボード側のハイライトに流用
+                battleResult = "通行量を 0 にするマスを選択してください"
+            }
 
         case .teleport, .healHP,
-             .setLandTollZero, .multiplyLandToll,
+             .multiplyLandToll,
              .damageAnyCreature,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1999,6 +2046,10 @@ final class GameVM: ObservableObject {
 
     // 料金計算（レベル基礎 × セットボーナス）
     func toll(at tile: Int) -> Int {
+        if devastatedTiles.contains(tile) {
+            return 0
+        }
+        
         guard level.indices.contains(tile) else { return 0 }
         let lv = level[tile]
 
@@ -2238,6 +2289,12 @@ final class GameVM: ObservableObject {
             // レベルダウン候補外のマスは無視
             guard landLevelChangeCandidateTiles.contains(index) else { return }
             pendingLandLevelChangeTile = index   // レベルダウン確認ウインドウ表示用
+            return
+        }
+        // === sp-devastation のターゲット選択 ===
+        if isSelectingLandTollZeroTarget {
+            guard landTollZeroCandidateTiles.contains(index) else { return }
+            pendingLandTollZeroTile = index   // 通行量0確認ウインドウ表示用
             return
         }
         // ← 先に特別アクション選択モードを優先処理
@@ -2775,6 +2832,10 @@ final class GameVM: ObservableObject {
         isSelectingLandLevelChangeTarget = false
         pendingLandLevelChangeTile = nil
         landLevelChangeCandidateTiles = []
+        // ★ sp-devastation 用
+        isSelectingLandTollZeroTarget = false
+        pendingLandTollZeroTile = nil
+        landTollZeroCandidateTiles = []
         // ボードのハイライトも解除
         branchLandingTargets = []
     }
@@ -2877,6 +2938,58 @@ final class GameVM: ObservableObject {
         pendingLandLevelChangeTile = nil
         branchLandingTargets = []
     }
+    
+    func cancelLandTollZeroSelection() {
+        isSelectingLandTollZeroTarget = false
+        landTollZeroCandidateTiles = []
+        pendingLandTollZeroTile = nil
+        branchLandingTargets = []
+    }
+
+    func cancelLandTollZeroConfirm() {
+        // 「閉じる」で確認ダイアログだけ閉じて、選択モードには戻る
+        pendingLandTollZeroTile = nil
+    }
+
+    func confirmLandTollZero() {
+        guard let tile = pendingLandTollZeroTile else {
+            cancelLandTollZeroSelection()
+            return
+        }
+        
+        devastatedTiles.insert(tile)
+
+        // 候補内 & 通行量情報あり
+        guard landTollZeroCandidateTiles.contains(tile),
+              toll.indices.contains(tile)
+        else {
+            cancelLandTollZeroSelection()
+            return
+        }
+
+        let before = toll[tile]
+        guard before > 0 else {
+            // すでに0なら何もしない
+            cancelLandTollZeroSelection()
+            return
+        }
+
+        // 通行量を0にする
+        toll[tile] = 0
+
+        pushCenterMessage("土地の通行量を 0 にしました（\(before)G → 0G）")
+
+        // エフェクト再生
+        Task { @MainActor in
+            await self.applyDevastationAnimation(at: tile)
+        }
+
+        // 選択モード終了
+        isSelectingLandTollZeroTarget = false
+        landTollZeroCandidateTiles = []
+        pendingLandTollZeroTile = nil
+        branchLandingTargets = []
+    }
 
     @MainActor
     private func applyFullHealAnimation(at tile: Int, heal: Int) async {
@@ -2921,6 +3034,23 @@ final class GameVM: ObservableObject {
         isHealingAnimating = true
 
         // おおよそ他のエフェクトと合わせて1秒程度表示
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        isHealingAnimating = false
+        spellEffectTile = nil
+    }
+    
+    @MainActor
+    private func applyDevastationAnimation(at tile: Int) async {
+        // SpellEffectScene 用：このマスに devastation エフェクトを出す
+        spellEffectTile = tile
+        spellEffectKind = .devastation
+        focusTile = tile
+
+        // 他の操作を一時的に止めたければ true にしておく（名前は流用）
+        isHealingAnimating = true
+
+        // 他のエフェクトと同じく 1 秒程度表示
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
         isHealingAnimating = false
