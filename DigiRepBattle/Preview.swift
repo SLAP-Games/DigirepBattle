@@ -37,6 +37,11 @@ import SwiftUI
         .frame(width: 300, height: 300)
 }
 
+#Preview("decay") {
+    SpellEffectPreviewView(kind: .decay)
+        .frame(width: 300, height: 300)
+}
+
 //#Preview("Damage") {
 //    SpellEffectPreviewView(kind: .damage)
 //        .frame(width: 300, height: 300)
@@ -51,8 +56,8 @@ import SwiftUI
 //    SpellEffectPreviewView(kind: .debuff)
 //        .frame(width: 300, height: 300)
 //}
-
-#Preview("Poison") {
-    SpellEffectPreviewView(kind: .poison)
-        .frame(width: 300, height: 300)
-}
+//
+//#Preview("Poison") {
+//    SpellEffectPreviewView(kind: .poison)
+//        .frame(width: 300, height: 300)
+//}

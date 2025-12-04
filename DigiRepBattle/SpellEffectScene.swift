@@ -16,6 +16,7 @@ final class SpellEffectScene: SKScene {
         case buff
         case debuff
         case poison
+        case decay
     }
 
     /// 再生完了時に呼ばれる（プレビューでは無視してもOK）
@@ -45,6 +46,7 @@ final class SpellEffectScene: SKScene {
         case .buff:   runBuffEffect()
         case .debuff: runDebuffEffect()
         case .poison: runPoisonEffect()
+        case .decay:  runDecayEffect()
         }
     }
 
@@ -305,5 +307,94 @@ final class SpellEffectScene: SKScene {
             }
         ])
         emitter.run(seq)
+    }
+    
+    private func runDecayEffect() {
+        let unit = min(size.width, size.height)
+
+        // ============================
+        // 1) 紫の楕円：広がりながらフェードアウト
+        // ============================
+        let baseWidth: CGFloat  = min(size.width * 0.9, 120)
+        let baseHeight: CGFloat = min(unit * 0.3, 26)
+
+        let ellipse = SKShapeNode(ellipseOf: CGSize(width: baseWidth, height: baseHeight))
+        ellipse.position = CGPoint(
+            x: size.width / 2,
+            y: unit * 0.2
+        )
+        ellipse.fillColor   = UIColor.systemPurple.withAlphaComponent(0.35)
+        ellipse.strokeColor = UIColor.systemPurple.withAlphaComponent(0.8)
+        ellipse.lineWidth   = 1.0
+        ellipse.glowWidth   = 4.0
+        ellipse.zPosition   = 8
+        ellipse.alpha       = 0.0
+        addChild(ellipse)
+
+        let ellipseAnim = SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeAlpha(to: 1.0, duration: 0.08),
+                SKAction.scale(to: 1.0, duration: 0.08)   // 初期スケール 0.8 → 1.0
+            ]),
+            SKAction.group([
+                SKAction.scale(to: 1.4, duration: 0.5),
+                SKAction.fadeOut(withDuration: 0.5)
+            ]),
+            .removeFromParent()
+        ])
+        ellipse.setScale(0.8)
+        ellipse.run(ellipseAnim)
+
+        // ============================
+        // 2) 濃い紫の下向き矢印：上から下へ落ちながらフェードアウト
+        // ============================
+        let shaftWidth  = unit * 0.12
+        let shaftHeight = unit * 0.24
+        let headHeight  = unit * 0.18
+
+        let path = CGMutablePath()
+
+        // 柄（縦の棒）
+        path.move(to: CGPoint(x: -shaftWidth / 2, y: headHeight / 2))
+        path.addLine(to: CGPoint(x:  shaftWidth / 2, y: headHeight / 2))
+        path.addLine(to: CGPoint(x:  shaftWidth / 2, y: headHeight / 2 + shaftHeight))
+        path.addLine(to: CGPoint(x: -shaftWidth / 2, y: headHeight / 2 + shaftHeight))
+        path.closeSubpath()
+
+        // 矢印の先（三角形）
+        path.move(to: CGPoint(x: 0,             y: -headHeight / 2))
+        path.addLine(to: CGPoint(x: -shaftWidth, y:  headHeight / 2))
+        path.addLine(to: CGPoint(x:  shaftWidth, y:  headHeight / 2))
+        path.closeSubpath()
+
+        let arrow = SKShapeNode(path: path)
+        arrow.fillColor   = UIColor(red: 0.25, green: 0.0, blue: 0.35, alpha: 1.0) // 濃い紫
+        arrow.strokeColor = UIColor.black.withAlphaComponent(0.4)
+        arrow.lineWidth   = 1.5
+        arrow.glowWidth   = 6.0
+        arrow.zPosition   = 10
+        arrow.alpha       = 0.0
+
+        // 画面上側から出て下に落ちるイメージ
+        arrow.position = CGPoint(
+            x: size.width / 2,
+            y: size.height * 0.75
+        )
+        addChild(arrow)
+
+        let moveDown = SKAction.moveBy(x: 0, y: -unit * 0.35, duration: 0.35)
+        let fadeIn   = SKAction.fadeAlpha(to: 1.0, duration: 0.08)
+        let fadeOut  = SKAction.fadeOut(withDuration: 0.25)
+
+        let seq = SKAction.sequence([
+            SKAction.group([moveDown, fadeIn]),
+            fadeOut,
+            .removeFromParent(),
+            .run { [weak self] in
+                self?.onFinished?()
+            }
+        ])
+
+        arrow.run(seq)
     }
 }

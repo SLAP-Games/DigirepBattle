@@ -49,6 +49,7 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         case .buff:   fileName = "buffSound"
         case .debuff: fileName = "debuffSound"
         case .poison: fileName = "poisonSound"
+        case .decay:  fileName = "decaySound"
         }
 
         playSE(named: fileName)

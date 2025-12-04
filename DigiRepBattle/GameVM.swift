@@ -2866,6 +2866,10 @@ final class GameVM: ObservableObject {
         }
 
         pushCenterMessage("土地のレベルを1下げました（Lv\(curLevel) → Lv\(newLevel)）")
+        
+        Task { @MainActor in
+            await self.applyDecayAnimation(at: tile)
+        }
 
         // 選択モード終了
         isSelectingLandLevelChangeTarget = false
@@ -2903,6 +2907,23 @@ final class GameVM: ObservableObject {
         isHealingAnimating = false
 
         // SpellEffectScene の SpriteView を消す
+        spellEffectTile = nil
+    }
+    
+    @MainActor
+    private func applyDecayAnimation(at tile: Int) async {
+        // SpellEffectScene 用：このマスに decay エフェクトを出す
+        spellEffectTile = tile
+        spellEffectKind = .decay
+        focusTile = tile
+
+        // 他の操作を一時的に止めたければ true にしておく（名前は流用）
+        isHealingAnimating = true
+
+        // おおよそ他のエフェクトと合わせて1秒程度表示
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        isHealingAnimating = false
         spellEffectTile = nil
     }
 }
