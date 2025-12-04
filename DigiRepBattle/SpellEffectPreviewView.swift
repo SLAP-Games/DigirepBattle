@@ -58,6 +58,7 @@ struct SpellEffectPreviewView: View {
         case .poison: return "Poison Effect"
         case .decay:  return "Decay Effect"
         case .devastation: return "Devastation Effect"
+        case .place: return "Place Effect"
         }
     }
 

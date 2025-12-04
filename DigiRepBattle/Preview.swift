@@ -32,6 +32,11 @@ import SwiftUI
 //    }
 //}
 //
+#Preview("place") {
+    SpellEffectPreviewView(kind: .place)
+        .frame(width: 300, height: 300)
+}
+
 #Preview("Heal") {
     SpellEffectPreviewView(kind: .heal)
         .frame(width: 300, height: 300)

@@ -18,6 +18,7 @@ final class SpellEffectScene: SKScene {
         case poison
         case decay
         case devastation
+        case place
     }
     
     /// 再生完了時に呼ばれる（プレビューでは無視してもOK）
@@ -49,10 +50,87 @@ final class SpellEffectScene: SKScene {
         case .poison: runPoisonEffect()
         case .decay:  runDecayEffect()
         case .devastation: runDevastationEffect()
+        case .place: runPlaceEffect()
         }
     }
     
     // MARK: - 各エフェクト
+    
+    private func runPlaceEffect() {
+        let unit = min(size.width, size.height)
+
+        // ====================================
+        // 1) cyan の楕円：拡大しながらフェードアウト
+        // ====================================
+        let baseWidth: CGFloat = min(size.width * 0.9, 120)
+        let baseHeight: CGFloat = min(unit * 0.30, 24)
+
+        let ellipse = SKShapeNode(ellipseOf: CGSize(width: baseWidth, height: baseHeight))
+        ellipse.position = CGPoint(x: size.width / 2, y: unit * 0.20)
+        ellipse.fillColor = UIColor.cyan.withAlphaComponent(0.25)
+        ellipse.strokeColor = UIColor.cyan.withAlphaComponent(0.8)
+        ellipse.glowWidth = 6.0
+        ellipse.lineWidth = 1.5
+        ellipse.alpha = 0.0
+        ellipse.zPosition = 8
+        addChild(ellipse)
+
+        let ellipseAnim = SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeAlpha(to: 1.0, duration: 0.10),
+                SKAction.scale(to: 1.0, duration: 0.10)
+            ]),
+            SKAction.group([
+                SKAction.scale(to: 1.4, duration: 0.55),
+                SKAction.fadeOut(withDuration: 0.55)
+            ]),
+            .removeFromParent()
+        ])
+        ellipse.setScale(0.75)
+        ellipse.run(ellipseAnim)
+
+        // ====================================
+        // 2) cyan パーティクル：上方向に湧き出て消える
+        // ====================================
+        let emitter = SKEmitterNode()
+        emitter.particleTexture = SKTexture(imageNamed: "effectStar") // 既存テクスチャを流用
+        emitter.position = ellipse.position
+        emitter.particlePositionRange = CGVector(dx: baseWidth * 0.45, dy: unit * 0.05)
+
+        emitter.particleBirthRate = 55
+        emitter.particleLifetime = 1.2
+        emitter.particleLifetimeRange = 0.3
+
+        emitter.emissionAngle = .pi / 2
+        emitter.emissionAngleRange = .pi / 12
+
+        emitter.particleSpeed = 120
+        emitter.particleSpeedRange = 40
+
+        emitter.particleColor = .cyan
+        emitter.particleColorBlendFactor = 1.0
+        emitter.particleAlpha = 1.0
+        emitter.particleAlphaSpeed = -0.8
+
+        emitter.particleScale = 0.18
+        emitter.particleScaleRange = 0.06
+        emitter.particleScaleSpeed = -0.10
+
+        emitter.zPosition = 10
+        addChild(emitter)
+
+        let seq = SKAction.sequence([
+            .wait(forDuration: 0.7),
+            .run { emitter.particleBirthRate = 0 },
+            .wait(forDuration: 0.8),
+            .removeFromParent(),
+            .run { [weak self] in self?.onFinished?() }
+        ])
+        emitter.run(seq)
+
+        // 効果音
+        onPlaySound?(.place)
+    }
     
     private func runHealEffect() {
         let unit = min(size.width, size.height)

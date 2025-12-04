@@ -2114,6 +2114,15 @@ final class GameVM: ObservableObject {
         guard canPlaceCreature(at: tile) else { return false }
         
         let s = card.stats ?? CreatureStats.defaultLizard
+        
+        self.spellEffectTile = tile
+        self.spellEffectKind = .place
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            if self?.spellEffectTile == tile {
+                self?.spellEffectTile = nil
+            }
+        }
 
         owner[tile] = pid
         level[tile] = max(level[tile], 1)
