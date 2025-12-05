@@ -329,8 +329,8 @@ enum CardDatabase {
         ),
         "sp-disaster": .spell(
             id: "sp-disaster",
-            name: "天災",
-            symbol: "🌪",
+            name: "落雷",
+            symbol: "⚡️",
             effect: .damageAnyCreature(80),
             cost: 150
         ),

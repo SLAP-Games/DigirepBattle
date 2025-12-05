@@ -13,7 +13,7 @@ import SwiftUI
 //#Preview {
 //    RootDeckBuilderScreen()
 //}
-//
+
 #Preview("メイン") {
     ContentView()
         .environmentObject(GameVM(selectedDeck: .previewSample))
@@ -32,10 +32,10 @@ import SwiftUI
 //    }
 //}
 //
-#Preview("place") {
-    SpellEffectPreviewView(kind: .place)
-        .frame(width: 300, height: 300)
-}
+//#Preview("place") {
+//    SpellEffectPreviewView(kind: .place)
+//        .frame(width: 300, height: 300)
+//}
 
 #Preview("Heal") {
     SpellEffectPreviewView(kind: .heal)
@@ -67,3 +67,8 @@ import SwiftUI
 //        .frame(width: 300, height: 300)
 //}
 //
+#Preview("harvest") {
+    SpellEffectPreviewView(kind: .harvest)
+        .frame(width: 300, height: 300)
+}
+

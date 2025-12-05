@@ -105,9 +105,6 @@ struct DeckBuilderView: View {
         .onAppear {
             SoundManager.shared.playBGM(.deck)
         }
-        .onDisappear {
-            SoundManager.shared.stopBGM()
-        }
     }
     
     /// デッキ1用の固定デッキ

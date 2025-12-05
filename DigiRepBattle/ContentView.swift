@@ -536,7 +536,6 @@ struct ContentView: View {
                     {
                         Color.black.opacity(0.4)
                             .ignoresSafeArea()
-                            .zIndex(100)
 
                         VStack(spacing: 12) {
                             Text("通行量を 0 にしますか？")
@@ -565,6 +564,41 @@ struct ContentView: View {
                         .cornerRadius(12)
                         .shadow(radius: 8)
                         .zIndex(101)
+                    }
+                    
+                    // ★ sp-harvest の確認ダイアログ
+                    if let tile = vm.pendingLandTollDoubleTile,
+                       vm.toll.indices.contains(tile)
+                    {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+
+                        VStack(spacing: 12) {
+                            Text("通行量を 2 倍にしますか？")
+                                .font(.headline)
+                                .multilineTextAlignment(.center)
+
+                            Text("現在の通行量: \(vm.toll[tile])G")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 12) {
+                                Button("OK") {
+                                    vm.confirmLandTollDouble()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button("閉じる") {
+                                    vm.cancelLandTollDoubleConfirm()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: 260)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                        .shadow(radius: 10)
                     }
                     
                     if vm.isShowingDiceGlitch, let n = vm.diceGlitchNumber {

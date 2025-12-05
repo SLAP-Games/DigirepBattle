@@ -19,6 +19,7 @@ final class SpellEffectScene: SKScene {
         case decay
         case devastation
         case place
+        case harvest
     }
     
     /// 再生完了時に呼ばれる（プレビューでは無視してもOK）
@@ -51,6 +52,7 @@ final class SpellEffectScene: SKScene {
         case .decay:  runDecayEffect()
         case .devastation: runDevastationEffect()
         case .place: runPlaceEffect()
+        case .harvest: runHarvestEffect()
         }
     }
     
@@ -63,13 +65,13 @@ final class SpellEffectScene: SKScene {
         // 1) cyan の楕円：拡大しながらフェードアウト
         // ====================================
         let baseWidth: CGFloat = min(size.width * 0.9, 120)
-        let baseHeight: CGFloat = min(unit * 0.30, 24)
+        let baseHeight: CGFloat = min(unit * 0.3, 24)
 
         let ellipse = SKShapeNode(ellipseOf: CGSize(width: baseWidth, height: baseHeight))
         ellipse.position = CGPoint(x: size.width / 2, y: unit * 0.20)
         ellipse.fillColor = UIColor.cyan.withAlphaComponent(0.25)
         ellipse.strokeColor = UIColor.cyan.withAlphaComponent(0.8)
-        ellipse.glowWidth = 6.0
+        ellipse.glowWidth = 4.0
         ellipse.lineWidth = 1.5
         ellipse.alpha = 0.0
         ellipse.zPosition = 8
@@ -78,7 +80,7 @@ final class SpellEffectScene: SKScene {
         let ellipseAnim = SKAction.sequence([
             SKAction.group([
                 SKAction.fadeAlpha(to: 1.0, duration: 0.10),
-                SKAction.scale(to: 1.0, duration: 0.10)
+                SKAction.scale(to: 0.9, duration: 0.10)
             ]),
             SKAction.group([
                 SKAction.scale(to: 1.4, duration: 0.55),
@@ -86,7 +88,7 @@ final class SpellEffectScene: SKScene {
             ]),
             .removeFromParent()
         ])
-        ellipse.setScale(0.75)
+        ellipse.setScale(0.7)
         ellipse.run(ellipseAnim)
 
         // ====================================
@@ -97,14 +99,14 @@ final class SpellEffectScene: SKScene {
         emitter.position = ellipse.position
         emitter.particlePositionRange = CGVector(dx: baseWidth * 0.45, dy: unit * 0.05)
 
-        emitter.particleBirthRate = 55
-        emitter.particleLifetime = 1.2
+        emitter.particleBirthRate = 35
+        emitter.particleLifetime = 0.9
         emitter.particleLifetimeRange = 0.3
 
         emitter.emissionAngle = .pi / 2
         emitter.emissionAngleRange = .pi / 12
 
-        emitter.particleSpeed = 120
+        emitter.particleSpeed = 100
         emitter.particleSpeedRange = 40
 
         emitter.particleColor = .cyan
@@ -112,11 +114,12 @@ final class SpellEffectScene: SKScene {
         emitter.particleAlpha = 1.0
         emitter.particleAlphaSpeed = -0.8
 
-        emitter.particleScale = 0.18
-        emitter.particleScaleRange = 0.06
-        emitter.particleScaleSpeed = -0.10
+        let scaleFactor = min(size.width, 120) / 120.0
+        emitter.particleScale = 0.18 * scaleFactor
+        emitter.particleScaleRange = 0.06 * scaleFactor
+        emitter.particleScaleSpeed = -0.12 * scaleFactor
 
-        emitter.zPosition = 10
+        emitter.zPosition = 8
         addChild(emitter)
 
         let seq = SKAction.sequence([
@@ -182,8 +185,8 @@ final class SpellEffectScene: SKScene {
         emitter.particlePositionRange = CGVector(dx: baseWidth * 0.5,
                                                  dy: unit * 0.05)
         // パーティクルの発生量・寿命
-        emitter.particleBirthRate = 45
-        emitter.particleLifetime = 1.5
+        emitter.particleBirthRate = 35
+        emitter.particleLifetime = 1.2
         emitter.particleLifetimeRange = 0.4
         
         // 上方向へふわっと
@@ -350,8 +353,8 @@ final class SpellEffectScene: SKScene {
         emitter.particlePositionRange = CGVector(dx: baseRadius * 1.2,
                                                  dy: unit * 0.08)
         
-        emitter.particleBirthRate = 55
-        emitter.particleLifetime = 1.3
+        emitter.particleBirthRate = 35
+        emitter.particleLifetime = 1.1
         emitter.particleLifetimeRange = 0.4
         
         // 全方向にふわっと広がる煙
@@ -508,4 +511,79 @@ final class SpellEffectScene: SKScene {
         
         node.run(seq)
     }
+    
+    private func runHarvestEffect() {
+        let unit = min(size.width, size.height)
+        
+        // 足元の高さ（タイルの下辺あたり）
+        let groundY = unit * 0.18
+        
+        // 草1本のサイズ
+        let bladeWidth  = unit * 0.06
+        let bladeHeight = unit * 0.42
+        
+        let bladeCount = 15   // 生やす草の本数
+        
+        for i in 0..<bladeCount {
+            // 画面中央を基準に横方向に並べる
+            let offset = (CGFloat(i) - CGFloat(bladeCount - 1) / 2.0) * bladeWidth * 0.8
+            let x = size.width / 2 + offset
+            
+            // 草1本（丸みのある長方形）
+            let path = CGMutablePath()
+            let rect = CGRect(
+                x: -bladeWidth / 2,
+                y: 0,
+                width: bladeWidth,
+                height: bladeHeight
+            )
+            path.addRoundedRect(in: rect,
+                                cornerWidth: bladeWidth / 2,
+                                cornerHeight: bladeWidth / 2)
+            
+            let blade = SKShapeNode(path: path)
+            blade.fillColor   = UIColor.systemGreen
+            blade.strokeColor = UIColor.black.withAlphaComponent(0.2)
+            blade.lineWidth   = 1.0
+            blade.glowWidth   = 4.0
+            blade.zPosition   = 9
+            blade.position    = CGPoint(x: x, y: groundY)
+            
+            // 最初は地面から生えていない状態（縦スケール0 & 透明）
+            blade.yScale = 0.0
+            blade.alpha  = 0.0
+            
+            addChild(blade)
+            
+            // 少しずつ時間差で生やす
+            let delay = 0.04 * Double(i)
+            
+            let grow = SKAction.sequence([
+                .wait(forDuration: delay),
+                SKAction.group([
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.12),
+                    SKAction.scaleY(to: 1.0, duration: 0.18)   // ニョキッと伸びる
+                ]),
+                .wait(forDuration: 0.25),
+                SKAction.group([
+                    SKAction.moveBy(x: 0, y: unit * 0.05, duration: 0.25),
+                    SKAction.fadeOut(withDuration: 0.25)
+                ]),
+                .removeFromParent()
+            ])
+            
+            blade.run(grow)
+        }
+        
+        // 全体の終了タイミングで onFinished を呼ぶ
+        let totalDuration = 0.04 * Double(bladeCount) + 0.18 + 0.25 + 0.25
+        let seq = SKAction.sequence([
+            .wait(forDuration: totalDuration),
+            .run { [weak self] in
+                self?.onFinished?()
+            }
+        ])
+        run(seq)
+    }
+
 }

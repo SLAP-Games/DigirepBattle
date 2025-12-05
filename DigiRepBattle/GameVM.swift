@@ -130,6 +130,12 @@ final class GameVM: ObservableObject {
     @Published var pendingLandTollZeroTile: Int? = nil
     // ★ 追加: sp-devastation などで通行量が 0 になっているマス
     @Published var devastatedTiles: Set<Int> = []
+    // === ここから追加: sp-harvest 用（通行量 2倍） ===
+    @Published var isSelectingLandTollDoubleTarget: Bool = false
+    @Published var landTollDoubleCandidateTiles: Set<Int> = []
+    @Published var pendingLandTollDoubleTile: Int? = nil
+    /// sp-harvest で「収穫済み（通行量2倍）」になっているマス
+    @Published var harvestedTiles: Set<Int> = []
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -185,6 +191,7 @@ final class GameVM: ObservableObject {
         self.toll = Array(repeating: 0, count: tileCount)
         self.poisonedTiles = Array(repeating: false, count: tileCount)
         self.devastatedTiles = []
+        self.harvestedTiles = []
         
         if let deck = selectedDeck {
             cardStates[0].deckList = deck
@@ -1349,9 +1356,31 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates   // ボード側のハイライトに流用
                 battleResult = "通行量を 0 にするマスを選択してください"
             }
+            
+        case .multiplyLandToll(_):
+            // 今回は 2.0 のみ想定だが、将来用に factor は一応受け取る
+            var candidates: Set<Int> = []
+
+            for i in 0..<tileCount {
+                guard toll.indices.contains(i),
+                      toll[i] > 0,
+                      !devastatedTiles.contains(i),   // すでに 0 のマスは除外
+                      !harvestedTiles.contains(i)     // 既に 2倍済みのマスも除外
+                else { continue }
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("通行量を 2 倍にできるマスがありません")
+            } else {
+                isSelectingLandTollDoubleTarget = true
+                landTollDoubleCandidateTiles = candidates
+                pendingLandTollDoubleTile = nil
+                branchLandingTargets = candidates
+                battleResult = "通行量を 2 倍にするマスを選択してください"
+            }
 
         case .teleport, .healHP,
-             .multiplyLandToll,
              .damageAnyCreature,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1534,9 +1563,31 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates   // ボード側のハイライトに流用
                 battleResult = "通行量を 0 にするマスを選択してください"
             }
+            
+        case .multiplyLandToll(_):
+            // 今回は 2.0 のみ想定だが、将来用に factor は一応受け取る
+            var candidates: Set<Int> = []
+
+            for i in 0..<tileCount {
+                guard toll.indices.contains(i),
+                      toll[i] > 0,
+                      !devastatedTiles.contains(i),   // すでに 0 のマスは除外
+                      !harvestedTiles.contains(i)     // 既に 2倍済みのマスも除外
+                else { continue }
+                candidates.insert(i)
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("通行量を 2 倍にできるマスがありません")
+            } else {
+                isSelectingLandTollDoubleTarget = true
+                landTollDoubleCandidateTiles = candidates
+                pendingLandTollDoubleTile = nil
+                branchLandingTargets = candidates
+                battleResult = "通行量を 2 倍にするマスを選択してください"
+            }
 
         case .teleport, .healHP,
-             .multiplyLandToll,
              .damageAnyCreature,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1783,7 +1834,7 @@ final class GameVM: ObservableObject {
             }
         }
 
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
         endTurn()
     }
     
@@ -2075,8 +2126,14 @@ final class GameVM: ObservableObject {
         let n = sameAttributeCount(for: pid, attr: attr)
         let mult = setBonusMultiplier(for: n)
 
-        // 四捨五入で整数化（必要に応じて切り捨てに変更可）
-        return Int((Double(base) * mult).rounded())
+        var value = Int((Double(base) * mult).rounded())
+        
+        if harvestedTiles.contains(tile) {
+            value *= 2
+        }
+        
+        return value
+
     }
     
     // 属性取得（未設定は .normal 扱い）
@@ -2306,6 +2363,12 @@ final class GameVM: ObservableObject {
             pendingLandTollZeroTile = index   // 通行量0確認ウインドウ表示用
             return
         }
+        // === sp-harvest のターゲット選択（通行量2倍） ===
+        if isSelectingLandTollDoubleTarget {
+            guard landTollDoubleCandidateTiles.contains(index) else { return }
+            pendingLandTollDoubleTile = index   // 通行量2倍確認ウインドウ表示用
+            return
+        }
         // ← 先に特別アクション選択モードを優先処理
         if let pending = specialPending {
             switch pending {
@@ -2413,8 +2476,7 @@ final class GameVM: ObservableObject {
 
         // 通行料などをレベル依存で再計算したい場合
         if toll.indices.contains(tile) {
-            // 例）基礎100 × レベル
-            toll[tile] = 100 * newLevel
+            toll[tile] = toll(at: tile)
         }
 
         // ログやフローティングメッセージ
@@ -2931,8 +2993,7 @@ final class GameVM: ObservableObject {
 
         // レベルアップ時と同じロジックで通行料を更新
         if toll.indices.contains(tile) {
-            // confirmLevelUp と同じ 100×レベル 方式
-            toll[tile] = 100 * newLevel
+            toll[tile] = toll(at: tile)
         }
 
         pushCenterMessage("土地のレベルを1下げました（Lv\(curLevel) → Lv\(newLevel)）")
@@ -2967,6 +3028,7 @@ final class GameVM: ObservableObject {
         }
         
         devastatedTiles.insert(tile)
+        harvestedTiles.remove(tile)
 
         // 候補内 & 通行量情報あり
         guard landTollZeroCandidateTiles.contains(tile),
@@ -2997,6 +3059,59 @@ final class GameVM: ObservableObject {
         isSelectingLandTollZeroTarget = false
         landTollZeroCandidateTiles = []
         pendingLandTollZeroTile = nil
+        branchLandingTargets = []
+    }
+    
+    func cancelLandTollDoubleSelection() {
+        isSelectingLandTollDoubleTarget = false
+        landTollDoubleCandidateTiles = []
+        pendingLandTollDoubleTile = nil
+        branchLandingTargets = []
+    }
+
+    func cancelLandTollDoubleConfirm() {
+        // 「閉じる」で確認ダイアログだけ閉じて、選択モードには戻る
+        pendingLandTollDoubleTile = nil
+    }
+
+    func confirmLandTollDouble() {
+        guard let tile = pendingLandTollDoubleTile else {
+            cancelLandTollDoubleSelection()
+            return
+        }
+
+        // 候補内 & 通行量情報あり
+        guard landTollDoubleCandidateTiles.contains(tile),
+              toll.indices.contains(tile)
+        else {
+            cancelLandTollDoubleSelection()
+            return
+        }
+
+        let before = toll[tile]
+        guard before > 0 else {
+            cancelLandTollDoubleSelection()
+            return
+        }
+
+        // ★ 収穫フラグ ON
+        harvestedTiles.insert(tile)
+
+        // toll(at:) で devastation / harvest / セットボーナス込みで再計算
+        let newValue = toll(at: tile)
+        toll[tile] = newValue
+
+        pushCenterMessage("土地の通行量を 2 倍にしました（\(before)G → \(newValue)G）")
+
+        // エフェクト再生
+        Task { @MainActor in
+            await self.applyHarvestAnimation(at: tile)
+        }
+
+        // 選択モード終了
+        isSelectingLandTollDoubleTarget = false
+        landTollDoubleCandidateTiles = []
+        pendingLandTollDoubleTile = nil
         branchLandingTargets = []
     }
 
@@ -3065,6 +3180,24 @@ final class GameVM: ObservableObject {
         isHealingAnimating = false
         spellEffectTile = nil
     }
+    
+    @MainActor
+    private func applyHarvestAnimation(at tile: Int) async {
+        // SpellEffectScene 用：このマスに harvest エフェクトを出す
+        spellEffectTile = tile
+        spellEffectKind = .harvest
+        focusTile = tile
+
+        // 他の操作を一時的に止めたければ true にしておく（名前は流用）
+        isHealingAnimating = true
+
+        // 他のエフェクトと同じくらい 1 秒程度表示
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        isHealingAnimating = false
+        spellEffectTile = nil
+    }
+
 }
 
 enum SpecialNodeKind { case castle, tower }
