@@ -19,7 +19,9 @@ struct OverlappingHandView: View {
             let startX = (geo.size.width - totalWidth) / 2
 
             ZStack {
-                ForEach(Array(cards.enumerated()), id: \.element.id) { idx, card in
+                ForEach(Array(cards.enumerated()), id: \.offset) { entry in
+                    let idx = entry.offset
+                    let card = entry.element
                     cardView(card: card,
                              index: idx,
                              baseSpacing: spacing,

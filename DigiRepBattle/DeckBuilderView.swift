@@ -54,7 +54,7 @@ struct DeckBuilderView: View {
         self.onStartBattle = onStartBattle
 
         // ★ デッキ1だけ固定の初期デッキを入れておく
-        let deck1 = DeckBuilderView.makeDeck1()
+        let deck1 = DeckList.defaultBattleDeck
         let emptyDeck = DeckList()
         _decks = State(initialValue: [deck1, emptyDeck, emptyDeck])
     }
@@ -107,45 +107,6 @@ struct DeckBuilderView: View {
         }
     }
     
-    /// デッキ1用の固定デッキ
-    private static func makeDeck1() -> DeckList {
-        var deck = DeckList()
-
-        // クリーチャー
-        deck.creatureSlots = [
-            "cre-defaultLizard":        5,
-            "cre-defaultCrocodile":    5,
-            "cre-defaultTurtle":       5,
-            "cre-defaultBeardedDragon":5,
-            "cre-defaultHornedFrog":   5,
-            "cre-defaultGreenIguana":  5,
-            "cre-defaultBallPython":   5
-        ]
-
-        // スペル
-        deck.spellSlots = [
-            "sp-dice1":        1,
-            "sp-dice2":        1,
-            "sp-dice3":        1,
-            "sp-dice4":        1,
-            "sp-dice5":        1,
-            "sp-dice6":        1,
-            "sp-doubleDice":   1,
-            "sp-firstStrike":  1,
-            "sp-hardFang":     1,
-            "sp-sharpFang":    2,
-            "sp-poisonFang":   2,
-            "sp-hardScale":    2,
-            "sp-bigScale":     2,
-            "sp-draw2":        2,
-            "sp-deleteHand":   2,
-            "sp-elixir":   2,
-            "sp-decay":   2
-        ]
-
-        return deck
-    }
-
     private var deckArea: some View {
         let deck = currentDeckBinding.wrappedValue
 

@@ -86,6 +86,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: "moveSound")
     }
 
+    func playHandViewSound() {
+        playSE(named: "handViewSound")
+    }
+
     private func playSE(named name: String) {
         guard isSoundOn else { return }
 

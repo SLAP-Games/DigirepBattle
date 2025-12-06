@@ -40,42 +40,44 @@ import SwiftUI
 //        ]
 
 extension DeckList {
+    static var defaultBattleDeck: DeckList {
+        var deck = DeckList()
+
+        deck.creatureSlots = [
+            "cre-defaultLizard":        5,
+            "cre-defaultCrocodile":     5,
+            "cre-defaultTurtle":        5,
+            "cre-defaultBeardedDragon": 5,
+            "cre-defaultHornedFrog":    5,
+            "cre-defaultGreenIguana":   5,
+            "cre-defaultBallPython":    5
+        ]
+
+        deck.spellSlots = [
+            "sp-dice1":        1,
+            "sp-dice2":        1,
+            "sp-dice3":        1,
+            "sp-dice4":        1,
+            "sp-dice5":        1,
+            "sp-dice6":        1,
+            "sp-doubleDice":   1,
+            "sp-firstStrike":  1,
+            "sp-hardFang":     1,
+            "sp-sharpFang":    2,
+            "sp-poisonFang":   2,
+            "sp-hardScale":    2,
+            "sp-bigScale":     2,
+            "sp-draw2":        2,
+            "sp-deleteHand":   2,
+            "sp-elixir":       2,
+            "sp-decay":        2
+        ]
+
+        return deck
+    }
+
     static var previewSample: DeckList {
-        var list = DeckList()
-
-        list.setCount(for: "cre-defaultLizard",   kind: .creature, count: 5)
-        list.setCount(for: "cre-defaultCrocodile", kind: .creature, count: 5)
-        list.setCount(for: "cre-defaultTurtle",   kind: .creature, count: 5)
-        list.setCount(for: "cre-defaultBeardedDragon",   kind: .creature, count: 5)
-        list.setCount(for: "cre-defaultHornedFrog",   kind: .creature, count: 5)
-        list.setCount(for: "cre-defaultGreenIguana",   kind: .creature, count: 5)
-        list.setCount(for: "cre-defaultBallPython",   kind: .creature, count: 5)
-
-//        list.setCount(for: "sp-dice1", kind: .spell, count: 12)
-//        list.setCount(for: "sp-dice2", kind: .spell, count: 1)
-//        list.setCount(for: "sp-dice3", kind: .spell, count: 1)
-//        list.setCount(for: "sp-dice4", kind: .spell, count: 1)
-//        list.setCount(for: "sp-dice5", kind: .spell, count: 1)
-//        list.setCount(for: "sp-dice6", kind: .spell, count: 13)
-//        list.setCount(for: "sp-doubleDice", kind: .spell, count: 2)
-//        list.setCount(for: "sp-firstStrike", kind: .spell, count: 2)
-        list.setCount(for: "sp-hardFang", kind: .spell, count: 13)
-//        list.setCount(for: "sp-sharpFang", kind: .spell, count: 2)
-//        list.setCount(for: "sp-poisonFang", kind: .spell, count: 12)
-        list.setCount(for: "sp-hardScale", kind: .spell, count: 12)
-//        list.setCount(for: "sp-bigScale", kind: .spell, count: 2)
-//        list.setCount(for: "sp-draw2", kind: .spell, count: 2)
-//        list.setCount(for: "sp-deleteHand", kind: .spell, count: 2)
-//        list.setCount(for: "sp-elixir", kind: .spell, count: 13)
-//        list.setCount(for: "sp-decay", kind: .spell, count: 25)
-//        list.setCount(for: "sp-devastation", kind: .spell, count: 6)
-//        list.setCount(for: "sp-harvest", kind: .spell, count: 6)
-//        list.setCount(for: "sp-greatStorm", kind: .spell, count: 12)
-//        list.setCount(for: "sp-disaster", kind: .spell, count: 13)
-//        list.setCount(for: "sp-poisonSmoke", kind: .spell, count: 6)
-//        list.setCount(for: "sp-cure", kind: .spell, count: 7)
-
-        return list
+        defaultBattleDeck
     }
 }
 
@@ -159,4 +161,3 @@ extension DeckList {
         return cards.shuffled()
     }
 }
-

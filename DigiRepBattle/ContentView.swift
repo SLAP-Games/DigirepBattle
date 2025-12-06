@@ -1237,6 +1237,10 @@ struct CardDetailOverlay: View {
 
         // ③ スペル使用（事前スペル：ロール前）
         if vm.phase == .ready && card.kind == .spell {
+            if vm.isBattleOnlySpell(card) && !vm.isBattleItemSelectionPhase {
+                return ("戦闘時のみ", nil, false)
+            }
+
             let cost = spellCostForUI(card)
             let hasEnoughGold = gold >= cost
             let title = hasEnoughGold ? "スペル使用" : "G不足"
@@ -1271,6 +1275,9 @@ struct CardDetailOverlay: View {
                 let cost: Int
                 switch card.kind {
                 case .spell:
+                    if vm.isBattleOnlySpell(card) && !vm.isBattleItemSelectionPhase {
+                        return ("戦闘時のみ", nil, false)
+                    }
                     cost = spellCostForUI(card)
                 case .creature:
                     cost = creatureCostForUI(card)

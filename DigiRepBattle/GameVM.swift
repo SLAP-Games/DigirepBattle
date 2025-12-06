@@ -170,6 +170,10 @@ final class GameVM: ObservableObject {
     private var forceRollToOneFor: [Bool] = [false, false]
     private var pendingBattleAttacker: Int? = nil
     private var pendingBattleDefender: Int? = nil
+    private var pendingSpellCard: Card? = nil
+    private var pendingSpellOwner: Int? = nil
+    private var pendingSpellHandIndex: Int? = nil
+    private var pendingSpellCost: Int = 0
     private var willPoisonDefender: Bool = false
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
@@ -218,9 +222,8 @@ final class GameVM: ObservableObject {
         self.focusedHandIndex = 0
         self.handDragOffset = 0
         
-        if let deck = selectedDeck {
-            cardStates[0].deckList = deck
-        }
+        let initialPlayerDeck = selectedDeck ?? DeckList.defaultBattleDeck
+        cardStates[0].deckList = initialPlayerDeck
         
         //NPCテスト
         cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
@@ -637,6 +640,7 @@ final class GameVM: ObservableObject {
         if let idx = hands.indices.contains(turn) ? hands[turn].firstIndex(of: card) : nil {
             focusedHandIndex = idx
         }
+        SoundManager.shared.playHandViewSound()
     }
 
     // ★ 追加：スペルショップからカード詳細を開く用
@@ -1249,23 +1253,17 @@ final class GameVM: ObservableObject {
         guard let effect = card.spell else { return }
         
         // ★ 戦闘中専用
-        if case .firstStrike = effect, case .buffPower = effect, case .buffDefense = effect, case .poison = effect, case .reflectSkill = effect {
+        if isBattleOnlySpell(card) {
             pushCenterMessage("戦闘中のみ使用できます")
             return
         }
 
-        // --- ① GOLDコスト支払い ---
         let cost = spellCost(of: card)
-        if cost > 0 {
-            guard tryPay(cost, by: 0) else {
-                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
-                return
-            }
-        }
 
         switch effect {
         case .fixNextRoll(let n):
             guard (1...6).contains(n) else { return }
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             nextForcedRoll[target] = n
             if target == turn {
                 pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
@@ -1274,45 +1272,44 @@ final class GameVM: ObservableObject {
                 pushCenterMessage("CPUの次のサイコロを \(n) に固定（コスト\(cost)）")
                 showDiceGlitch(number: n)
             }
+            consumeFromHand(card, for: 0)
 
         case .doubleDice:
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             doubleDice[target] = true
             if target == turn {
                 pushCenterMessage("次のサイコロがダブルダイスになります（コスト\(cost)）")
             } else {
                 pushCenterMessage("CPUの次のサイコロがダブルダイスになります（コスト\(cost)）")
             }
+            consumeFromHand(card, for: 0)
             
         case .drawCards(let n):
             guard target == 0 else { break }    // 念のため CPU には使わせない
-
-            // ★ ここでターン開始時と同じプレビューアニメを使って n枚ドロー
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             queuePreviewDraws(n, for: 0)
             pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
+            consumeFromHand(card, for: 0)
             
         case .discardOpponentCards(_):
-            // プレイヤー側
             let opponent = 1
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
 
-            // GOLD コストはすでに払われている
             if turn == 0 {
-                // NPC の手札が空なら何もできない
                 if hands[opponent].isEmpty {
                     pushCenterMessage("相手の手札がありません")
                 } else {
-                    // NPC手札選択モードへ
                     isSelectingOpponentHandToDelete = true
                     deletingTargetPlayer = opponent
                 }
                 consumeFromHand(card, for: 0)
             } else {
-                // ★ NPC が使った場合：プレイヤーの手札からランダム削除
                 let player = 0
                 if let removed = hands[player].randomElement(),
                    let idx = hands[player].firstIndex(of: removed)
                 {
                     hands[player].remove(at: idx)
-                    deletePreviewCard = removed   // Overlay に表示
+                    deletePreviewCard = removed
                     battleResult = "このカードが削除されました"
                 }
             }
@@ -1337,7 +1334,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("回復できるマスがありません")
             } else {
-                // 選択モードに入る
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingFullHealTarget = true
                 fullHealCandidateTiles = candidates
                 // 既存の highlight を流用してボード側を強調
@@ -1364,7 +1361,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("レベルを下げられるマスがありません")
             } else {
-                // 選択モードに入る
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandLevelChangeTarget = true
                 landLevelChangeCandidateTiles = candidates
                 pendingLandLevelChangeTile = nil
@@ -1387,6 +1384,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("通行量が設定されているマスがありません")
             } else {
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollZeroTarget = true
                 landTollZeroCandidateTiles = candidates
                 branchLandingTargets = candidates   // ボード側のハイライトに流用
@@ -1409,6 +1407,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("通行量を 2 倍にできるマスがありません")
             } else {
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollDoubleTarget = true
                 landTollDoubleCandidateTiles = candidates
                 pendingLandTollDoubleTile = nil
@@ -1417,13 +1416,13 @@ final class GameVM: ObservableObject {
             }
 
         case .damageAnyCreature(let n):
-            beginDamageSpellSelection(amount: n, cardID: card.id, cardName: card.name)
+            beginDamageSpellSelection(amount: n, card: card, cost: cost)
 
         case .poisonAnyCreature:
-            beginPoisonSpellSelection(cardName: card.name)
+            beginPoisonSpellSelection(card: card, cost: cost)
 
         case .cleanseTileStatus:
-            beginCleanseSpellSelection(cardName: card.name)
+            beginCleanseSpellSelection(card: card, cost: cost)
 
         case .teleport, .healHP,
              .gainGold, .stealGold,
@@ -1431,13 +1430,16 @@ final class GameVM: ObservableObject {
              .aoeDamageByResist,
              .changeTileAttribute,
              .purgeAllCreatures:
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("スペル『\(card.name)』の効果はまだ未実装です（コスト\(cost)だけ消費）")
+            consumeFromHand(card, for: 0)
 
         // ★ 追加：万一新しいケースが増えてもここで拾う
         default:
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("未対応のスペル効果です（コスト\(cost)だけ消費）")
+            consumeFromHand(card, for: 0)
         }
-        consumeFromHand(card, for: 0)
     }
 
     func useSpellPreRoll(_ card: Card) {
@@ -1478,72 +1480,58 @@ final class GameVM: ObservableObject {
         guard let effect = card.spell else { return }
         
         // ★ 戦闘中専用
-        if case .firstStrike = effect, case .buffPower = effect, case .buffDefense = effect, case .poison = effect, case .reflectSkill = effect {
+        if isBattleOnlySpell(card) {
             pushCenterMessage("戦闘中のみ使用できます")
             return
         }
 
         let cost = spellCost(of: card)
-        if cost > 0 {
-            guard tryPay(cost, by: 0) else {
-                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
-                return
-            }
-        }
 
         switch effect {
 
         case .fixNextRoll(let n) where (1...6).contains(n):
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             nextForcedRoll[0] = n
             pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+            consumeFromHand(card, for: 0)
 
         case .doubleDice:
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             doubleDice[0] = true
             pushCenterMessage("次のサイコロがダブルダイスになります（コスト\(cost)）")
+            consumeFromHand(card, for: 0)
             
         case .drawCards(let n):
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             queuePreviewDraws(n, for: 0)
             pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
+            consumeFromHand(card, for: 0)
             
         case .discardOpponentCards(_):
             // プレイヤー側
             let opponent = 1
 
-            // GOLD コストはすでに払われている
-            if turn == 0 {
-                // NPC の手札が空なら何もできない
-                if hands[opponent].isEmpty {
-                    pushCenterMessage("相手の手札がありません")
-                } else {
-                    // NPC手札選択モードへ
-                    isSelectingOpponentHandToDelete = true
-                    deletingTargetPlayer = opponent
-                }
-                consumeFromHand(card, for: 0)
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
+            if hands[opponent].isEmpty {
+                pushCenterMessage("相手の手札がありません")
             } else {
-                // ★ NPC が使った場合：プレイヤーの手札からランダム削除
-                let player = 0
-                if let removed = hands[player].randomElement(),
-                   let idx = hands[player].firstIndex(of: removed)
-                {
-                    hands[player].remove(at: idx)
-                    deletePreviewCard = removed   // Overlay に表示
-                    battleResult = "このカードが削除されました"
-                }
+                // NPC手札選択モードへ
+                isSelectingOpponentHandToDelete = true
+                deletingTargetPlayer = opponent
             }
+            consumeFromHand(card, for: 0)
             
         case .fullHealAnyCreature:
-            // 自軍の、HPが減っているマスだけを候補にする
             var candidates: Set<Int> = []
 
             for i in 0..<tileCount {
                 guard owner.indices.contains(i),
-                      owner[i] == 0,                   // 自軍
+                      owner[i] == 0,
                       level.indices.contains(i),
-                      level[i] > 0,                    // 何かしら置かれている
+                      level[i] > 0,
                       hp.indices.contains(i),
                       hpMax.indices.contains(i),
-                      hp[i] < hpMax[i]                // ダメージを受けている
+                      hp[i] < hpMax[i]
                 else { continue }
 
                 candidates.insert(i)
@@ -1552,7 +1540,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("回復できるマスがありません")
             } else {
-                // 選択モードに入る
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingFullHealTarget = true
                 fullHealCandidateTiles = candidates
                 // 既存の highlight を流用してボード側を強調
@@ -1579,7 +1567,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("レベルを下げられるマスがありません")
             } else {
-                // 選択モードに入る
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandLevelChangeTarget = true
                 landLevelChangeCandidateTiles = candidates
                 pendingLandLevelChangeTile = nil
@@ -1602,6 +1590,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("通行量が設定されているマスがありません")
             } else {
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollZeroTarget = true
                 landTollZeroCandidateTiles = candidates
                 branchLandingTargets = candidates   // ボード側のハイライトに流用
@@ -1624,6 +1613,7 @@ final class GameVM: ObservableObject {
             if candidates.isEmpty {
                 pushCenterMessage("通行量を 2 倍にできるマスがありません")
             } else {
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollDoubleTarget = true
                 landTollDoubleCandidateTiles = candidates
                 pendingLandTollDoubleTile = nil
@@ -1632,13 +1622,13 @@ final class GameVM: ObservableObject {
             }
 
         case .damageAnyCreature(let n):
-            beginDamageSpellSelection(amount: n, cardID: card.id, cardName: card.name)
+            beginDamageSpellSelection(amount: n, card: card, cost: cost)
 
         case .poisonAnyCreature:
-            beginPoisonSpellSelection(cardName: card.name)
+            beginPoisonSpellSelection(card: card, cost: cost)
 
         case .cleanseTileStatus:
-            beginCleanseSpellSelection(cardName: card.name)
+            beginCleanseSpellSelection(card: card, cost: cost)
 
         case .teleport, .healHP,
              .gainGold, .stealGold,
@@ -1646,17 +1636,22 @@ final class GameVM: ObservableObject {
              .aoeDamageByResist,
              .changeTileAttribute,
              .purgeAllCreatures:
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("スペル『\(card.name)』の効果はまだ未実装です（コスト\(cost)だけ消費）")
+            consumeFromHand(card, for: 0)
 
         // ★ 追加：万一新しいケースが増えてもここで拾う
         default:
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("未対応のスペル効果です（コスト\(cost)だけ消費）")
+            consumeFromHand(card, for: 0)
         }
-
-        consumeFromHand(card, for: 0)
     }
 
-    private func beginDamageSpellSelection(amount: Int, cardID: CardID, cardName: String) {
+    private func beginDamageSpellSelection(amount: Int,
+                                           card: Card,
+                                           cost: Int,
+                                           owner: Int = 0) {
         var candidates: Set<Int> = []
 
         for i in 0..<tileCount {
@@ -1672,17 +1667,21 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard beginPendingSpellUsage(card: card, owner: owner, cost: cost) else { return }
+
         isSelectingDamageTarget = true
         damageCandidateTiles = candidates
         pendingDamageTile = nil
         pendingDamageAmount = amount
-        pendingDamageEffect = boardWideEffectKind(for: cardID)
-        pendingDamageSpellName = cardName
+        pendingDamageEffect = boardWideEffectKind(for: card.id)
+        pendingDamageSpellName = card.name
         branchLandingTargets = candidates
-        battleResult = "『\(cardName)』の対象マスを選択してください"
+        battleResult = "『\(card.name)』の対象マスを選択してください"
     }
 
-    private func beginPoisonSpellSelection(cardName: String) {
+    private func beginPoisonSpellSelection(card: Card,
+                                           cost: Int,
+                                           owner: Int = 0) {
         var candidates: Set<Int> = []
 
         for i in 0..<tileCount {
@@ -1700,15 +1699,19 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard beginPendingSpellUsage(card: card, owner: owner, cost: cost) else { return }
+
         isSelectingPoisonTarget = true
         poisonCandidateTiles = candidates
         pendingPoisonTile = nil
-        pendingPoisonSpellName = cardName
+        pendingPoisonSpellName = card.name
         branchLandingTargets = candidates
-        battleResult = "『\(cardName)』の対象マスを選択してください"
+        battleResult = "『\(card.name)』の対象マスを選択してください"
     }
 
-    private func beginCleanseSpellSelection(cardName: String) {
+    private func beginCleanseSpellSelection(card: Card,
+                                            cost: Int,
+                                            owner: Int = 0) {
         var candidates: Set<Int> = []
 
         for i in 0..<tileCount {
@@ -1722,12 +1725,14 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard beginPendingSpellUsage(card: card, owner: owner, cost: cost) else { return }
+
         isSelectingCleanseTarget = true
         cleanseCandidateTiles = candidates
         pendingCleanseTile = nil
-        pendingCleanseSpellName = cardName
+        pendingCleanseSpellName = card.name
         branchLandingTargets = candidates
-        battleResult = "『\(cardName)』の対象マスを選択してください"
+        battleResult = "『\(card.name)』の対象マスを選択してください"
     }
 
     private func boardWideEffectKind(for cardID: CardID) -> BoardWideSpellEffectKind? {
@@ -1863,8 +1868,84 @@ final class GameVM: ObservableObject {
         }
     }
 
+    private func removeCardFromHand(_ card: Card, for pid: Int) -> Int? {
+        guard hands.indices.contains(pid),
+              let index = hands[pid].firstIndex(of: card) else { return nil }
+        hands[pid].remove(at: index)
+        return index
+    }
+
     func consumeFromHand(_ card: Card, for pid: Int) {
-        if let i = hands[pid].firstIndex(of: card) { hands[pid].remove(at: i) }
+        _ = removeCardFromHand(card, for: pid)
+    }
+
+    @discardableResult
+    private func beginPendingSpellUsage(card: Card, owner: Int, cost: Int) -> Bool {
+        guard pendingSpellCard == nil else { return false }
+        guard let removedIndex = removeCardFromHand(card, for: owner) else { return false }
+        pendingSpellCard = card
+        pendingSpellOwner = owner
+        pendingSpellHandIndex = removedIndex
+        pendingSpellCost = cost
+        return true
+    }
+
+    private func restorePendingSpellUsage() {
+        guard let card = pendingSpellCard,
+              let owner = pendingSpellOwner,
+              hands.indices.contains(owner) else {
+            clearPendingSpellTracking()
+            return
+        }
+
+        let maxIndex = hands[owner].count
+        let insertIndex = min(max(pendingSpellHandIndex ?? maxIndex, 0), maxIndex)
+        hands[owner].insert(card, at: insertIndex)
+        clearPendingSpellTracking()
+    }
+
+    private func clearPendingSpellTracking() {
+        pendingSpellCard = nil
+        pendingSpellOwner = nil
+        pendingSpellHandIndex = nil
+        pendingSpellCost = 0
+    }
+
+    @discardableResult
+    private func finalizePendingSpellUsage() -> Bool {
+        guard let owner = pendingSpellOwner else { return true }
+        let cost = pendingSpellCost
+        if cost > 0 && !tryPay(cost, by: owner) {
+            if owner == 0 {
+                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
+            }
+            restorePendingSpellUsage()
+            return false
+        }
+        clearPendingSpellTracking()
+        return true
+    }
+
+    private func paySpellCostIfNeeded(_ cost: Int, by pid: Int) -> Bool {
+        guard cost > 0 else { return true }
+        guard tryPay(cost, by: pid) else {
+            if pid == 0 {
+                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
+            }
+            return false
+        }
+        return true
+    }
+
+    func isBattleOnlySpell(_ card: Card) -> Bool {
+        guard card.kind == .spell,
+              let effect = card.spell else { return false }
+        switch effect {
+        case .buffPower, .buffDefense, .firstStrike, .poison, .reflectSkill:
+            return true
+        default:
+            return false
+        }
     }
     
     // === 追加: 設置可否チェック ===
@@ -3090,6 +3171,7 @@ final class GameVM: ObservableObject {
     
     // MARK: - sp-elixir（任意マス全回復）用ヘルパー
     func cancelFullHealSelection() {
+        restorePendingSpellUsage()
         // sp-elixir 用
         isSelectingFullHealTarget = false
         pendingFullHealTile = nil
@@ -3139,6 +3221,11 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard finalizePendingSpellUsage() else {
+            cancelFullHealSelection()
+            return
+        }
+
         // アニメーション付きで全回復
         Task { @MainActor in
             await self.applyFullHealAnimation(at: tile, heal: heal)
@@ -3153,6 +3240,7 @@ final class GameVM: ObservableObject {
     
     /// 選択モード全体を終了（ウインドウもハイライトもまとめて解除）
     func cancelLandLevelChangeSelection() {
+        restorePendingSpellUsage()
         isSelectingLandLevelChangeTarget = false
         pendingLandLevelChangeTile = nil
         landLevelChangeCandidateTiles = []
@@ -3186,6 +3274,11 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard finalizePendingSpellUsage() else {
+            cancelLandLevelChangeSelection()
+            return
+        }
+
         let newLevel = curLevel - 1
         level[tile] = newLevel
 
@@ -3208,6 +3301,7 @@ final class GameVM: ObservableObject {
     }
     
     func cancelLandTollZeroSelection() {
+        restorePendingSpellUsage()
         isSelectingLandTollZeroTarget = false
         landTollZeroCandidateTiles = []
         pendingLandTollZeroTile = nil
@@ -3243,6 +3337,11 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard finalizePendingSpellUsage() else {
+            cancelLandTollZeroSelection()
+            return
+        }
+
         // 通行量を0にする
         toll[tile] = 0
 
@@ -3261,6 +3360,7 @@ final class GameVM: ObservableObject {
     }
     
     func cancelLandTollDoubleSelection() {
+        restorePendingSpellUsage()
         isSelectingLandTollDoubleTarget = false
         landTollDoubleCandidateTiles = []
         pendingLandTollDoubleTile = nil
@@ -3292,6 +3392,11 @@ final class GameVM: ObservableObject {
             return
         }
 
+        guard finalizePendingSpellUsage() else {
+            cancelLandTollDoubleSelection()
+            return
+        }
+
         // ★ 収穫フラグ ON
         harvestedTiles.insert(tile)
 
@@ -3314,6 +3419,11 @@ final class GameVM: ObservableObject {
     }
 
     func cancelPoisonSelection() {
+        restorePendingSpellUsage()
+        clearPoisonSelectionState()
+    }
+
+    private func clearPoisonSelectionState() {
         isSelectingPoisonTarget = false
         poisonCandidateTiles = []
         pendingPoisonTile = nil
@@ -3335,7 +3445,12 @@ final class GameVM: ObservableObject {
         }
 
         let spellName = pendingPoisonSpellName
-        cancelPoisonSelection()
+        guard finalizePendingSpellUsage() else {
+            cancelPoisonSelection()
+            return
+        }
+
+        clearPoisonSelectionState()
 
         Task { @MainActor in
             await self.applyPoisonSpell(to: tile, spellName: spellName)
@@ -3343,6 +3458,11 @@ final class GameVM: ObservableObject {
     }
 
     func cancelCleanseSelection() {
+        restorePendingSpellUsage()
+        clearCleanseSelectionState()
+    }
+
+    private func clearCleanseSelectionState() {
         isSelectingCleanseTarget = false
         cleanseCandidateTiles = []
         pendingCleanseTile = nil
@@ -3364,7 +3484,12 @@ final class GameVM: ObservableObject {
         }
 
         let spellName = pendingCleanseSpellName
-        cancelCleanseSelection()
+        guard finalizePendingSpellUsage() else {
+            cancelCleanseSelection()
+            return
+        }
+
+        clearCleanseSelectionState()
 
         Task { @MainActor in
             await self.applyCleanseSpell(to: tile, spellName: spellName)
@@ -3372,6 +3497,11 @@ final class GameVM: ObservableObject {
     }
 
     func cancelDamageSelection() {
+        restorePendingSpellUsage()
+        clearDamageSelectionState()
+    }
+
+    private func clearDamageSelectionState() {
         isSelectingDamageTarget = false
         damageCandidateTiles = []
         pendingDamageTile = nil
@@ -3399,7 +3529,12 @@ final class GameVM: ObservableObject {
         let effect = pendingDamageEffect
         let spellName = pendingDamageSpellName
 
-        cancelDamageSelection()
+        guard finalizePendingSpellUsage() else {
+            cancelDamageSelection()
+            return
+        }
+
+        clearDamageSelectionState()
 
         Task { @MainActor in
             await self.applyDamageSpell(amount: amount,
