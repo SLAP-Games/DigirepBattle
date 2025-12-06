@@ -58,6 +58,20 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: fileName)
     }
 
+    func playBoardWideEffectSound(_ effect: BoardWideSpellEffectKind) {
+        guard isSoundOn else { return }
+
+        let name: String
+        switch effect {
+        case .storm:
+            name = "stormSound"
+        case .disaster:
+            name = "disasterSound"
+        }
+
+        playSE(named: name)
+    }
+
     private func playSE(named name: String) {
         guard isSoundOn else { return }
 
@@ -251,4 +265,3 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: "diceSound")   // 実際のファイル名に合わせてください
     }
 }
-

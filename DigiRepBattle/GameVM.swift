@@ -122,6 +122,14 @@ final class GameVM: ObservableObject {
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
     @Published var pendingLandLevelChangeTile: Int? = nil
+    // === 単体ダメージ系スペル（大嵐／落雷など）用 ===
+    @Published var isSelectingDamageTarget: Bool = false
+    @Published var damageCandidateTiles: Set<Int> = []
+    @Published var pendingDamageTile: Int? = nil
+    @Published var pendingDamageAmount: Int = 0
+    @Published var pendingDamageEffect: BoardWideSpellEffectKind? = nil
+    @Published var pendingDamageSpellName: String? = nil
+    @Published var activeBoardWideEffect: BoardWideSpellEffectKind? = nil
     @Published var isShowingDiceGlitch: Bool = false
     @Published var diceGlitchNumber: Int? = nil
     // === ここから追加: sp-devastation 用（通行量 0） ===
@@ -1380,8 +1388,10 @@ final class GameVM: ObservableObject {
                 battleResult = "通行量を 2 倍にするマスを選択してください"
             }
 
+        case .damageAnyCreature(let n):
+            beginDamageSpellSelection(amount: n, cardID: card.id, cardName: card.name)
+
         case .teleport, .healHP,
-             .damageAnyCreature,
              .gainGold, .stealGold,
              .inspectCreature,
              .aoeDamageByResist,
@@ -1587,8 +1597,10 @@ final class GameVM: ObservableObject {
                 battleResult = "通行量を 2 倍にするマスを選択してください"
             }
 
+        case .damageAnyCreature(let n):
+            beginDamageSpellSelection(amount: n, cardID: card.id, cardName: card.name)
+
         case .teleport, .healHP,
-             .damageAnyCreature,
              .gainGold, .stealGold,
              .inspectCreature,
              .aoeDamageByResist,
@@ -1602,6 +1614,43 @@ final class GameVM: ObservableObject {
         }
 
         consumeFromHand(card, for: 0)
+    }
+
+    private func beginDamageSpellSelection(amount: Int, cardID: CardID, cardName: String) {
+        var candidates: Set<Int> = []
+
+        for i in 0..<tileCount {
+            guard creatureSymbol.indices.contains(i),
+                  creatureSymbol[i] != nil,
+                  hp.indices.contains(i),
+                  hp[i] > 0 else { continue }
+            candidates.insert(i)
+        }
+
+        if candidates.isEmpty {
+            pushCenterMessage("ダメージを与えられるマスがありません")
+            return
+        }
+
+        isSelectingDamageTarget = true
+        damageCandidateTiles = candidates
+        pendingDamageTile = nil
+        pendingDamageAmount = amount
+        pendingDamageEffect = boardWideEffectKind(for: cardID)
+        pendingDamageSpellName = cardName
+        branchLandingTargets = candidates
+        battleResult = "『\(cardName)』の対象マスを選択してください"
+    }
+
+    private func boardWideEffectKind(for cardID: CardID) -> BoardWideSpellEffectKind? {
+        switch cardID {
+        case "sp-greatStorm":
+            return .storm
+        case "sp-disaster":
+            return .disaster
+        default:
+            return nil
+        }
     }
     /// 山札ショップなどから買ったスペルの共通適用口
     private func applySpellEffect(_ effect: SpellEffect, by pid: Int, targetTile: Int?) {
@@ -2369,6 +2418,11 @@ final class GameVM: ObservableObject {
             pendingLandTollDoubleTile = index   // 通行量2倍確認ウインドウ表示用
             return
         }
+        if isSelectingDamageTarget {
+            guard damageCandidateTiles.contains(index) else { return }
+            pendingDamageTile = index
+            return
+        }
         // ← 先に特別アクション選択モードを優先処理
         if let pending = specialPending {
             switch pending {
@@ -2907,6 +2961,7 @@ final class GameVM: ObservableObject {
         isSelectingLandTollZeroTarget = false
         pendingLandTollZeroTile = nil
         landTollZeroCandidateTiles = []
+        cancelDamageSelection()
         // ボードのハイライトも解除
         branchLandingTargets = []
     }
@@ -3113,6 +3168,123 @@ final class GameVM: ObservableObject {
         landTollDoubleCandidateTiles = []
         pendingLandTollDoubleTile = nil
         branchLandingTargets = []
+    }
+
+    func cancelDamageSelection() {
+        isSelectingDamageTarget = false
+        damageCandidateTiles = []
+        pendingDamageTile = nil
+        pendingDamageAmount = 0
+        pendingDamageEffect = nil
+        pendingDamageSpellName = nil
+        branchLandingTargets = []
+        battleResult = nil
+    }
+
+    func cancelDamageConfirm() {
+        pendingDamageTile = nil
+    }
+
+    func confirmDamageSpell() {
+        guard isSelectingDamageTarget,
+              let tile = pendingDamageTile,
+              damageCandidateTiles.contains(tile),
+              pendingDamageAmount > 0 else {
+            cancelDamageSelection()
+            return
+        }
+
+        let amount = pendingDamageAmount
+        let effect = pendingDamageEffect
+        let spellName = pendingDamageSpellName
+
+        cancelDamageSelection()
+
+        Task { @MainActor in
+            await self.applyDamageSpell(amount: amount,
+                                        to: tile,
+                                        boardEffect: effect,
+                                        spellName: spellName)
+        }
+    }
+
+    @MainActor
+    private func applyDamageSpell(amount: Int,
+                                  to tile: Int,
+                                  boardEffect: BoardWideSpellEffectKind?,
+                                  spellName: String?) async {
+        guard hp.indices.contains(tile),
+              hp[tile] > 0 else {
+            pushCenterMessage("対象のクリーチャーが存在しません")
+            return
+        }
+
+        let before = hp[tile]
+        let actualDamage = min(amount, before)
+        guard actualDamage > 0 else {
+            pushCenterMessage("ダメージを与えられませんでした")
+            return
+        }
+
+        let newHP = max(0, before - actualDamage)
+        hp[tile] = newHP
+        if var creature = creatureOnTile[tile] {
+            creature.hp = newHP
+            creatureOnTile[tile] = creature
+        }
+        hp = hp
+
+        focusTile = tile
+        isHealingAnimating = true
+        healingAmounts = [tile: -actualDamage]
+
+        let usesTileEffect = (boardEffect == nil)
+        if usesTileEffect {
+            spellEffectTile = tile
+            spellEffectKind = .damage
+        } else if let effect = boardEffect {
+            triggerBoardWideEffect(effect)
+        }
+
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        healingAmounts.removeAll()
+
+        if usesTileEffect {
+            spellEffectTile = nil
+        }
+
+        var message = "\(spellName ?? "スペル") で \(actualDamage) ダメージ"
+
+        if newHP <= 0 {
+            clearCreatureInfo(at: tile,
+                              clearOwnerAndLevel: true,
+                              resetToll: true)
+            message += "（撃破）"
+        }
+
+        pushCenterMessage(message)
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        isHealingAnimating = false
+    }
+
+    @MainActor
+    private func triggerBoardWideEffect(_ effect: BoardWideSpellEffectKind) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            activeBoardWideEffect = effect
+        }
+        SoundManager.shared.playBoardWideEffectSound(effect)
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard let self else { return }
+            if self.activeBoardWideEffect == effect {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    self.activeBoardWideEffect = nil
+                }
+            }
+        }
     }
 
     @MainActor

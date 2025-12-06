@@ -491,6 +491,52 @@ struct ContentView: View {
                         }
                         .transition(.opacity)
                     }
+
+                    if vm.isSelectingDamageTarget,
+                       let tile = vm.pendingDamageTile,
+                       vm.damageCandidateTiles.contains(tile),
+                       vm.pendingDamageAmount > 0 {
+
+                        ZStack {
+                            Color.black.opacity(0.55)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 14) {
+                                Text(vm.pendingDamageSpellName ?? "スペル")
+                                    .font(.headline)
+                                    .padding(.top, 4)
+
+                                Text("マス \(tile + 1) のクリーチャーに \(vm.pendingDamageAmount) ダメージを与えますか？")
+                                    .multilineTextAlignment(.center)
+                                    .font(.subheadline)
+
+                                Button("ダメージを与える") {
+                                    vm.confirmDamageSpell()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                HStack(spacing: 12) {
+                                    Button("対象を変更") {
+                                        vm.cancelDamageConfirm()
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    Button("選択を終了") {
+                                        vm.cancelDamageSelection()
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .shadow(radius: 12)
+                        }
+                        .transition(.opacity)
+                        .zIndex(110)
+                    }
                     
                     // sp-decay 用：レベルダウン確認ウインドウ
                     if let tile = vm.pendingLandLevelChangeTile,
@@ -610,6 +656,14 @@ struct ContentView: View {
                         // ボード全体を覆うようにして中央に固定
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .allowsHitTesting(false)   // 入力は下のボードに通す
+                        .zIndex(30)
+                    }
+
+                    if let effect = vm.activeBoardWideEffect {
+                        BoardWideSpellEffectView(kind: effect)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .transition(.opacity)
+                            .zIndex(5)
                     }
 
                 }
