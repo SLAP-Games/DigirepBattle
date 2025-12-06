@@ -157,6 +157,8 @@ final class GameVM: ObservableObject {
     @Published var pendingLandTollDoubleTile: Int? = nil
     /// sp-harvest で「収穫済み（通行量2倍）」になっているマス
     @Published var harvestedTiles: Set<Int> = []
+    @Published var focusedHandIndex: Int = 0
+    @Published var handDragOffset: CGFloat = 0
     
     private var spellPool: [Card] = []
     private var creaturePool: [Card] = []
@@ -213,6 +215,8 @@ final class GameVM: ObservableObject {
         self.poisonedTiles = Array(repeating: false, count: tileCount)
         self.devastatedTiles = []
         self.harvestedTiles = []
+        self.focusedHandIndex = 0
+        self.handDragOffset = 0
         
         if let deck = selectedDeck {
             cardStates[0].deckList = deck
@@ -630,6 +634,9 @@ final class GameVM: ObservableObject {
     
     func openCard(_ card: Card) {
         presentingCard = card
+        if let idx = hands.indices.contains(turn) ? hands[turn].firstIndex(of: card) : nil {
+            focusedHandIndex = idx
+        }
     }
 
     // ★ 追加：スペルショップからカード詳細を開く用

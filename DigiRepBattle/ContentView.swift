@@ -784,27 +784,26 @@ struct ContentView: View {
 
                         Divider().frame(height: controlsH * 0.8)
 
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(vm.hands[0].enumerated()), id: \.element.id) { index, card in
-                                    CardView(card: card)
-                                        .onTapGesture {
-                                            if vm.isSelectingSwapCreature,
-                                               card.kind == .creature {
-                                                // ★ 交換モード中なら、このカードを候補にする
-                                                vm.selectSwapHandIndex(index)
-                                            } else {
-                                                // 通常時は今まで通りカード詳細を開く
-                                                vm.openCard(card)
-                                            }
-                                        }
-                                }
+                        OverlappingHandView(cards: vm.hands[0],
+                                            focusedIndex: $vm.focusedHandIndex,
+                                            dragOffset: $vm.handDragOffset) { index in
+                            let card = vm.hands[0][index]
+                            if vm.isSelectingSwapCreature,
+                               card.kind == .creature {
+                                vm.selectSwapHandIndex(index)
+                            } else {
+                                vm.openCard(card)
                             }
-                            .padding(.vertical, 8)
+                        } onTapUp: { index in
+                            let card = vm.hands[0][index]
+                            vm.openCard(card)
                         }
-                        .frame(maxHeight: controlsH * 0.9)
+                        .frame(height: controlsH * 0.9)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                     }
                     .padding(.horizontal)
+                    .frame(maxWidth: .infinity, alignment: .center)
                     
                     if let card = vm.presentingCard,
                        card.kind == .creature,
