@@ -582,6 +582,51 @@ struct ContentView: View {
                         .transition(.opacity)
                         .zIndex(111)
                     }
+
+                    if vm.isSelectingCleanseTarget,
+                       let tile = vm.pendingCleanseTile,
+                       vm.cleanseCandidateTiles.contains(tile) {
+
+                        ZStack {
+                            Color.black.opacity(0.55)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 14) {
+                                Text(vm.pendingCleanseSpellName ?? "スペル")
+                                    .font(.headline)
+                                    .padding(.top, 4)
+
+                                Text("マス \(tile + 1) の効果を解除しますか？")
+                                    .multilineTextAlignment(.center)
+                                    .font(.subheadline)
+
+                                Button("効果を解除する") {
+                                    vm.confirmCleanseSpell()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                HStack(spacing: 12) {
+                                    Button("対象を変更") {
+                                        vm.cancelCleanseConfirm()
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    Button("選択を終了") {
+                                        vm.cancelCleanseSelection()
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .shadow(radius: 12)
+                        }
+                        .transition(.opacity)
+                        .zIndex(112)
+                    }
                     
                     // sp-decay 用：レベルダウン確認ウインドウ
                     if let tile = vm.pendingLandLevelChangeTile,

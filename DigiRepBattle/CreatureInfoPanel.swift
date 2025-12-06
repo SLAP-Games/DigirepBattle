@@ -32,6 +32,10 @@ struct CreatureInfoPanel: View {
                             .font(.subheadline).fontWeight(.semibold)
                         Text("属性: \(iv.mapAttribute)")
                             .font(.caption).foregroundStyle(.secondary)
+                        Text("レベル: Lv\(iv.tileLevel)")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("状態: \(iv.tileStatus)")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 Spacer()

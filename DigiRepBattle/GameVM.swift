@@ -13,6 +13,8 @@ struct CreatureInspectView {
     let tileIndex: Int
     let mapImageName: String
     let mapAttribute: String
+    let tileLevel: Int
+    let tileStatus: String
     let owner: Int
     let imageName: String
     let hpText: String
@@ -133,6 +135,10 @@ final class GameVM: ObservableObject {
     @Published var poisonCandidateTiles: Set<Int> = []
     @Published var pendingPoisonTile: Int? = nil
     @Published var pendingPoisonSpellName: String? = nil
+    @Published var isSelectingCleanseTarget: Bool = false
+    @Published var cleanseCandidateTiles: Set<Int> = []
+    @Published var pendingCleanseTile: Int? = nil
+    @Published var pendingCleanseSpellName: String? = nil
     @Published var activeBoardWideEffect: BoardWideSpellEffectKind? = nil
     @Published var isShowingDiceGlitch: Bool = false
     @Published var diceGlitchNumber: Int? = nil
@@ -684,6 +690,8 @@ final class GameVM: ObservableObject {
             return "任意のマスのクリーチャーに \(n) ダメージを与える"
         case .poisonAnyCreature:
             return "任意のマスのクリーチャーを毒状態にする"
+        case .cleanseTileStatus:
+            return "マスにかかっている効果を解除する"
 
         case .gainGold(let n):
             return "\(n)GOLDを獲得する"
@@ -1400,6 +1408,9 @@ final class GameVM: ObservableObject {
         case .poisonAnyCreature:
             beginPoisonSpellSelection(cardName: card.name)
 
+        case .cleanseTileStatus:
+            beginCleanseSpellSelection(cardName: card.name)
+
         case .teleport, .healHP,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1612,6 +1623,9 @@ final class GameVM: ObservableObject {
         case .poisonAnyCreature:
             beginPoisonSpellSelection(cardName: card.name)
 
+        case .cleanseTileStatus:
+            beginCleanseSpellSelection(cardName: card.name)
+
         case .teleport, .healHP,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1676,6 +1690,28 @@ final class GameVM: ObservableObject {
         poisonCandidateTiles = candidates
         pendingPoisonTile = nil
         pendingPoisonSpellName = cardName
+        branchLandingTargets = candidates
+        battleResult = "『\(cardName)』の対象マスを選択してください"
+    }
+
+    private func beginCleanseSpellSelection(cardName: String) {
+        var candidates: Set<Int> = []
+
+        for i in 0..<tileCount {
+            if tileHasCleanseStatus(i) {
+                candidates.insert(i)
+            }
+        }
+
+        if candidates.isEmpty {
+            pushCenterMessage("解除できるマスがありません")
+            return
+        }
+
+        isSelectingCleanseTarget = true
+        cleanseCandidateTiles = candidates
+        pendingCleanseTile = nil
+        pendingCleanseSpellName = cardName
         branchLandingTargets = candidates
         battleResult = "『\(cardName)』の対象マスを選択してください"
     }
@@ -2301,6 +2337,30 @@ final class GameVM: ObservableObject {
         guard terrain.indices.contains(tile) else { return .normal }
         return terrain[tile].attribute
     }
+
+    private func tileStatusDescription(for tile: Int) -> String {
+        var statuses: [String] = []
+        if poisonedTiles.indices.contains(tile), poisonedTiles[tile] {
+            statuses.append("毒")
+        }
+        if devastatedTiles.contains(tile) {
+            statuses.append("荒廃")
+        }
+        if harvestedTiles.contains(tile) {
+            statuses.append("豊作")
+        }
+        if statuses.isEmpty {
+            return "なし"
+        }
+        return statuses.joined(separator: " / ")
+    }
+
+    private func tileHasCleanseStatus(_ tile: Int) -> Bool {
+        if poisonedTiles.indices.contains(tile), poisonedTiles[tile] { return true }
+        if devastatedTiles.contains(tile) { return true }
+        if harvestedTiles.contains(tile) { return true }
+        return false
+    }
     
     /// レベルアップ候補を表示
     func actionLevelUpOnSpecialNode() {
@@ -2370,10 +2430,15 @@ final class GameVM: ObservableObject {
         func show(_ v: Int) -> String { String(v) }
         func mask(_ v: Int) -> String { seeAll ? show(v) : "不明" }
 
+        let tileLevelValue = level.indices.contains(tile) ? level[tile] : 0
+        let statusText = tileStatusDescription(for: tile)
+
         return CreatureInspectView(
             tileIndex: tile,
             mapImageName: mapImg,
             mapAttribute: mapAttrJP,
+            tileLevel: tileLevelValue,
+            tileStatus: statusText,
             owner: c.owner,
             imageName: c.imageName,
             hpText: "\(c.hp) / \(c.stats.hpMax)",
@@ -2459,6 +2524,11 @@ final class GameVM: ObservableObject {
         if isSelectingPoisonTarget {
             guard poisonCandidateTiles.contains(index) else { return }
             pendingPoisonTile = index
+            return
+        }
+        if isSelectingCleanseTarget {
+            guard cleanseCandidateTiles.contains(index) else { return }
+            pendingCleanseTile = index
             return
         }
         if isSelectingDamageTarget {
@@ -3006,6 +3076,7 @@ final class GameVM: ObservableObject {
         landTollZeroCandidateTiles = []
         cancelDamageSelection()
         cancelPoisonSelection()
+        cancelCleanseSelection()
         // ボードのハイライトも解除
         branchLandingTargets = []
     }
@@ -3243,6 +3314,35 @@ final class GameVM: ObservableObject {
         }
     }
 
+    func cancelCleanseSelection() {
+        isSelectingCleanseTarget = false
+        cleanseCandidateTiles = []
+        pendingCleanseTile = nil
+        pendingCleanseSpellName = nil
+        branchLandingTargets = []
+        battleResult = nil
+    }
+
+    func cancelCleanseConfirm() {
+        pendingCleanseTile = nil
+    }
+
+    func confirmCleanseSpell() {
+        guard isSelectingCleanseTarget,
+              let tile = pendingCleanseTile,
+              cleanseCandidateTiles.contains(tile) else {
+            cancelCleanseSelection()
+            return
+        }
+
+        let spellName = pendingCleanseSpellName
+        cancelCleanseSelection()
+
+        Task { @MainActor in
+            await self.applyCleanseSpell(to: tile, spellName: spellName)
+        }
+    }
+
     func cancelDamageSelection() {
         isSelectingDamageTarget = false
         damageCandidateTiles = []
@@ -3374,6 +3474,47 @@ final class GameVM: ObservableObject {
         }
 
         isHealingAnimating = false
+    }
+
+    @MainActor
+    private func applyCleanseSpell(to tile: Int, spellName: String?) async {
+        guard (0..<tileCount).contains(tile) else {
+            pushCenterMessage("対象のマスが存在しません")
+            return
+        }
+
+        var removed: [String] = []
+        if poisonedTiles.indices.contains(tile), poisonedTiles[tile] {
+            poisonedTiles[tile] = false
+            removed.append("毒")
+        }
+        if devastatedTiles.contains(tile) {
+            devastatedTiles.remove(tile)
+            removed.append("荒廃")
+        }
+        if harvestedTiles.contains(tile) {
+            harvestedTiles.remove(tile)
+            removed.append("豊作")
+        }
+
+        if removed.isEmpty {
+            pushCenterMessage("解除できる効果がありません")
+            return
+        }
+
+        focusTile = tile
+        triggerBoardWideEffect(.cure)
+
+        if removed.contains(where: { $0 == "荒廃" || $0 == "豊作" }) {
+            if toll.indices.contains(tile) {
+                toll[tile] = toll(at: tile)
+            }
+        }
+
+        let detail = removed.joined(separator: " / ")
+        pushCenterMessage("\(spellName ?? "スペル") で \(detail) を解除")
+
+        try? await Task.sleep(nanoseconds: 300_000_000)
     }
 
     @MainActor

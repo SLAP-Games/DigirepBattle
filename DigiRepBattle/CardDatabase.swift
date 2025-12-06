@@ -345,8 +345,8 @@ enum CardDatabase {
             id: "sp-cure",
             name: "浄化",
             symbol: "💫",
-            effect: .damageAnyCreature(30),
-            cost: 60
+            effect: .cleanseTileStatus,
+            cost: 100
         ),
 
         // --- GOLD ---

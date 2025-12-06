@@ -4,6 +4,7 @@ import Combine
 enum BoardWideSpellEffectKind: Equatable {
     case storm
     case disaster
+    case cure
 }
 
 struct BoardWideSpellEffectView: View {
@@ -13,6 +14,7 @@ struct BoardWideSpellEffectView: View {
     @State private var stormPulse = false
     @State private var lightningStates: [LightningState] = []
     @State private var lightningTimer = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
+    @State private var curePulse = false
 
     var body: some View {
         GeometryReader { geo in
@@ -22,13 +24,23 @@ struct BoardWideSpellEffectView: View {
                     stormView(size: geo.size)
                 case .disaster:
                     disasterView(size: geo.size)
+                case .cure:
+                    cureView(size: geo.size)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .onAppear {
                 animate = true
-                stormPulse = true
+                stormPulse = (kind == .storm)
+                curePulse = (kind == .cure)
                 refreshLightningStates(force: true)
+            }
+            .onChange(of: kind) { oldValue, newValue in
+                stormPulse = (kind == .storm)
+                curePulse = (kind == .cure)
+                if kind == .disaster {
+                    refreshLightningStates(force: true)
+                }
             }
         }
         .ignoresSafeArea()
@@ -121,6 +133,52 @@ struct BoardWideSpellEffectView: View {
         if !force, !lightningStates.isEmpty { return }
         lightningStates = (0..<3).map { _ in LightningState.random() }
     }
+
+    @ViewBuilder
+    private func cureView(size: CGSize) -> some View {
+        let maxDim = max(size.width, size.height)
+        ZStack {
+            Color.white.opacity(0.08)
+                .blendMode(.screen)
+
+            RadialGradient(colors: [Color.yellow.opacity(0.3), Color.white.opacity(0.05), .clear],
+                           center: .center,
+                           startRadius: 0,
+                           endRadius: maxDim * 0.7)
+
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.9), Color.yellow.opacity(0.4), Color.white.opacity(0.01)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 3
+                    )
+                    .frame(width: maxDim * (0.2 + CGFloat(index) * 0.05),
+                           height: maxDim * (0.2 + CGFloat(index) * 0.05))
+                    .scaleEffect(curePulse ? 4.0 : 0.2)
+                    .opacity(curePulse ? 0.0 : 0.6 - Double(index) * 0.1)
+                    .animation(
+                        .easeOut(duration: 1.1)
+                            .repeatForever(autoreverses: false)
+                            .delay(Double(index) * 0.15),
+                        value: curePulse
+                    )
+            }
+
+            Circle()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: maxDim * 0.3, height: maxDim * 0.3)
+                .blur(radius: 30)
+                .overlay(
+                    Circle()
+                        .stroke(Color.yellow.opacity(0.4), lineWidth: 2)
+                        .blur(radius: 4)
+                )
+        }
+    }
 }
 
 private struct LightningBoltShape: Shape {
@@ -130,7 +188,7 @@ private struct LightningBoltShape: Shape {
         var path = Path()
         let startX = rect.midX
         path.move(to: CGPoint(x: startX, y: rect.minY))
-        let segments: [CGFloat] = [0.22, 0.45, 0.7, 0.9, 1.5]
+        let segments: [CGFloat] = [0.22, 0.45, 0.7, 0.9, 1.0]
         for (idx, progress) in segments.enumerated() {
             let bend = bends.indices.contains(idx) ? bends[idx] : 0
             let targetX = startX + bend * rect.width * 0.5
