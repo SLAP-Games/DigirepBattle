@@ -537,6 +537,51 @@ struct ContentView: View {
                         .transition(.opacity)
                         .zIndex(110)
                     }
+
+                    if vm.isSelectingPoisonTarget,
+                       let tile = vm.pendingPoisonTile,
+                       vm.poisonCandidateTiles.contains(tile) {
+
+                        ZStack {
+                            Color.black.opacity(0.55)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 14) {
+                                Text(vm.pendingPoisonSpellName ?? "スペル")
+                                    .font(.headline)
+                                    .padding(.top, 4)
+
+                                Text("マス \(tile + 1) のクリーチャーを毒状態にしますか？")
+                                    .multilineTextAlignment(.center)
+                                    .font(.subheadline)
+
+                                Button("毒を付与する") {
+                                    vm.confirmPoisonSpell()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                HStack(spacing: 12) {
+                                    Button("対象を変更") {
+                                        vm.cancelPoisonConfirm()
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    Button("選択を終了") {
+                                        vm.cancelPoisonSelection()
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .shadow(radius: 12)
+                        }
+                        .transition(.opacity)
+                        .zIndex(111)
+                    }
                     
                     // sp-decay 用：レベルダウン確認ウインドウ
                     if let tile = vm.pendingLandLevelChangeTile,

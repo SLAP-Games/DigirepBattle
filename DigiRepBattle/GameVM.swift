@@ -129,6 +129,10 @@ final class GameVM: ObservableObject {
     @Published var pendingDamageAmount: Int = 0
     @Published var pendingDamageEffect: BoardWideSpellEffectKind? = nil
     @Published var pendingDamageSpellName: String? = nil
+    @Published var isSelectingPoisonTarget: Bool = false
+    @Published var poisonCandidateTiles: Set<Int> = []
+    @Published var pendingPoisonTile: Int? = nil
+    @Published var pendingPoisonSpellName: String? = nil
     @Published var activeBoardWideEffect: BoardWideSpellEffectKind? = nil
     @Published var isShowingDiceGlitch: Bool = false
     @Published var diceGlitchNumber: Int? = nil
@@ -678,6 +682,8 @@ final class GameVM: ObservableObject {
             return "任意の土地の通行料を2倍にする"
         case .damageAnyCreature(let n):
             return "任意のマスのクリーチャーに \(n) ダメージを与える"
+        case .poisonAnyCreature:
+            return "任意のマスのクリーチャーを毒状態にする"
 
         case .gainGold(let n):
             return "\(n)GOLDを獲得する"
@@ -1391,6 +1397,9 @@ final class GameVM: ObservableObject {
         case .damageAnyCreature(let n):
             beginDamageSpellSelection(amount: n, cardID: card.id, cardName: card.name)
 
+        case .poisonAnyCreature:
+            beginPoisonSpellSelection(cardName: card.name)
+
         case .teleport, .healHP,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1600,6 +1609,9 @@ final class GameVM: ObservableObject {
         case .damageAnyCreature(let n):
             beginDamageSpellSelection(amount: n, cardID: card.id, cardName: card.name)
 
+        case .poisonAnyCreature:
+            beginPoisonSpellSelection(cardName: card.name)
+
         case .teleport, .healHP,
              .gainGold, .stealGold,
              .inspectCreature,
@@ -1638,6 +1650,32 @@ final class GameVM: ObservableObject {
         pendingDamageAmount = amount
         pendingDamageEffect = boardWideEffectKind(for: cardID)
         pendingDamageSpellName = cardName
+        branchLandingTargets = candidates
+        battleResult = "『\(cardName)』の対象マスを選択してください"
+    }
+
+    private func beginPoisonSpellSelection(cardName: String) {
+        var candidates: Set<Int> = []
+
+        for i in 0..<tileCount {
+            guard creatureSymbol.indices.contains(i),
+                  creatureSymbol[i] != nil,
+                  hp.indices.contains(i),
+                  hp[i] > 0,
+                  poisonedTiles.indices.contains(i),
+                  poisonedTiles[i] == false else { continue }
+            candidates.insert(i)
+        }
+
+        if candidates.isEmpty {
+            pushCenterMessage("毒を付与できるマスがありません")
+            return
+        }
+
+        isSelectingPoisonTarget = true
+        poisonCandidateTiles = candidates
+        pendingPoisonTile = nil
+        pendingPoisonSpellName = cardName
         branchLandingTargets = candidates
         battleResult = "『\(cardName)』の対象マスを選択してください"
     }
@@ -2418,6 +2456,11 @@ final class GameVM: ObservableObject {
             pendingLandTollDoubleTile = index   // 通行量2倍確認ウインドウ表示用
             return
         }
+        if isSelectingPoisonTarget {
+            guard poisonCandidateTiles.contains(index) else { return }
+            pendingPoisonTile = index
+            return
+        }
         if isSelectingDamageTarget {
             guard damageCandidateTiles.contains(index) else { return }
             pendingDamageTile = index
@@ -2962,6 +3005,7 @@ final class GameVM: ObservableObject {
         pendingLandTollZeroTile = nil
         landTollZeroCandidateTiles = []
         cancelDamageSelection()
+        cancelPoisonSelection()
         // ボードのハイライトも解除
         branchLandingTargets = []
     }
@@ -3170,6 +3214,35 @@ final class GameVM: ObservableObject {
         branchLandingTargets = []
     }
 
+    func cancelPoisonSelection() {
+        isSelectingPoisonTarget = false
+        poisonCandidateTiles = []
+        pendingPoisonTile = nil
+        pendingPoisonSpellName = nil
+        branchLandingTargets = []
+        battleResult = nil
+    }
+
+    func cancelPoisonConfirm() {
+        pendingPoisonTile = nil
+    }
+
+    func confirmPoisonSpell() {
+        guard isSelectingPoisonTarget,
+              let tile = pendingPoisonTile,
+              poisonCandidateTiles.contains(tile) else {
+            cancelPoisonSelection()
+            return
+        }
+
+        let spellName = pendingPoisonSpellName
+        cancelPoisonSelection()
+
+        Task { @MainActor in
+            await self.applyPoisonSpell(to: tile, spellName: spellName)
+        }
+    }
+
     func cancelDamageSelection() {
         isSelectingDamageTarget = false
         damageCandidateTiles = []
@@ -3266,6 +3339,40 @@ final class GameVM: ObservableObject {
         pushCenterMessage(message)
 
         try? await Task.sleep(nanoseconds: 200_000_000)
+        isHealingAnimating = false
+    }
+
+    @MainActor
+    private func applyPoisonSpell(to tile: Int, spellName: String?) async {
+        guard creatureSymbol.indices.contains(tile),
+              creatureSymbol[tile] != nil,
+              hp.indices.contains(tile),
+              hp[tile] > 0,
+              poisonedTiles.indices.contains(tile) else {
+            pushCenterMessage("対象のクリーチャーが存在しません")
+            return
+        }
+
+        if poisonedTiles[tile] {
+            pushCenterMessage("すでに毒状態です")
+            return
+        }
+
+        poisonedTiles[tile] = true
+        pushCenterMessage("\(spellName ?? "スペル") で毒状態にしました")
+
+        let target = tile
+        focusTile = target
+        spellEffectTile = target
+        spellEffectKind = .poison
+        isHealingAnimating = true
+
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        if spellEffectTile == target && spellEffectKind == .poison {
+            spellEffectTile = nil
+        }
+
         isHealingAnimating = false
     }
 

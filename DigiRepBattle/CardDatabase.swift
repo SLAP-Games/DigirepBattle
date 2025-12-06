@@ -338,7 +338,7 @@ enum CardDatabase {
             id: "sp-poisonSmoke",
             name: "毒煙",
             symbol: "💨",
-            effect: .damageAnyCreature(30),
+            effect: .poisonAnyCreature,
             cost: 100
         ),
         "sp-cure": .spell(

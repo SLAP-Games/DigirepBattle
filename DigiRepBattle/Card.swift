@@ -34,6 +34,7 @@ enum SpellEffect: Equatable {
     case setLandTollZero         // 通行料 0（荒廃）
     case multiplyLandToll(Double)    // 通行料倍率（豊作なら 2.0）
     case damageAnyCreature(Int)  // 任意のクリーチャーにダメージ（大嵐など）
+    case poisonAnyCreature       // 任意のクリーチャーを毒状態にする
     case healHP(Int)             // 回復
     // --- 耐性条件つき全体攻撃 ---
     enum ResistCategory {
