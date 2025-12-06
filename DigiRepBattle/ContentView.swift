@@ -284,7 +284,9 @@ struct ContentView: View {
                             right: R,
                             attribute: vm.battleAttr,
                             defenderHasFirstStrike: vm.defenderHasFirstStrike,
-                            isItemSelecting: $vm.isBattleItemSelectionPhase
+                            isItemSelecting: $vm.isBattleItemSelectionPhase,
+                            isShowingBattleSpellEffect: vm.isShowingBattleSpellEffect,
+                            battleSpellEffectID: vm.battleSpellEffectID
                         ) { finalL, finalR in
                             vm.finishBattle(finalL: finalL, finalR: finalR)
                         }

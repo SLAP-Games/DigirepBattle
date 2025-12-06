@@ -135,6 +135,9 @@ final class GameVM: ObservableObject {
     @Published var poisonCandidateTiles: Set<Int> = []
     @Published var pendingPoisonTile: Int? = nil
     @Published var pendingPoisonSpellName: String? = nil
+    @Published var isShowingBattleSpellEffect: Bool = false
+    @Published var battleSpellEffectID: UUID = UUID()
+    private var pendingBranchDestination: Int? = nil
     @Published var isSelectingCleanseTarget: Bool = false
     @Published var cleanseCandidateTiles: Set<Int> = []
     @Published var pendingCleanseTile: Int? = nil
@@ -849,6 +852,7 @@ final class GameVM: ObservableObject {
     func continueMoveAnimated() async {
         while stepsLeft > 0 {
             advanceOneStep()
+            SoundManager.shared.playMoveSound()
 
             // 分岐UIが出たら入力待ちで中断（ここまでで1歩進んだ）
             if branchSource != nil {
@@ -968,10 +972,7 @@ final class GameVM: ObservableObject {
             moveDir[turn] = .cw
         }
 
-        // マス5にいた状態から「選んだ先へ」即1歩進む（消費）
-        players[turn].pos = chosenNext
-        stepsLeft = max(0, stepsLeft - 1)
-        focusTile = players[turn].pos
+        pendingBranchDestination = chosenNext
     }
     
     // 選択肢ごとの進行方向
@@ -1030,7 +1031,13 @@ final class GameVM: ObservableObject {
     private func advanceOneStep() {
         // まず通常の1歩前進
         let cur = players[turn].pos
-        let next = nextIndex(for: turn, from: cur)
+        let next: Int
+        if cur == CROSS_NODE, let pending = pendingBranchDestination {
+            next = pending
+            pendingBranchDestination = nil
+        } else {
+            next = nextIndex(for: turn, from: cur)
+        }
         players[turn].pos = next
         stepsLeft -= 1
         awardCheckpointIfNeeded(entering: next, pid: turn)
@@ -1843,7 +1850,9 @@ final class GameVM: ObservableObject {
         // ★ 支払い＋効果適用に成功した場合だけ手札から削除
         if applyBattleEquipment(card, by: pid) {
             consumeFromHand(card, for: pid)
-            isBattleItemSelectionPhase = false
+            playBattleSpellCastEffect {
+                self.isBattleItemSelectionPhase = false
+            }
         }
     }
 
@@ -1878,6 +1887,18 @@ final class GameVM: ObservableObject {
         diceGlitchNumber = number
         isShowingDiceGlitch = true
         SoundManager.shared.playDiceFixSE()
+    }
+
+    private func playBattleSpellCastEffect(completion: @escaping () -> Void) {
+        battleSpellEffectID = UUID()
+        isShowingBattleSpellEffect = true
+        SoundManager.shared.playBattleSpellSound()
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            self.isShowingBattleSpellEffect = false
+            completion()
+        }
     }
 
 // MARK: ---------------------------------------------------------------------------

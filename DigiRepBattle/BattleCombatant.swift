@@ -178,6 +178,8 @@ public struct BattleOverlayView: View {
     let defenderHasFirstStrike: Bool
     
     @Binding public var isItemSelecting: Bool
+    public let isShowingBattleSpellEffect: Bool
+    public let battleSpellEffectID: UUID
 
 //    @StateObject private var vm = GameVM()
     
@@ -195,6 +197,8 @@ public struct BattleOverlayView: View {
     @State private var useFirstImage = true
     @State private var hasStartedTimeline = false
     private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
+    @State private var flashOpacity: Double = 0
+    @State private var shakeOffset: CGFloat = 0
 
     public init(
         left: BattleCombatant,
@@ -202,6 +206,8 @@ public struct BattleOverlayView: View {
         attribute: BattleAttribute,
         defenderHasFirstStrike: Bool,
         isItemSelecting: Binding<Bool>,
+        isShowingBattleSpellEffect: Bool,
+        battleSpellEffectID: UUID,
         onFinished: @escaping (BattleCombatant, BattleCombatant) -> Void
     ) {
         self.left = left
@@ -209,6 +215,8 @@ public struct BattleOverlayView: View {
         self.attribute = attribute
         self.defenderHasFirstStrike = defenderHasFirstStrike
         self._isItemSelecting = isItemSelecting
+        self.isShowingBattleSpellEffect = isShowingBattleSpellEffect
+        self.battleSpellEffectID = battleSpellEffectID
         self.onFinished = onFinished
         _L = State(initialValue: left)
         _R = State(initialValue: right)
@@ -225,7 +233,7 @@ public struct BattleOverlayView: View {
             let hudH: CGFloat = 76
             let totalH: CGFloat = bandH * 2 + centerH + hudH
             
-            ZStack {
+            let mainBattleLayers = ZStack {
                 ZStack {
                     Color.black.opacity(0.6)
                     
@@ -328,6 +336,27 @@ public struct BattleOverlayView: View {
                     .padding()
                 }
             }
+            mainBattleLayers
+                .offset(y: shakeOffset)
+                .overlay(
+                    Color.red
+                        .opacity(flashOpacity)
+                        .blendMode(.screen)
+                        .ignoresSafeArea()
+                )
+                .overlay(
+                    Color.white
+                        .opacity(isShowingBattleSpellEffect ? 0.45 : 0)
+                        .blendMode(.screen)
+                        .ignoresSafeArea()
+                )
+                .overlay {
+                    if isShowingBattleSpellEffect {
+                        BattleSpellCastView(token: battleSpellEffectID)
+                            .frame(width: geo.size.width * 0.45)
+                            .transition(.opacity)
+                    }
+                }
         }
         .ignoresSafeArea()
         .contentShape(Rectangle())
@@ -510,6 +539,8 @@ public struct BattleOverlayView: View {
     }
 
     private func showHit(onRight: Bool) {
+        SoundManager.shared.playAttackSound()
+        triggerImpactEffect()
         if onRight {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { showDmgRight = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
@@ -522,6 +553,22 @@ public struct BattleOverlayView: View {
             }
         }
     }
+
+private func triggerImpactEffect() {
+        flashOpacity = 0.4
+        withAnimation(.easeOut(duration: 0.25)) {
+            flashOpacity = 0
+        }
+
+        let shakeSequence: [CGFloat] = [-12, 10, -8, 6, -3, 0]
+        for (idx, value) in shakeSequence.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(idx) * 0.05) {
+                withAnimation(.easeInOut(duration: 0.05)) {
+                    shakeOffset = value
+                }
+            }
+        }
+    }
     
     private func finishNow() {
         guard !isFinished else { return }
@@ -531,5 +578,33 @@ public struct BattleOverlayView: View {
             onFinished(L, R)
         }
 //        vm.expectBattleCardSelection = false
+    }
+}
+
+private struct BattleSpellCastView: View {
+    let token: UUID
+    @State private var isAnimating = false
+
+    var body: some View {
+        Image("cardLreverse")
+            .resizable()
+            .scaledToFit()
+            .shadow(color: .yellow.opacity(0.4), radius: 25, y: 10)
+            .opacity(isAnimating ? 0.0 : 0.95)
+            .scaleEffect(isAnimating ? 0.35 : 1.2)
+            .blendMode(.screen)
+            .onAppear { startAnimation() }
+            .onChange(of: token) { _, _ in startAnimation() }
+    }
+
+    private func startAnimation() {
+        withAnimation(.none) {
+            isAnimating = false
+        }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.6)) {
+                isAnimating = true
+            }
+        }
     }
 }

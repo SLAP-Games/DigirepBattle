@@ -74,6 +74,18 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: name)
     }
 
+    func playAttackSound() {
+        playSE(named: "attackSound")
+    }
+
+    func playBattleSpellSound() {
+        playSE(named: "battleSpellSound")
+    }
+
+    func playMoveSound() {
+        playSE(named: "moveSound")
+    }
+
     private func playSE(named name: String) {
         guard isSoundOn else { return }
 
