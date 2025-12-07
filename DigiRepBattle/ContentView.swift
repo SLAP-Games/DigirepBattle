@@ -1091,23 +1091,6 @@ struct ContentView: View {
                         }
                     }
                     
-//                    if vm.isSelectingFullHealTarget {
-//                        VStack(spacing: 8) {
-//                            Text("回復するマスを選択してください")
-//                                .font(.subheadline).bold()
-//
-//                            Button("キャンセル") {
-//                                vm.cancelFullHealSelection()
-//                            }
-//                            .buttonStyle(.bordered)
-//                        }
-//                        .padding(8)
-//                        .background(.ultraThinMaterial)
-//                        .cornerRadius(12)
-//                        .padding(.bottom, 8)
-//                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-//                    }
-                    
                     VStack {
                         Image("line")
                             .resizable()

@@ -355,14 +355,14 @@ enum CardDatabase {
             name: "財宝",
             symbol: "💰",
             effect: .gainGold(500),
-            cost: 10
+            cost: 100
         ),
         "sp-plunder": .spell(
             id: "sp-plunder",
             name: "略奪",
             symbol: "🏴‍☠️",
             effect: .stealGold(200),
-            cost: 10
+            cost: 100
         ),
 
         // --- 情報系 ---

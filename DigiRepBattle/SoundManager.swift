@@ -69,6 +69,8 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
             name = "disasterSound"
         case .cure:
             name = "cureSound"
+        case .treasure:
+            name = "coinSound"
         }
 
         playSE(named: name)

@@ -36,24 +36,25 @@ extension DeckList {
         ]
 
         deck.spellSlots = [
-            "sp-dice1": 1,
-            "sp-dice3": 1,
-            "sp-dice6": 1,
-            "sp-doubleDice": 1,
-            "sp-firstStrike": 1,
-            "sp-hardFang": 1,
-            "sp-poisonFang": 1,
-            "sp-hardScale": 1,
-            "sp-draw2": 1,
-            "sp-deleteHand": 1,
-            "sp-elixir": 2,
-            "sp-decay": 2,
-            "sp-devastation": 2,
-            "sp-harvest": 2,
-            "sp-greatStorm": 1,
-            "sp-disaster": 2,
-            "sp-poisonSmoke": 2,
-            "sp-cure": 2
+//            "sp-dice1": 1,
+//            "sp-dice3": 1,
+//            "sp-dice6": 1,
+//            "sp-doubleDice": 1,
+//            "sp-firstStrike": 1,
+//            "sp-hardFang": 1,
+//            "sp-poisonFang": 1,
+//            "sp-hardScale": 1,
+//            "sp-draw2": 1,
+//            "sp-deleteHand": 1,
+//            "sp-elixir": 25,
+//            "sp-decay": 2,
+//            "sp-devastation": 2,
+//            "sp-harvest": 2,
+//            "sp-greatStorm": 1,
+//            "sp-disaster": 2,
+//            "sp-poisonSmoke": 2,
+//            "sp-cure": 2,
+            "sp-treasure": 25
         ]
 
         return deck

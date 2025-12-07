@@ -1,10 +1,16 @@
 import SwiftUI
 import Combine
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 enum BoardWideSpellEffectKind: Equatable {
     case storm
     case disaster
     case cure
+    case treasure
 }
 
 struct BoardWideSpellEffectView: View {
@@ -15,6 +21,9 @@ struct BoardWideSpellEffectView: View {
     @State private var lightningStates: [LightningState] = []
     @State private var lightningTimer = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
     @State private var curePulse = false
+    @State private var treasureCoins: [TreasureCoin] = []
+    @State private var treasureStartDate: Date = Date()
+    @State private var treasureGlowExpand = false
 
     var body: some View {
         GeometryReader { geo in
@@ -26,6 +35,8 @@ struct BoardWideSpellEffectView: View {
                     disasterView(size: geo.size)
                 case .cure:
                     cureView(size: geo.size)
+                case .treasure:
+                    treasureView(size: geo.size)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -34,6 +45,7 @@ struct BoardWideSpellEffectView: View {
                 stormPulse = (kind == .storm)
                 curePulse = (kind == .cure)
                 refreshLightningStates(force: true)
+                prepareTreasureEffectIfNeeded()
             }
             .onChange(of: kind) { oldValue, newValue in
                 stormPulse = (kind == .storm)
@@ -41,6 +53,7 @@ struct BoardWideSpellEffectView: View {
                 if kind == .disaster {
                     refreshLightningStates(force: true)
                 }
+                prepareTreasureEffectIfNeeded()
             }
         }
         .ignoresSafeArea()
@@ -134,6 +147,18 @@ struct BoardWideSpellEffectView: View {
         lightningStates = (0..<3).map { _ in LightningState.random() }
     }
 
+    private func prepareTreasureEffectIfNeeded() {
+        guard kind == .treasure else { return }
+        treasureStartDate = Date()
+        treasureCoins = (0..<25).map { _ in TreasureCoin.random() }
+        treasureGlowExpand = false
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 1.1)) {
+                treasureGlowExpand = true
+            }
+        }
+    }
+
     @ViewBuilder
     private func cureView(size: CGSize) -> some View {
         let maxDim = max(size.width, size.height)
@@ -179,6 +204,54 @@ struct BoardWideSpellEffectView: View {
                 )
         }
     }
+
+    @ViewBuilder
+    private func treasureView(size: CGSize) -> some View {
+        let startPoint = CGPoint(x: size.width / 2, y: size.height * 0.85)
+        let maxDim = max(size.width, size.height)
+
+        ZStack {
+            Color.black.opacity(0.2)
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.yellow.opacity(0.35),
+                            Color.yellow.opacity(0.05),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: maxDim * 0.8
+                    )
+                )
+                .scaleEffect(treasureGlowExpand ? 2.5 : 0.4)
+                .opacity(treasureGlowExpand ? 0.0 : 0.6)
+                .animation(.easeOut(duration: 1.1), value: treasureGlowExpand)
+
+            Circle()
+                .fill(Color.yellow.opacity(0.25))
+                .frame(width: maxDim * 0.6, height: maxDim * 0.6)
+                .blur(radius: 45)
+                .opacity(0.35)
+
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                let elapsed = max(0, timeline.date.timeIntervalSince(treasureStartDate))
+                ZStack {
+                    ForEach(treasureCoins) { coin in
+                        if let state = coin.state(at: elapsed, canvasSize: size, origin: startPoint) {
+                            CoinImageView(size: state.size)
+                                .rotation3DEffect(state.rotation3D, axis: state.axis)
+                                .rotationEffect(state.zRotation)
+                                .position(state.position)
+                                .opacity(state.opacity)
+                                .shadow(color: Color.yellow.opacity(0.4), radius: 6, x: 0, y: 0)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private struct LightningBoltShape: Shape {
@@ -197,6 +270,130 @@ private struct LightningBoltShape: Shape {
         }
         return path
     }
+}
+
+private struct TreasureCoinState {
+    let position: CGPoint
+    let size: CGFloat
+    let opacity: Double
+    let rotation3D: Angle
+    let axis: (x: CGFloat, y: CGFloat, z: CGFloat)
+    let zRotation: Angle
+}
+
+private struct TreasureCoin: Identifiable {
+    let id = UUID()
+    let horizontalDirection: CGFloat
+    let horizontalDistance: CGFloat
+    let peakHeight: CGFloat
+    let duration: Double
+    let delay: Double
+    let spinSpeed: Double
+    let axisX: CGFloat
+    let axisY: CGFloat
+    let baseSize: CGFloat
+    let initialTilt: Double
+    let initialZRotation: Double
+    let zRotationSpeed: Double
+
+    static func random() -> TreasureCoin {
+        TreasureCoin(
+            horizontalDirection: Bool.random() ? 1 : -1,
+            horizontalDistance: .random(in: 0.25...0.6),
+            peakHeight: .random(in: 0.25...0.45),
+            duration: .random(in: 0.9...1.3),
+            delay: .random(in: 0...0.3),
+            spinSpeed: .random(in: 1.6...3.2),
+            axisX: .random(in: -0.4...0.4),
+            axisY: .random(in: 0.4...1.0),
+            baseSize: .random(in: 0.045...0.08),
+            initialTilt: Double.random(in: 0...180),
+            initialZRotation: Double.random(in: 0...180),
+            zRotationSpeed: Double.random(in: -1.0...1.0)
+        )
+    }
+
+    func state(at elapsed: TimeInterval,
+               canvasSize: CGSize,
+               origin: CGPoint) -> TreasureCoinState? {
+        let local = elapsed - delay
+        guard local >= 0 else { return nil }
+        guard local <= duration else { return nil }
+        let progress = max(0, min(1, local / duration))
+        let ease = easeOutQuad(progress)
+        let horizontalTravel = horizontalDistance * canvasSize.width * 0.45
+        let x = origin.x + horizontalDirection * horizontalTravel * CGFloat(ease)
+        let height = peakHeight * canvasSize.height * 0.6
+        let parabola = 4 * progress * (1 - progress)
+        let y = origin.y - height * CGFloat(parabola) + CGFloat(progress) * canvasSize.height * 0.05
+        let maxDim = max(canvasSize.width, canvasSize.height)
+        let coinSize = maxDim * baseSize
+        let opacity = Double(max(0, 1 - pow(progress, 1.4)))
+        let rotationAngle = Angle.degrees(initialTilt + (spinSpeed * 360) * progress)
+        let zAngle = Angle.degrees(initialZRotation + (zRotationSpeed * 180) * progress)
+
+        let axisVector = normalizeAxis(x: axisX, y: axisY)
+
+        return TreasureCoinState(
+            position: CGPoint(x: x, y: y),
+            size: coinSize,
+            opacity: opacity,
+            rotation3D: rotationAngle,
+            axis: axisVector,
+            zRotation: zAngle
+        )
+    }
+
+    private func easeOutQuad(_ t: Double) -> Double {
+        let inv = 1 - t
+        return 1 - inv * inv
+    }
+
+    private func normalizeAxis(x: CGFloat, y: CGFloat) -> (x: CGFloat, y: CGFloat, z: CGFloat) {
+        let vector = CGVector(dx: x, dy: y)
+        let magnitude = max(0.001, sqrt(vector.dx * vector.dx + vector.dy * vector.dy))
+        return (x: vector.dx / magnitude, y: vector.dy / magnitude, z: 0.0)
+    }
+}
+
+private struct CoinImageView: View {
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if AssetAvailability.hasCoinAsset {
+                Image("coin")
+                    .resizable()
+                    .renderingMode(.original)
+            } else {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.yellow.opacity(0.9), Color.orange.opacity(0.6)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.6), lineWidth: 2)
+                    )
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+private enum AssetAvailability {
+    static let hasCoinAsset: Bool = {
+        #if canImport(UIKit)
+        return UIImage(named: "coin") != nil
+        #elseif canImport(AppKit)
+        return NSImage(named: NSImage.Name("coin")) != nil
+        #else
+        return true
+        #endif
+    }()
 }
 
 private struct LightningState {

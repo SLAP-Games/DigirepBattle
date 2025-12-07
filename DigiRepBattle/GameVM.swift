@@ -1440,8 +1440,12 @@ final class GameVM: ObservableObject {
         case .cleanseTileStatus:
             beginCleanseSpellSelection(card: card, cost: cost)
 
+        case .gainGold(let amount):
+            guard applyTreasureGain(amount: amount, cost: cost) else { return }
+            consumeFromHand(card, for: 0)
+
         case .teleport, .healHP,
-             .gainGold, .stealGold,
+             .stealGold,
              .inspectCreature,
              .aoeDamageByResist,
              .changeTileAttribute,
@@ -1646,8 +1650,12 @@ final class GameVM: ObservableObject {
         case .cleanseTileStatus:
             beginCleanseSpellSelection(card: card, cost: cost)
 
+        case .gainGold(let amount):
+            guard applyTreasureGain(amount: amount, cost: cost) else { return }
+            consumeFromHand(card, for: 0)
+
         case .teleport, .healHP,
-             .gainGold, .stealGold,
+             .stealGold,
              .inspectCreature,
              .aoeDamageByResist,
              .changeTileAttribute,
@@ -1761,6 +1769,17 @@ final class GameVM: ObservableObject {
             return nil
         }
     }
+
+    @discardableResult
+    private func applyTreasureGain(amount: Int, cost: Int) -> Bool {
+        guard paySpellCostIfNeeded(cost, by: 0) else { return false }
+        let gain = max(0, amount)
+        addGold(gain, to: 0)
+        pushCenterMessage("\(gain)GOLDを獲得（コスト\(cost)）")
+        triggerBoardWideEffect(.treasure)
+        return true
+    }
+
     /// 山札ショップなどから買ったスペルの共通適用口
     private func applySpellEffect(_ effect: SpellEffect, by pid: Int, targetTile: Int?) {
         switch effect {
@@ -1776,6 +1795,7 @@ final class GameVM: ObservableObject {
         case let .gainGold(n):
             addGold(n, to: pid)
             pushCenterMessage("\(n)GOLD を獲得")
+            triggerBoardWideEffect(.treasure)
 
         // ③ GOLD奪取（とりあえずシンプルに実装）
         case let .stealGold(n):
@@ -3196,6 +3216,7 @@ final class GameVM: ObservableObject {
         isSelectingFullHealTarget = false
         pendingFullHealTile = nil
         fullHealCandidateTiles = []
+        battleResult = nil
         // sp-decay 用もまとめてリセットしておく
         isSelectingLandLevelChangeTarget = false
         pendingLandLevelChangeTile = nil
@@ -3256,6 +3277,7 @@ final class GameVM: ObservableObject {
         fullHealCandidateTiles = []
         branchLandingTargets = []
         pendingFullHealTile = nil
+        battleResult = nil
     }
     
     /// 選択モード全体を終了（ウインドウもハイライトもまとめて解除）
