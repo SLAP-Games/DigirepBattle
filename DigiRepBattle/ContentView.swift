@@ -924,17 +924,28 @@ struct ContentView: View {
                     
                     if (vm.landedOnOpponentTileIndex != nil),
                        vm.turn == 0, vm.phase == .moved, !vm.expectBattleCardSelection {
+                        let canBattle = vm.hasSummonableCreature(for: 0)
                         ZStack{
-                            VStack {
+                            VStack(spacing: 12) {
                                 Text("相手の領地です。").bold()
 
-                                HStack(spacing: 12) {
-                                    Button("戦闘する") { vm.chooseBattle() }
-                                        .buttonStyle(.borderedProminent)
-                                    Button("通行料を払う") { vm.payTollAndEndChoice() }
-                                        .buttonStyle(.bordered)
+                                if canBattle {
+                                    HStack(spacing: 12) {
+                                        Button("戦闘する") { vm.chooseBattle() }
+                                            .buttonStyle(.borderedProminent)
+                                        Button("通行料を払う") { vm.payTollAndEndChoice() }
+                                            .buttonStyle(.bordered)
+                                    }
+                                    .padding(8)
+                                } else {
+                                    VStack(spacing: 8) {
+                                        Text("召喚できるデジレプがいないため戦闘できません")
+                                            .font(.footnote)
+                                        Button("通行料を払う") { vm.payTollAndEndChoice() }
+                                            .buttonStyle(.borderedProminent)
+                                    }
+                                    .padding(8)
                                 }
-                                .padding(8)
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -1067,7 +1078,7 @@ struct ContentView: View {
                     
                     if vm.isForcedSaleMode && vm.turn == 0 {
                         ZStack {
-                            Text("売却する土地を選んでください\n現在のマイナス \(vm.debtAmount) GOLD")
+                            Text("通行料が支払えません\n売却地を選択（現在:- \(vm.debtAmount) G）")
                                 .multilineTextAlignment(.center)
                                 .padding(8)
                                 .frame(maxWidth: .infinity)
@@ -1181,6 +1192,8 @@ struct CardDetailOverlay: View {
     @State private var appearOpacity: Double = 0
     @State private var appearOffsetY: CGFloat = 50
     @State private var spinAngle: Double = 0
+    @State private var isDiscardingCard = false
+    @State private var discardCompletionHandled = false
 
     private let frameImageName = "cardL"
     private let backImageName  = "cardLreverse"
@@ -1228,10 +1241,11 @@ struct CardDetailOverlay: View {
 
         // ② 手札捨て（コスト関係なし）
         if vm.mustDiscardFor == 0 {
+            let title = isDiscardingCard ? "削除中..." : "捨てる"
             return (
-                "捨てる",
-                { vm.discard(card, for: 0); onClose() },
-                true
+                title,
+                isDiscardingCard ? nil : { startDiscardSequence() },
+                !isDiscardingCard
             )
         }
 
@@ -1386,17 +1400,27 @@ struct CardDetailOverlay: View {
             withAnimation(.linear(duration: 0.7)) {
                 spinAngle = 360
             }
+            isDiscardingCard = false
+            discardCompletionHandled = false
         }
         .onDisappear {
             appearOpacity = 0
             appearOffsetY = 50
             spinAngle = 0
+            isDiscardingCard = false
+            discardCompletionHandled = false
         }
     }
 
     private var flipCardAngle: some View {
         FlipAngle(angle: spinAngle) {
-            FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
+            FrontCardFace(
+                card: card,
+                vm: vm,
+                frameImageName: frameImageName,
+                isDissolving: $isDiscardingCard,
+                onDissolveCompleted: completeDiscardIfNeeded
+            )
         } back: {
             BackCardFace(frameImageName: backImageName)
         }
@@ -1406,6 +1430,26 @@ struct CardDetailOverlay: View {
                 spinAngle += 360
             }
         }
+    }
+
+    private func startDiscardSequence() {
+        guard !isDiscardingCard else { return }
+        isDiscardingCard = true
+        SoundManager.shared.playDeleteSound()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+            completeDiscardIfNeeded()
+        }
+    }
+
+    private func completeDiscardIfNeeded() {
+        guard isDiscardingCard else { return }
+        guard !discardCompletionHandled else { return }
+        discardCompletionHandled = true
+        if vm.mustDiscardFor == 0 {
+            vm.discard(card, for: 0)
+        }
+        onClose()
     }
 }
 

@@ -18,25 +18,7 @@ import SwiftUI
 //            "cre-defaultBallPython": 5
 //        ]
 //        cardStates[0].deckList.spellSlots = [
-//            "sp-dice1": 1,
-//            "sp-dice2": 1,
-//            "sp-dice3": 1,
-//            "sp-dice4": 1,
-//            "sp-dice5": 1,
-//            "sp-dice6": 1,
-//            "sp-doubleDice": 1,
-//            "sp-firstStrike": 1,
-//            "sp-hardFang": 1,
-//            "sp-sharpFang": 1,
-//            "sp-poisonFang": 1,
-//            "sp-hardScale": 1,
-//            "sp-bigScale": 1,
-//            "sp-draw2": 2,
-//            "sp-deleteHand": 2,
-//            "sp-elixir": 2,
-//            "sp-decay": 2,
-//            "sp-devastation": 2,
-//            "sp-harvest": 2
+
 //        ]
 
 extension DeckList {
@@ -54,23 +36,24 @@ extension DeckList {
         ]
 
         deck.spellSlots = [
-            "sp-dice1":        1,
-            "sp-dice2":        1,
-            "sp-dice3":        1,
-            "sp-dice4":        1,
-            "sp-dice5":        1,
-            "sp-dice6":        1,
-            "sp-doubleDice":   1,
-            "sp-firstStrike":  1,
-            "sp-hardFang":     1,
-            "sp-sharpFang":    2,
-            "sp-poisonFang":   2,
-            "sp-hardScale":    2,
-            "sp-bigScale":     2,
-            "sp-draw2":        2,
-            "sp-deleteHand":   2,
-            "sp-elixir":       2,
-            "sp-decay":        2
+            "sp-dice1": 1,
+            "sp-dice3": 1,
+            "sp-dice6": 1,
+            "sp-doubleDice": 1,
+            "sp-firstStrike": 1,
+            "sp-hardFang": 1,
+            "sp-poisonFang": 1,
+            "sp-hardScale": 1,
+            "sp-draw2": 1,
+            "sp-deleteHand": 1,
+            "sp-elixir": 2,
+            "sp-decay": 2,
+            "sp-devastation": 2,
+            "sp-harvest": 2,
+            "sp-greatStorm": 1,
+            "sp-disaster": 2,
+            "sp-poisonSmoke": 2,
+            "sp-cure": 2
         ]
 
         return deck

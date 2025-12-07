@@ -7,6 +7,11 @@
 
 import SwiftUI
 import Combine
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct FlipAngle<Front: View, Back: View>: View, Animatable {
     // ← Animatable 準拠を追加
@@ -97,10 +102,61 @@ struct FrontCardFace: View {
     let card: Card
     @ObservedObject var vm: GameVM
     let frameImageName: String
+    @Binding var isDissolving: Bool
+    var onDissolveCompleted: (() -> Void)?
+    
     @State private var useFirstImage = true
+    @State private var neonProgress: Double = 0.0
+    @State private var isRunningDissolve = false
+    @State private var didNotifyDissolve = false
+
+    private let neonDuration: Double = 0.85
     private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
 
+    init(card: Card,
+         vm: GameVM,
+         frameImageName: String,
+         isDissolving: Binding<Bool> = .constant(false),
+         onDissolveCompleted: (() -> Void)? = nil) {
+        self.card = card
+        self.vm = vm
+        self.frameImageName = frameImageName
+        self._isDissolving = isDissolving
+        self.onDissolveCompleted = onDissolveCompleted
+    }
+
     var body: some View {
+        ZStack {
+            cardContent
+                .mask(
+                    NeonWipeMask(progress: neonProgress, isActive: isRunningDissolve)
+                )
+                .overlay(
+                    NeonLineOverlay(progress: neonProgress)
+                        .opacity(isRunningDissolve ? 1 : 0)
+                )
+        }
+        .compositingGroup()
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                useFirstImage.toggle()
+            }
+        }
+        .onAppear {
+            if isDissolving {
+                startDissolve()
+            }
+        }
+        .onChange(of: isDissolving) { _, newValue in
+            if newValue {
+                startDissolve()
+            } else if !newValue {
+                resetDissolveState()
+            }
+        }
+    }
+
+    private var cardContent: some View {
         ZStack {
             Image(frameImageName)
                 .resizable()
@@ -114,6 +170,7 @@ struct FrontCardFace: View {
                 let imgH    = h * 0.48
                 let heartH  = h * 0.052
                 let statsTopGap = h * 0.03
+                let detailFontSize = min(w, h) * 0.07
 
                 VStack(spacing: 0) {
                     Spacer().frame(height: topPad)
@@ -149,13 +206,19 @@ struct FrontCardFace: View {
                             .padding(.bottom, h * 0.06)
                         } else {
                             Spacer().frame(height: heartH / 2)
-                            Text(vm.spellDescription(for: card))
-                                .font(.system(size: min(w, h) * 0.07))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.leading)
-                                .lineSpacing(2)
-                                .padding(.horizontal, sidePad * 0.7)
-                                .padding(.bottom, h * 0.06)
+                            VStack(spacing: h * 0.015) {
+                                Text("コスト \(spellCostForDisplay())G")
+                                    .font(.system(size: detailFontSize, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Text(vm.spellDescription(for: card))
+                                    .font(.system(size: detailFontSize))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.leading)
+                                    .lineSpacing(2)
+                            }
+                            .padding(.horizontal, sidePad * 0.7)
+                            .padding(.bottom, h * 0.06)
                         }
                     }
                 }
@@ -164,11 +227,108 @@ struct FrontCardFace: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
         }
-        .onReceive(timer) { _ in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                useFirstImage.toggle()
-            }
+    }
+
+    private func spellCostForDisplay() -> Int {
+        if let defCost = CardDatabase.definition(for: card.id)?.cost {
+            return defCost
         }
+        return card.cost
+    }
+
+    private func startDissolve() {
+        guard !isRunningDissolve else { return }
+        isRunningDissolve = true
+        didNotifyDissolve = false
+        neonProgress = 0.0
+
+        withAnimation(.easeInOut(duration: neonDuration)) {
+            neonProgress = 1.0
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + neonDuration) {
+            notifyDissolveCompletion()
+        }
+    }
+
+    private func resetDissolveState() {
+        isRunningDissolve = false
+        neonProgress = 0.0
+    }
+
+    private func notifyDissolveCompletion() {
+        guard !didNotifyDissolve else { return }
+        didNotifyDissolve = true
+        isRunningDissolve = false
+        onDissolveCompleted?()
+    }
+}
+
+private struct NeonWipeMask: View {
+    let progress: Double
+    let isActive: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let clamped = isActive ? min(max(progress, 0), 1) : 0
+            Color.white
+                .frame(width: geo.size.width, height: geo.size.height)
+                .scaleEffect(
+                    x: 1,
+                    y: max(0.0001, 1 - clamped),
+                    anchor: .bottom
+                )
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct NeonLineOverlay: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            let clamped = min(max(progress, 0), 1)
+            let height = geo.size.height
+            let width = geo.size.width
+            let lineThickness = max(4, height * 0.02)
+            let glowHeight = lineThickness * 3
+            let yTop = (height - lineThickness) * clamped
+            let lineCenter = yTop + lineThickness / 2
+            let glowCenter = yTop + glowHeight / 2
+
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.cyan.opacity(0.35),
+                        Color.cyan.opacity(0.05)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: width, height: glowHeight)
+                .position(x: width / 2, y: glowCenter)
+
+                RoundedRectangle(cornerRadius: lineThickness / 2)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.cyan.opacity(0.2),
+                                Color.cyan,
+                                Color.cyan.opacity(0.2)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: width * 0.9, height: lineThickness)
+                    .shadow(color: Color.cyan.opacity(0.8), radius: 10, x: 0, y: 0)
+                    .position(x: width / 2, y: lineCenter)
+            }
+            .frame(width: width, height: height)
+        }
+        .allowsHitTesting(false)
+        .compositingGroup()
     }
 }
 

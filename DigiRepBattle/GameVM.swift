@@ -340,6 +340,13 @@ final class GameVM: ObservableObject {
         }
 
         showSpecialMenu = false
+
+        if turn == 0,
+           isForcedSaleMode {
+            pushCenterMessage("通行料を支払えません\n売却地を選択（現在:- \(debtAmount) G）")
+            return
+        }
+
         beginTurnTransition()
     }
     
@@ -896,11 +903,11 @@ final class GameVM: ObservableObject {
         // 敵マスに止まった
         landedOnOpponentTileIndex = t
 
-        // 攻撃側（= 今動いた側）がクリーチャーカードを持っているか
-        let hasCreature = hands[turn].contains(where: { $0.kind == .creature })
+        // 攻撃側（= 今動いた側）が召喚可能なクリーチャーカードを持っているか
+        let canSummonForBattle = hasSummonableCreature(for: turn)
 
         // 1) そもそも攻撃側がクリーチャーを持っていない → 共通で通行料
-        if !hasCreature {
+        if !canSummonForBattle {
             transferToll(from: turn, to: own, tile: t)
             battleResult = (turn == 1)
                 ? "通行料を奪った"      // CPUが払ってあなたが受取
@@ -969,6 +976,15 @@ final class GameVM: ObservableObject {
             let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4
             let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4
             return lScore < rScore
+        }
+    }
+
+    func hasSummonableCreature(for pid: Int) -> Bool {
+        guard hands.indices.contains(pid),
+              players.indices.contains(pid) else { return false }
+        let gold = players[pid].gold
+        return hands[pid].contains {
+            $0.kind == .creature && summonCost(of: $0) <= gold
         }
     }
 
@@ -2934,6 +2950,10 @@ final class GameVM: ObservableObject {
     
     func chooseBattle() {
         guard landedOnOpponentTileIndex != nil else { return }
+        guard hasSummonableCreature(for: turn) else {
+            payTollAndEndChoice()
+            return
+        }
         expectBattleCardSelection = true
         canEndTurn = true
         showLogOverlay = false
