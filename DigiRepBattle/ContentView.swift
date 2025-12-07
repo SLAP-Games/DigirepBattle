@@ -45,7 +45,11 @@ struct ContentView: View {
                         isHealingAnimating: vm.isHealingAnimating,
                         healingAmounts: vm.healingAmounts,
                         spellEffectTile: vm.spellEffectTile,
-                        spellEffectKind: vm.spellEffectKind
+                        spellEffectKind: vm.spellEffectKind,
+                        plunderEffectTile: vm.plunderEffectTile,
+                        plunderEffectTrigger: vm.plunderEffectTrigger,
+                        npcShakeActive: vm.npcShakeActive,
+                        forceCameraFocus: vm.forceCameraFocus
                     )
                     .frame(height: boardH)
                     .background {

@@ -281,7 +281,7 @@ enum CardDatabase {
             name: "ドロー2",
             symbol: "📥",
             effect: .drawCards(2),
-            cost: 20
+            cost: 30
         ),
         "sp-deleteHand": .spell(
             id: "sp-deleteHand",
@@ -297,7 +297,7 @@ enum CardDatabase {
             name: "秘薬",
             symbol: "🧪",
             effect: .fullHealAnyCreature,
-            cost: 20
+            cost: 50
         ),
         "sp-decay": .spell(
             id: "sp-decay",
@@ -371,7 +371,7 @@ enum CardDatabase {
             name: "透視",
             symbol: "👁",
             effect: .inspectCreature,
-            cost: 20
+            cost: 50
         ),
 
         // --- 耐性条件つき全体攻撃 ---

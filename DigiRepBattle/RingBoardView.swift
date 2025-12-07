@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 import SpriteKit
 
 enum TileAttribute: String {
@@ -61,6 +62,10 @@ struct RingBoardView: View {
     // ★ SpellEffectScene 用：回復エフェクトを出すマス
     var spellEffectTile: Int? = nil
     var spellEffectKind: SpellEffectScene.EffectKind = .heal
+    var plunderEffectTile: Int? = nil
+    var plunderEffectTrigger: UUID = UUID()
+    var npcShakeActive: Bool = false
+    var forceCameraFocus: Bool = false
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -143,7 +148,7 @@ struct RingBoardView: View {
                             SpellEffectTileOverlay(size: tileSize, kind: spellEffectKind)
                                 .allowsHitTesting(false)
                         }
-
+                        
                         // ★ 回復アニメーションの数字表示
                         if let heal = healingAmounts[idx] {
                             if heal >= 0 {
@@ -187,9 +192,24 @@ struct RingBoardView: View {
                     .position(p1CornerPoint)
                     .animation(.interpolatingSpring(stiffness: 400, damping: 28), value: p1Pos)
 
-                TokenView(systemName: "person.fill", color: .red, hopFlag: $p2HopFlag)
-                    .position(p2CornerPoint)
-                    .animation(.interpolatingSpring(stiffness: 400, damping: 28), value: p2Pos)
+                ShakingView(isActive: npcShakeActive) {
+                    TokenView(systemName: "person.fill", color: .red, hopFlag: $p2HopFlag)
+                }
+                .position(p2CornerPoint)
+                .animation(.interpolatingSpring(stiffness: 400, damping: 28), value: p2Pos)
+
+                if let overlayTile = plunderEffectTile,
+                   let node = graph.first(where: { $0.id == overlayTile })
+                {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    PlunderCoinOverlay(trigger: plunderEffectTrigger)
+                        .frame(width: tileSize * 2.4, height: tileSize * 2.6)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                        .zIndex(50)
+                }
 
                 // 分岐選択UI（既存そのまま）
                 if let src = branchSource,
@@ -273,7 +293,7 @@ struct RingBoardView: View {
                 }
             }
             .onChange(of: focusTile) { _, new in
-                guard let idx = new, (autoFollowCamera || isHealingAnimating) else { return }
+                guard let idx = new, (autoFollowCamera || isHealingAnimating || forceCameraFocus) else { return }
                 DispatchQueue.main.async {
                     centerOnTile(idx,
                                  in: geo.size,
@@ -527,6 +547,50 @@ private struct TokenView: View {
     }
 }
 
+private struct ShakingView<Content: View>: View {
+    let isActive: Bool
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if isActive {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                content()
+                    .offset(
+                        x: sin(t * 45) * 3.0,
+                        y: sin(t * 70) * 2.0
+                    )
+                    .rotationEffect(.degrees(sin(t * 90) * 3.5))
+            }
+        } else {
+            content()
+        }
+    }
+}
+
+private struct PlunderCoinOverlay: View {
+    let trigger: UUID
+
+    var body: some View {
+        ZStack {
+            RadialGradient(
+                colors: [
+                    Color.yellow.opacity(0.35),
+                    Color.yellow.opacity(0.05),
+                    .clear
+                ],
+                center: .bottom,
+                startRadius: 0,
+                endRadius: 140
+            )
+            .blur(radius: 20)
+            .opacity(0.7)
+            CoinBurstField(config: .plunderLocal, trigger: trigger)
+        }
+        .compositingGroup()
+    }
+}
+
 
 private func tileCornerPosition(
     for grid: I2,
@@ -547,4 +611,3 @@ private func tileCornerPosition(
                        y: cy - tileSize/2 + inset)
     }
 }
-

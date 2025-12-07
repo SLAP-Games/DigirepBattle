@@ -54,7 +54,9 @@ extension DeckList {
 //            "sp-disaster": 2,
 //            "sp-poisonSmoke": 2,
 //            "sp-cure": 2,
-            "sp-treasure": 25
+//            "sp-treasure": 25,
+//            "sp-plunder": 25,
+            "sp-clairvoyance": 25
         ]
 
         return deck

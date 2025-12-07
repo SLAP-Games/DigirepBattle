@@ -102,6 +102,7 @@ final class GameVM: ObservableObject {
         PlayerCardState(collection: CardCollection(), deckList: DeckList())
     ]
     @Published var doubleDice: [Bool] = [false, false]
+    @Published var clairvoyanceRevealedCreatureIDs: [Set<String>] = [[], []]
     @Published var isBattleItemSelectionPhase: Bool = false
     @Published var isHealingAnimating: Bool = false
     @Published var healingAmounts: [Int: Int] = [:]
@@ -120,6 +121,10 @@ final class GameVM: ObservableObject {
     // ★ SpellEffectScene 用：タイル上に出すエフェクト（回復／毒 など）
     @Published var spellEffectTile: Int? = nil
     @Published var spellEffectKind: SpellEffectScene.EffectKind = .heal
+    @Published var plunderEffectTile: Int? = nil
+    @Published var plunderEffectTrigger: UUID = UUID()
+    @Published var npcShakeActive: Bool = false
+    @Published var forceCameraFocus: Bool = false
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
@@ -175,6 +180,7 @@ final class GameVM: ObservableObject {
     private var pendingSpellHandIndex: Int? = nil
     private var pendingSpellCost: Int = 0
     private var willPoisonDefender: Bool = false
+    private var plunderAnimationTask: Task<Void, Never>? = nil
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
     private let CHECKPOINTS: Set<Int> = [0, 4, 20]
@@ -1329,6 +1335,15 @@ final class GameVM: ObservableObject {
                     battleResult = "このカードが削除されました"
                 }
             }
+
+        case .stealGold(let amount):
+            guard applyPlunderSpell(amount: amount, cost: cost) else { return }
+            consumeFromHand(card, for: 0)
+
+        case .inspectCreature:
+            guard target == 0 else { break }
+            guard applyClairvoyanceSpell(for: 0, cost: cost) else { return }
+            consumeFromHand(card, for: 0)
             
         case .fullHealAnyCreature:
             // 自軍の、HPが減っているマスだけを候補にする
@@ -1445,8 +1460,6 @@ final class GameVM: ObservableObject {
             consumeFromHand(card, for: 0)
 
         case .teleport, .healHP,
-             .stealGold,
-             .inspectCreature,
              .aoeDamageByResist,
              .changeTileAttribute,
              .purgeAllCreatures:
@@ -1539,6 +1552,14 @@ final class GameVM: ObservableObject {
                 isSelectingOpponentHandToDelete = true
                 deletingTargetPlayer = opponent
             }
+            consumeFromHand(card, for: 0)
+            
+        case .stealGold(let amount):
+            guard applyPlunderSpell(amount: amount, cost: cost) else { return }
+            consumeFromHand(card, for: 0)
+
+        case .inspectCreature:
+            guard applyClairvoyanceSpell(for: 0, cost: cost) else { return }
             consumeFromHand(card, for: 0)
             
         case .fullHealAnyCreature:
@@ -1655,8 +1676,6 @@ final class GameVM: ObservableObject {
             consumeFromHand(card, for: 0)
 
         case .teleport, .healHP,
-             .stealGold,
-             .inspectCreature,
              .aoeDamageByResist,
              .changeTileAttribute,
              .purgeAllCreatures:
@@ -1765,6 +1784,8 @@ final class GameVM: ObservableObject {
             return .storm
         case "sp-disaster":
             return .disaster
+        case "sp-clairvoyance":
+            return .clairvoyance
         default:
             return nil
         }
@@ -1778,6 +1799,63 @@ final class GameVM: ObservableObject {
         pushCenterMessage("\(gain)GOLDを獲得（コスト\(cost)）")
         triggerBoardWideEffect(.treasure)
         return true
+    }
+
+    @discardableResult
+    private func applyPlunderSpell(amount: Int, cost: Int) -> Bool {
+        guard paySpellCostIfNeeded(cost, by: 0) else { return false }
+        let stolen = stealGold(amount: amount, from: 1, to: 0, showVisual: true)
+        if stolen > 0 {
+            pushCenterMessage("\(stolen)GOLDを奪った（コスト\(cost)）")
+        } else {
+            pushCenterMessage("奪えるGOLDがありません（コスト\(cost)だけ消費）")
+        }
+        return true
+    }
+
+    @discardableResult
+    private func stealGold(amount: Int, from victim: Int, to thief: Int, showVisual: Bool) -> Int {
+        guard players.indices.contains(victim),
+              players.indices.contains(thief) else { return 0 }
+        let stolen = max(0, min(players[victim].gold, amount))
+        guard stolen > 0 else { return 0 }
+        addGold(-stolen, to: victim)
+        addGold(+stolen, to: thief)
+        if showVisual, thief == 0, victim == 1 {
+            triggerPlunderVisual(at: players[victim].pos)
+        }
+        return stolen
+    }
+
+    private func triggerPlunderVisual(at tile: Int) {
+        SoundManager.shared.playBoardWideEffectSound(.treasure)
+        plunderAnimationTask?.cancel()
+        plunderAnimationTask = nil
+
+        let previousFocus = focusTile
+        forceCameraFocus = true
+        focusTile = tile
+        plunderEffectTile = tile
+        plunderEffectTrigger = UUID()
+        npcShakeActive = true
+
+        plunderAnimationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            self.plunderEffectTile = nil
+            self.npcShakeActive = false
+
+            let restoreTile = previousFocus ?? self.players[self.turn].pos
+            if restoreTile != tile {
+                self.focusTile = restoreTile
+            }
+
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            self.forceCameraFocus = false
+            self.plunderAnimationTask = nil
+        }
     }
 
     /// 山札ショップなどから買ったスペルの共通適用口
@@ -1800,11 +1878,11 @@ final class GameVM: ObservableObject {
         // ③ GOLD奪取（とりあえずシンプルに実装）
         case let .stealGold(n):
             let other = 1 - pid
-            guard players.indices.contains(other) else { return }
-            let stolen = min(players[other].gold, n)
-            addGold(-stolen, to: other)
-            addGold(+stolen, to: pid)
+            let stolen = stealGold(amount: n, from: other, to: pid, showVisual: pid == 0 && other == 1)
             pushCenterMessage("\(stolen)GOLD を奪った")
+
+        case .inspectCreature:
+            performClairvoyance(for: pid)
             
         case let .drawCards(n):
             guard (0...1).contains(pid) else { return }
@@ -2522,10 +2600,50 @@ final class GameVM: ObservableObject {
     }
     
     func canSeeFullStats(of creature: Creature, viewer: Int) -> Bool {
-        // 自分の所有なら全表示。敵は基本HP以外非表示。
-        return creature.owner == viewer
-        // 例: 鑑定アイテム所持時は true を返す分岐を足せる
-        // if revealAllForEnemy { return true }
+        guard (0..<players.count).contains(viewer) else { return false }
+        if creature.owner == viewer { return true }
+        guard clairvoyanceRevealedCreatureIDs.indices.contains(viewer) else { return false }
+        return clairvoyanceRevealedCreatureIDs[viewer].contains(creature.id)
+    }
+
+    private func performClairvoyance(for pid: Int) {
+        guard clairvoyanceRevealedCreatureIDs.indices.contains(pid) else { return }
+        let enemyIDs = creatureOnTile.values
+            .filter { $0.owner != pid }
+            .map { $0.id }
+        var updated = clairvoyanceRevealedCreatureIDs[pid]
+        let beforeCount = updated.count
+        enemyIDs.forEach { updated.insert($0) }
+        clairvoyanceRevealedCreatureIDs[pid] = updated
+
+        if enemyIDs.isEmpty {
+            if pid == 0 {
+                pushCenterMessage("透視できる敵クリーチャーがいません")
+            } else {
+                pushCenterMessage("CPUは透視を使用しましたが対象がいません")
+            }
+        } else if updated.count > beforeCount {
+            if pid == 0 {
+                pushCenterMessage("敵クリーチャーのステータスを解析しました")
+            } else {
+                pushCenterMessage("CPUが透視を使用しました")
+            }
+        } else {
+            if pid == 0 {
+                pushCenterMessage("新たに解析できる敵クリーチャーはいません")
+            } else {
+                pushCenterMessage("CPUが透視を使用しました（新情報なし）")
+            }
+        }
+
+        triggerBoardWideEffect(.clairvoyance)
+    }
+
+    @discardableResult
+    private func applyClairvoyanceSpell(for pid: Int, cost: Int) -> Bool {
+        guard paySpellCostIfNeeded(cost, by: pid) else { return false }
+        performClairvoyance(for: pid)
+        return true
     }
     
     // マップ・クリーチャー情報を混ぜた検査VMを作る
