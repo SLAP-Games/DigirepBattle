@@ -31,6 +31,7 @@ struct ContentView: View {
                         hp: vm.hp,
                         hpMax: vm.hpMax,
                         highlightTargets: vm.branchLandingTargets,
+                        terrains: vm.terrain,
                         branchSource: vm.branchSource,
                         branchCandidates: vm.branchCandidates,
                         onPickBranch: { vm.pickBranch($0) },
@@ -529,6 +530,52 @@ struct ContentView: View {
 
                                     Button("選択を終了") {
                                         vm.cancelDamageSelection()
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground))
+                            )
+                            .shadow(radius: 12)
+                        }
+                        .transition(.opacity)
+                        .zIndex(110)
+                    }
+
+                    if vm.isSelectingTileAttributeTarget,
+                       let tile = vm.pendingTileAttributeTarget,
+                       vm.tileAttributeCandidateTiles.contains(tile),
+                       let kind = vm.pendingTileAttributeKind {
+
+                        ZStack {
+                            Color.black.opacity(0.55)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 14) {
+                                Text(vm.pendingTileAttributeSpellName ?? "スペル")
+                                    .font(.headline)
+                                    .padding(.top, 4)
+
+                                Text("マス \(tile + 1) を \(vm.tileAttributeName(for: kind)) に変更しますか？")
+                                    .multilineTextAlignment(.center)
+                                    .font(.subheadline)
+
+                                Button("地形を変化させる") {
+                                    vm.confirmTileAttributeChange()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                HStack(spacing: 12) {
+                                    Button("対象を変更") {
+                                        vm.cancelTileAttributeConfirm()
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    Button("選択を終了") {
+                                        vm.cancelTileAttributeSelection()
                                     }
                                     .buttonStyle(.bordered)
                                 }

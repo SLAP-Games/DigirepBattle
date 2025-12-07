@@ -20,6 +20,7 @@ struct BoardView: View {
                       hp: vm.hp,
                       hpMax: vm.hpMax,
                       highlightTargets: vm.branchLandingTargets,
+                      terrains: vm.terrain,
                       branchSource: vm.branchSource,
                       branchCandidates: vm.branchCandidates,
                       onPickBranch: { vm.pickBranch($0) },

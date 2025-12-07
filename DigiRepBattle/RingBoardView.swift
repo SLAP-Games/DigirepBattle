@@ -48,6 +48,7 @@ struct RingBoardView: View {
     let hp: [Int]
     let hpMax: [Int]
     let highlightTargets: Set<Int>
+    let terrains: [TileTerrain]
 
     // 分岐UI（既存そのまま）
     var branchSource: Int? = nil
@@ -72,7 +73,6 @@ struct RingBoardView: View {
     @State private var offset: CGSize = .zero
     @State private var gestureScale: CGFloat = 1.0
     @State private var gestureOffset: CGSize = .zero
-    @State private var terrains: [TileTerrain] = []
     @State private var p1HopFlag = false
     @State private var p2HopFlag = false
     @State private var autoFollowCamera = true
@@ -85,8 +85,6 @@ struct RingBoardView: View {
     var body: some View {
         GeometryReader { geo in
             let step = tileSize + gap
-            let count = graph.count
-
             // グリッド境界→盤の自然サイズ（原点はこのビューの左上）
             let (minX, maxX, minY, maxY) = bounds(graph.map { $0.grid })
             let spanX = CGFloat(maxX - minX)
@@ -276,11 +274,6 @@ struct RingBoardView: View {
                         gestureOffset = .zero
                     }
             )
-            .onAppear {
-                if terrains.count != count {
-                    terrains = buildFixedTerrains(count: count)
-                }
-            }
             // 初回レイアウト時に、現在プレイヤーの位置へ
             .onAppear {
                 if let idx = focusTile {
@@ -443,66 +436,6 @@ private func makeOverlappedSquareGraph(side s: Int) -> [BoardNode] {
 }
 
 // MARK: - 描画ユーティリティ
-private func generateTerrains(count: Int) -> [TileTerrain] {
-    var t = Array(repeating: TileTerrain(imageName: "field", attribute: .normal), count: count)
-
-    // 固定マス（1,5,21）= index 0,4,20
-    let fixed = [0, 4, 20].filter { $0 < count }
-    for i in fixed {
-        t[i] = TileTerrain(imageName: "town", attribute: .normal)
-    }
-
-    let candidates: [(String, TileAttribute)] = [
-        ("field", .normal),
-        ("desert", .dry),
-        ("water", .water),
-        ("fire",  .heat),
-        ("snow",  .cold),
-    ]
-
-    for i in 0..<count where !fixed.contains(i) {
-        if let pick = candidates.randomElement() {
-            t[i] = TileTerrain(imageName: pick.0, attribute: pick.1)
-        }
-    }
-    return t
-}
-
-private func buildFixedTerrains(count: Int) -> [TileTerrain] {
-    var t = Array(repeating: TileTerrain(imageName: "field", attribute: .normal), count: count)
-
-    // 1始まりの範囲を0始まりindexに適用するヘルパ
-    func setRange(_ startTile: Int, _ endTile: Int, _ image: String, _ attr: TileAttribute) {
-        let s = max(1, startTile)
-        let e = min(count, endTile)
-        guard s <= e else { return }
-        for tile in s...e {
-            t[tile - 1] = TileTerrain(imageName: image, attribute: attr)
-        }
-    }
-
-    // 指定：
-    setRange(1,1,"town",.normal)
-    // マス2〜4: field
-    setRange(2, 4, "field", .normal)
-    setRange(5,5,"town",.normal)
-    // マス6〜9: desert
-    setRange(6, 9, "desert", .dry)
-    // マス10〜13: water
-    setRange(10, 13, "water", .water)
-    // マス14〜16: field
-    setRange(14, 16, "field", .normal)
-    // マス17〜20: fire
-    setRange(17, 20, "fire", .heat)
-    setRange(21,21,"town",.normal)
-    // マス22〜25: snow
-    setRange(22, 25, "snow", .cold)
-    // マス26〜31: field
-    setRange(26, 31, "field", .normal)
-
-    return t
-}
-
 private func bounds(_ pts: [I2]) -> (Int, Int, Int, Int) {
     let xs = pts.map { $0.x }
     let ys = pts.map { $0.y }

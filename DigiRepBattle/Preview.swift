@@ -67,8 +67,8 @@ import SwiftUI
 //        .frame(width: 300, height: 300)
 //}
 //
-#Preview("harvest") {
-    SpellEffectPreviewView(kind: .harvest)
-        .frame(width: 300, height: 300)
-}
+//#Preview("harvest") {
+//    SpellEffectPreviewView(kind: .harvest)
+//        .frame(width: 300, height: 300)
+//}
 

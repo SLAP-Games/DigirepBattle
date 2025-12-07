@@ -60,6 +60,11 @@ struct SpellEffectPreviewView: View {
         case .devastation: return "Devastation Effect"
         case .place: return "Place Effect"
         case .harvest: return "Harvest Effect"
+        case .tileSnow: return "Snow Tile Effect"
+        case .tileDesert: return "Desert Tile Effect"
+        case .tileVolcano: return "Volcano Tile Effect"
+        case .tileJungle: return "Jungle Tile Effect"
+        case .tilePlain: return "Plain Tile Effect"
         }
     }
 

@@ -54,13 +54,17 @@ extension DeckList {
 //            "sp-disaster": 2,
 //            "sp-poisonSmoke": 2,
 //            "sp-cure": 2,
-            "sp-treasure": 1,
+//            "sp-treasure": 1,
 //            "sp-plunder": 25,
 //            "sp-clairvoyance": 25,
-            "sp-blizzard": 6,
-            "sp-eruption": 6,
-            "sp-heavyRain": 6,
-            "sp-drought": 6
+//            "sp-blizzard": 6,
+//            "sp-eruption": 6,
+//            "sp-heavyRain": 6,
+//            "sp-drought": 6,
+//            "sp-snowMountain": 6,
+//            "sp-desert": 6,
+//            "sp-volcano": 6,
+            "sp-jungle": 25
         ]
 
         return deck

@@ -20,6 +20,11 @@ final class SpellEffectScene: SKScene {
         case devastation
         case place
         case harvest
+        case tileSnow
+        case tileDesert
+        case tileVolcano
+        case tileJungle
+        case tilePlain
     }
     
     /// 再生完了時に呼ばれる（プレビューでは無視してもOK）
@@ -53,6 +58,16 @@ final class SpellEffectScene: SKScene {
         case .devastation: runDevastationEffect()
         case .place: runPlaceEffect()
         case .harvest: runHarvestEffect()
+        case .tileSnow:
+            runTileChangeEffect(primary: UIColor.white, accent: UIColor.systemBlue)
+        case .tileDesert:
+            runTileChangeEffect(primary: UIColor.yellow, accent: UIColor.orange)
+        case .tileVolcano:
+            runTileChangeEffect(primary: UIColor.orange, accent: UIColor.red)
+        case .tileJungle:
+            runTileChangeEffect(primary: UIColor.systemTeal, accent: UIColor.blue)
+        case .tilePlain:
+            runTileChangeEffect(primary: UIColor.systemGreen, accent: UIColor.yellow)
         }
     }
     
@@ -133,6 +148,82 @@ final class SpellEffectScene: SKScene {
 
         // 効果音
         onPlaySound?(.place)
+    }
+
+    private func runTileChangeEffect(primary: UIColor, accent: UIColor) {
+        let minSide = min(size.width, size.height)
+        let rectSize = CGSize(width: minSide * 0.9, height: minSide * 0.9)
+        let overlay = SKShapeNode(rectOf: rectSize, cornerRadius: minSide * 0.18)
+        overlay.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        overlay.fillColor = primary.withAlphaComponent(0.35)
+        overlay.strokeColor = accent.withAlphaComponent(0.9)
+        overlay.lineWidth = 4
+        overlay.alpha = 0
+        overlay.setScale(0.7)
+        overlay.zPosition = 5
+        addChild(overlay)
+
+        let overlayAnim = SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeAlpha(to: 1.0, duration: 0.12),
+                SKAction.scale(to: 1.0, duration: 0.12)
+            ]),
+            SKAction.wait(forDuration: 0.3),
+            SKAction.group([
+                SKAction.fadeOut(withDuration: 0.35),
+                SKAction.scale(to: 1.2, duration: 0.35)
+            ]),
+            .removeFromParent()
+        ])
+        overlay.run(overlayAnim)
+
+        let ring = SKShapeNode(circleOfRadius: minSide * 0.45)
+        ring.position = overlay.position
+        ring.strokeColor = accent.withAlphaComponent(0.8)
+        ring.lineWidth = 3
+        ring.alpha = 0
+        ring.zPosition = 6
+        addChild(ring)
+        ring.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.05),
+            SKAction.group([
+                SKAction.fadeAlpha(to: 1.0, duration: 0.08),
+                SKAction.scale(to: 1.05, duration: 0.08)
+            ]),
+            SKAction.group([
+                SKAction.fadeOut(withDuration: 0.4),
+                SKAction.scale(to: 1.3, duration: 0.4)
+            ]),
+            .removeFromParent()
+        ]))
+
+        let emitter = SKEmitterNode()
+        emitter.particleTexture = SKTexture(imageNamed: "effectStar")
+        emitter.position = overlay.position
+        emitter.particleBirthRate = 45
+        emitter.particleLifetime = 0.6
+        emitter.particleLifetimeRange = 0.2
+        emitter.particlePositionRange = CGVector(dx: rectSize.width * 0.4, dy: rectSize.height * 0.4)
+        emitter.particleSpeed = 80
+        emitter.particleSpeedRange = 30
+        emitter.emissionAngleRange = .pi * 2
+        emitter.particleAlpha = 0.9
+        emitter.particleAlphaSpeed = -1.5
+        emitter.particleScale = 0.16
+        emitter.particleScaleRange = 0.06
+        emitter.particleScaleSpeed = -0.18
+        emitter.particleColor = accent
+        emitter.particleColorBlendFactor = 1.0
+        emitter.zPosition = 7
+        addChild(emitter)
+
+        let seq = SKAction.sequence([
+            .wait(forDuration: 0.25),
+            .run { emitter.particleBirthRate = 0 },
+            .wait(forDuration: 0.4),
+            .removeFromParent()
+        ])
+        emitter.run(seq)
     }
     
     private func runHealEffect() {

@@ -140,6 +140,11 @@ final class GameVM: ObservableObject {
     @Published var poisonCandidateTiles: Set<Int> = []
     @Published var pendingPoisonTile: Int? = nil
     @Published var pendingPoisonSpellName: String? = nil
+    @Published var isSelectingTileAttributeTarget: Bool = false
+    @Published var tileAttributeCandidateTiles: Set<Int> = []
+    @Published var pendingTileAttributeTarget: Int? = nil
+    @Published var pendingTileAttributeKind: SpellEffect.TileKind? = nil
+    @Published var pendingTileAttributeSpellName: String? = nil
     @Published var isShowingBattleSpellEffect: Bool = false
     @Published var battleSpellEffectID: UUID = UUID()
     private var pendingBranchDestination: Int? = nil
@@ -198,6 +203,9 @@ final class GameVM: ObservableObject {
     private let HOME_NODE = 0
     private let CP1_NODE  = 4
     private let CP2_NODE  = 20
+    private var tileAttributeRestrictedTiles: Set<Int> {
+        [HOME_NODE, CP1_NODE, CP2_NODE]
+    }
     
     let sideCount: Int = 5
     let tileCount: Int
@@ -1458,6 +1466,27 @@ final class GameVM: ObservableObject {
                 battleResult = "通行量を 2 倍にするマスを選択してください"
             }
 
+        case .changeTileAttribute(let tileKind):
+            var candidates: Set<Int> = []
+            if tileCount > 0 {
+                for i in 0..<tileCount where !tileAttributeRestrictedTiles.contains(i) {
+                    candidates.insert(i)
+                }
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("地形を変更できるマスがありません")
+            } else {
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
+                isSelectingTileAttributeTarget = true
+                tileAttributeCandidateTiles = candidates
+                pendingTileAttributeTarget = nil
+                pendingTileAttributeKind = tileKind
+                pendingTileAttributeSpellName = card.name
+                branchLandingTargets = candidates
+                battleResult = "『\(card.name)』で地形を変更するマスを選択してください"
+            }
+
         case .damageAnyCreature(let n):
             beginDamageSpellSelection(amount: n, card: card, cost: cost)
 
@@ -1472,7 +1501,6 @@ final class GameVM: ObservableObject {
             consumeFromHand(card, for: 0)
 
         case .teleport, .healHP,
-             .changeTileAttribute,
              .purgeAllCreatures:
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("スペル『\(card.name)』の効果はまだ未実装です（コスト\(cost)だけ消費）")
@@ -1698,7 +1726,6 @@ final class GameVM: ObservableObject {
             consumeFromHand(card, for: 0)
 
         case .teleport, .healHP,
-             .changeTileAttribute,
              .purgeAllCreatures:
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("スペル『\(card.name)』の効果はまだ未実装です（コスト\(cost)だけ消費）")
@@ -1846,6 +1873,51 @@ final class GameVM: ObservableObject {
         }
     }
 
+    func tileAttributeName(for kind: SpellEffect.TileKind) -> String {
+        switch kind {
+        case .normal: return "平原"
+        case .dry:    return "砂漠"
+        case .water:  return "水辺"
+        case .heat:   return "火山"
+        case .cold:   return "雪原"
+        }
+    }
+
+    private func tileAttribute(from kind: SpellEffect.TileKind) -> TileAttribute {
+        switch kind {
+        case .normal: return .normal
+        case .dry:    return .dry
+        case .water:  return .water
+        case .heat:   return .heat
+        case .cold:   return .cold
+        }
+    }
+
+    private func terrainImageName(for attr: TileAttribute) -> String {
+        switch attr {
+        case .normal: return "field"
+        case .dry:    return "desert"
+        case .water:  return "water"
+        case .heat:   return "fire"
+        case .cold:   return "snow"
+        }
+    }
+
+    private func terrainEffectKind(for attr: TileAttribute) -> SpellEffectScene.EffectKind {
+        switch attr {
+        case .normal: return .tilePlain
+        case .dry:    return .tileDesert
+        case .water:  return .tileJungle
+        case .heat:   return .tileVolcano
+        case .cold:   return .tileSnow
+        }
+    }
+    
+    private func canChangeTileAttribute(at tile: Int) -> Bool {
+        guard (0..<tileCount).contains(tile) else { return false }
+        return !tileAttributeRestrictedTiles.contains(tile)
+    }
+
     private func resistValue(for category: SpellEffect.ResistCategory, at tile: Int) -> Int {
         switch category {
         case .dry:
@@ -1969,6 +2041,14 @@ final class GameVM: ObservableObject {
         isHealingAnimating = false
     }
 
+    private func recalcAllTolls() {
+        guard tileCount > 0 else { return }
+        for i in 0..<tileCount {
+            toll[i] = toll(at: i)
+        }
+        toll = toll
+    }
+
     @discardableResult
     private func applyTreasureGain(amount: Int, cost: Int) -> Bool {
         guard paySpellCostIfNeeded(cost, by: 0) else { return false }
@@ -2070,6 +2150,24 @@ final class GameVM: ObservableObject {
                 spellName: nil,
                 effect: boardWideEffectKind(for: category)
             )
+
+        case let .changeTileAttribute(tileKind):
+            guard let tile = targetTile else {
+                pushCenterMessage("地形を変更するマスが指定されていません")
+                return
+            }
+            guard canChangeTileAttribute(at: tile) else {
+                pushCenterMessage("ホームやチェックポイントでは使用できません")
+                return
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.applyTileAttributeChange(
+                    to: tile,
+                    kind: tileKind,
+                    spellName: nil
+                )
+            }
 
         case let .drawCards(n):
             guard (0...1).contains(pid) else { return }
@@ -2950,6 +3048,11 @@ final class GameVM: ObservableObject {
             // 候補外のマスは無視
             guard fullHealCandidateTiles.contains(index) else { return }
             pendingFullHealTile = index   // 確認ウインドウ表示用
+            return
+        }
+        if isSelectingTileAttributeTarget {
+            guard tileAttributeCandidateTiles.contains(index) else { return }
+            pendingTileAttributeTarget = index
             return
         }
         // === sp-decay のターゲット選択 ===
@@ -3843,6 +3946,51 @@ final class GameVM: ObservableObject {
         }
     }
 
+    func cancelTileAttributeSelection() {
+        restorePendingSpellUsage()
+        clearTileAttributeSelectionState()
+    }
+
+    private func clearTileAttributeSelectionState() {
+        isSelectingTileAttributeTarget = false
+        tileAttributeCandidateTiles = []
+        pendingTileAttributeTarget = nil
+        pendingTileAttributeKind = nil
+        pendingTileAttributeSpellName = nil
+        branchLandingTargets = []
+        battleResult = nil
+    }
+
+    func cancelTileAttributeConfirm() {
+        pendingTileAttributeTarget = nil
+    }
+
+    func confirmTileAttributeChange() {
+        guard isSelectingTileAttributeTarget,
+              let tile = pendingTileAttributeTarget,
+              tileAttributeCandidateTiles.contains(tile),
+              let kind = pendingTileAttributeKind else {
+            cancelTileAttributeSelection()
+            return
+        }
+
+        let spellName = pendingTileAttributeSpellName
+        guard finalizePendingSpellUsage() else {
+            cancelTileAttributeSelection()
+            return
+        }
+
+        clearTileAttributeSelectionState()
+
+        Task { @MainActor in
+            await self.applyTileAttributeChange(
+                to: tile,
+                kind: kind,
+                spellName: spellName
+            )
+        }
+    }
+
     func cancelDamageSelection() {
         restorePendingSpellUsage()
         clearDamageSelectionState()
@@ -4025,6 +4173,56 @@ final class GameVM: ObservableObject {
         pushCenterMessage("\(spellName ?? "スペル") で \(detail) を解除")
 
         try? await Task.sleep(nanoseconds: 300_000_000)
+    }
+
+    @MainActor
+    private func applyTileAttributeChange(to tile: Int,
+                                          kind: SpellEffect.TileKind,
+                                          spellName: String?) async {
+        guard (0..<tileCount).contains(tile) else {
+            pushCenterMessage("対象のマスが存在しません")
+            return
+        }
+        guard canChangeTileAttribute(at: tile) else {
+            pushCenterMessage("ホームやチェックポイントでは使用できません")
+            return
+        }
+
+        let attr = tileAttribute(from: kind)
+        let image = terrainImageName(for: attr)
+        let effectKind = terrainEffectKind(for: attr)
+
+        focusTile = tile
+        spellEffectTile = tile
+        spellEffectKind = effectKind
+
+        try? await Task.sleep(nanoseconds: 400_000_000)
+
+        if terrain.indices.contains(tile) {
+            terrain[tile] = TileTerrain(imageName: image, attribute: attr)
+        } else {
+            var updated = terrain
+            if updated.count != tileCount {
+                updated = buildFixedTerrain()
+            }
+            if updated.indices.contains(tile) {
+                updated[tile] = TileTerrain(imageName: image, attribute: attr)
+            }
+            terrain = updated
+        }
+        terrain = terrain
+
+        recalcAllTolls()
+
+        let attrName = tileAttributeName(for: kind)
+        let spellLabel = spellName ?? attrName
+        pushCenterMessage("『\(spellLabel)』でマス\(tile + 1)を\(attrName)に変更")
+
+        try? await Task.sleep(nanoseconds: 900_000_000)
+
+        if spellEffectTile == tile {
+            spellEffectTile = nil
+        }
     }
 
     @MainActor

@@ -442,18 +442,11 @@ enum CardDatabase {
             effect: .changeTileAttribute(.heat),
             cost: 30
         ),
-        "sp-flood": .spell(
-            id: "sp-flood",
-            name: "洪水",
+        "sp-jungle": .spell(
+            id: "sp-jungle",
+            name: "雨林",
             symbol: "🌊",
             effect: .changeTileAttribute(.water),
-            cost: 30
-        ),
-        "sp-plain": .spell(
-            id: "sp-plain",
-            name: "平原",
-            symbol: "🌱",
-            effect: .changeTileAttribute(.normal),
             cost: 30
         ),
 
