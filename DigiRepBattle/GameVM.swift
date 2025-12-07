@@ -728,7 +728,7 @@ final class GameVM: ObservableObject {
         case .inspectCreature:
             return "任意の相手クリーチャーのステータスを確認できる"
 
-        case .aoeDamageByResist(let category, let th, let n):
+        case .aoeDamageByResist(let category, _, let n):
             let label: String
             switch category {
             case .dry:   label = "乾耐性"
@@ -736,7 +736,7 @@ final class GameVM: ObservableObject {
             case .heat:  label = "熱耐性"
             case .cold:  label = "冷耐性"
             }
-            return "\(label)\(th)以上の全キャラクターに \(n) ダメージを与える"
+            return "マップ上の全クリーチャーに対し \(label)が8未満なら \(n) ダメージ、8以上なら \(n) - (耐性×3) のダメージを与える"
 
         case .changeTileAttribute(let kind):
             let label: String
@@ -1345,6 +1345,18 @@ final class GameVM: ObservableObject {
             guard applyClairvoyanceSpell(for: 0, cost: cost) else { return }
             consumeFromHand(card, for: 0)
             
+            
+        case .aoeDamageByResist(let category, _, let amount):
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
+            applyResistBasedAOE(
+                category: category,
+                amount: amount,
+                by: 0,
+                spellName: card.name,
+                effect: boardWideEffectKind(for: card.id)
+            )
+            consumeFromHand(card, for: 0)
+            
         case .fullHealAnyCreature:
             // 自軍の、HPが減っているマスだけを候補にする
             var candidates: Set<Int> = []
@@ -1460,7 +1472,6 @@ final class GameVM: ObservableObject {
             consumeFromHand(card, for: 0)
 
         case .teleport, .healHP,
-             .aoeDamageByResist,
              .changeTileAttribute,
              .purgeAllCreatures:
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
@@ -1560,6 +1571,17 @@ final class GameVM: ObservableObject {
 
         case .inspectCreature:
             guard applyClairvoyanceSpell(for: 0, cost: cost) else { return }
+            consumeFromHand(card, for: 0)
+
+        case .aoeDamageByResist(let category, _, let amount):
+            guard paySpellCostIfNeeded(cost, by: 0) else { return }
+            applyResistBasedAOE(
+                category: category,
+                amount: amount,
+                by: 0,
+                spellName: card.name,
+                effect: boardWideEffectKind(for: card.id)
+            )
             consumeFromHand(card, for: 0)
             
         case .fullHealAnyCreature:
@@ -1676,7 +1698,6 @@ final class GameVM: ObservableObject {
             consumeFromHand(card, for: 0)
 
         case .teleport, .healHP,
-             .aoeDamageByResist,
              .changeTileAttribute,
              .purgeAllCreatures:
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
@@ -1786,9 +1807,166 @@ final class GameVM: ObservableObject {
             return .disaster
         case "sp-clairvoyance":
             return .clairvoyance
+        case "sp-blizzard":
+            return .blizzard
+        case "sp-eruption":
+            return .eruption
+        case "sp-heavyRain":
+            return .heavyRain
+        case "sp-drought":
+            return .drought
         default:
             return nil
         }
+    }
+
+    private func boardWideEffectKind(for category: SpellEffect.ResistCategory) -> BoardWideSpellEffectKind? {
+        switch category {
+        case .dry:
+            return .drought
+        case .water:
+            return .heavyRain
+        case .heat:
+            return .eruption
+        case .cold:
+            return .blizzard
+        }
+    }
+
+    private func defaultAOESpellName(for category: SpellEffect.ResistCategory) -> String {
+        switch category {
+        case .dry:
+            return "干魃"
+        case .water:
+            return "豪雨"
+        case .heat:
+            return "噴火"
+        case .cold:
+            return "吹雪"
+        }
+    }
+
+    private func resistValue(for category: SpellEffect.ResistCategory, at tile: Int) -> Int {
+        switch category {
+        case .dry:
+            return rDry.indices.contains(tile) ? rDry[tile] : 0
+        case .water:
+            return rWat.indices.contains(tile) ? rWat[tile] : 0
+        case .heat:
+            return rHot.indices.contains(tile) ? rHot[tile] : 0
+        case .cold:
+            return rCold.indices.contains(tile) ? rCold[tile] : 0
+        }
+    }
+
+    private func resistBasedDamage(base: Int, resist: Int) -> Int {
+        guard base > 0 else { return 0 }
+        if resist < 8 {
+            return base
+        }
+        return max(0, base - resist * 3)
+    }
+
+    private func applyResistBasedAOE(category: SpellEffect.ResistCategory,
+                                     amount: Int,
+                                     by pid: Int,
+                                     spellName: String?,
+                                     effect: BoardWideSpellEffectKind?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runResistBasedAOE(
+                category: category,
+                baseDamage: amount,
+                caster: pid,
+                spellName: spellName,
+                effect: effect
+            )
+        }
+    }
+
+    @MainActor
+    private func runResistBasedAOE(category: SpellEffect.ResistCategory,
+                                   baseDamage: Int,
+                                   caster: Int,
+                                   spellName: String?,
+                                   effect: BoardWideSpellEffectKind?) async {
+        let base = max(0, baseDamage)
+        _ = caster
+        guard base > 0 else {
+            pushCenterMessage("効果がありませんでした")
+            return
+        }
+
+        var damageMap: [Int: Int] = [:]
+        for tile in 0..<tileCount {
+            guard creatureSymbol.indices.contains(tile),
+                  creatureSymbol[tile] != nil,
+                  hp.indices.contains(tile),
+                  hp[tile] > 0 else { continue }
+
+            let resist = resistValue(for: category, at: tile)
+            let rawDamage = resistBasedDamage(base: base, resist: resist)
+            guard rawDamage > 0 else { continue }
+
+            let beforeHP = hp[tile]
+            let actual = min(beforeHP, rawDamage)
+            guard actual > 0 else { continue }
+
+            let newHP = beforeHP - actual
+            hp[tile] = newHP
+            if var creature = creatureOnTile[tile] {
+                creature.hp = newHP
+                creatureOnTile[tile] = creature
+            }
+            damageMap[tile] = actual
+        }
+
+        guard !damageMap.isEmpty else {
+            let name = spellName ?? defaultAOESpellName(for: category)
+            pushCenterMessage("\(name)は効果を発揮しませんでした")
+            return
+        }
+
+        hp = hp
+        var defeatedTiles: [Int] = []
+        for (tile, _) in damageMap {
+            if hp.indices.contains(tile),
+               hp[tile] <= 0 {
+                defeatedTiles.append(tile)
+            }
+        }
+
+        var indicator: [Int: Int] = [:]
+        for (tile, dmg) in damageMap {
+            indicator[tile] = -dmg
+        }
+
+        isHealingAnimating = true
+        healingAmounts = indicator
+
+        if let effect {
+            triggerBoardWideEffect(effect)
+        }
+
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        healingAmounts.removeAll()
+
+        for tile in defeatedTiles {
+            clearCreatureInfo(at: tile,
+                              clearOwnerAndLevel: true,
+                              resetToll: true)
+        }
+
+        let spellLabel = spellName ?? defaultAOESpellName(for: category)
+        var message = "\(spellLabel)で\(damageMap.count)体にダメージ"
+        if !defeatedTiles.isEmpty {
+            message += "（\(defeatedTiles.count)体撃破）"
+        }
+        pushCenterMessage(message)
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        isHealingAnimating = false
     }
 
     @discardableResult
@@ -1884,6 +2062,15 @@ final class GameVM: ObservableObject {
         case .inspectCreature:
             performClairvoyance(for: pid)
             
+        case let .aoeDamageByResist(category, _, amount):
+            applyResistBasedAOE(
+                category: category,
+                amount: amount,
+                by: pid,
+                spellName: nil,
+                effect: boardWideEffectKind(for: category)
+            )
+
         case let .drawCards(n):
             guard (0...1).contains(pid) else { return }
             for _ in 0..<n {

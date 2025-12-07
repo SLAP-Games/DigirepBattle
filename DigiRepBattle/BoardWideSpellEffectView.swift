@@ -12,6 +12,10 @@ enum BoardWideSpellEffectKind: Equatable {
     case cure
     case treasure
     case clairvoyance
+    case blizzard
+    case eruption
+    case heavyRain
+    case drought
 }
 
 struct BoardWideSpellEffectView: View {
@@ -25,6 +29,16 @@ struct BoardWideSpellEffectView: View {
     @State private var treasureGlowExpand = false
     @State private var treasureTrigger = UUID()
     @State private var clairvoyancePulse = false
+    @State private var climatePulse = false
+
+    private var isClimateEffect: Bool {
+        switch kind {
+        case .blizzard, .eruption, .heavyRain, .drought:
+            return true
+        default:
+            return false
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -40,6 +54,14 @@ struct BoardWideSpellEffectView: View {
                     treasureView(size: geo.size)
                 case .clairvoyance:
                     clairvoyanceView(size: geo.size)
+                case .blizzard:
+                    blizzardView(size: geo.size)
+                case .eruption:
+                    eruptionView(size: geo.size)
+                case .heavyRain:
+                    heavyRainView(size: geo.size)
+                case .drought:
+                    droughtView(size: geo.size)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -50,6 +72,7 @@ struct BoardWideSpellEffectView: View {
                 refreshLightningStates(force: true)
                 prepareTreasureEffectIfNeeded()
                 prepareClairvoyanceEffectIfNeeded()
+                prepareClimateEffectIfNeeded()
             }
             .onChange(of: kind) { oldValue, newValue in
                 stormPulse = (kind == .storm)
@@ -59,6 +82,7 @@ struct BoardWideSpellEffectView: View {
                 }
                 prepareTreasureEffectIfNeeded()
                 prepareClairvoyanceEffectIfNeeded()
+                prepareClimateEffectIfNeeded()
             }
         }
         .ignoresSafeArea()
@@ -170,6 +194,17 @@ struct BoardWideSpellEffectView: View {
             withAnimation(.easeInOut(duration: 0.45)) {
                 clairvoyancePulse = true
             }
+        }
+    }
+
+    private func prepareClimateEffectIfNeeded() {
+        guard isClimateEffect else {
+            climatePulse = false
+            return
+        }
+        climatePulse = false
+        DispatchQueue.main.async {
+            climatePulse = true
         }
     }
 
@@ -286,6 +321,139 @@ struct BoardWideSpellEffectView: View {
             .shadow(color: Color.white.opacity(0.4), radius: 10)
             .scaleEffect(clairvoyancePulse ? 1.05 : 0.85)
             .opacity(clairvoyancePulse ? 1.0 : 0.0)
+        }
+    }
+
+    @ViewBuilder
+    private func blizzardView(size: CGSize) -> some View {
+        let diag = hypot(size.width, size.height)
+        ZStack {
+            Color.white.opacity(0.25)
+            LinearGradient(
+                colors: [Color.white.opacity(0.4), Color.blue.opacity(0.1), .clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.screen)
+
+            ForEach(0..<14, id: \.self) { index in
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(width: 2, height: diag * 0.24)
+                    .rotationEffect(.degrees(-18))
+                    .offset(
+                        x: -size.width * 0.55 + CGFloat(index) * (size.width / 7),
+                        y: climatePulse ? size.height * 0.35 : -size.height * 0.35
+                    )
+                    .animation(
+                        .linear(duration: 0.7)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.02),
+                        value: climatePulse
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func eruptionView(size: CGSize) -> some View {
+        let maxDim = max(size.width, size.height)
+        ZStack {
+            Color.red.opacity(0.35)
+            RadialGradient(
+                colors: [Color.orange.opacity(0.6), Color.red.opacity(0.1), .clear],
+                center: .bottom,
+                startRadius: 0,
+                endRadius: maxDim
+            )
+            ForEach(0..<5, id: \.self) { index in
+                Capsule()
+                    .fill(
+                        LinearGradient(colors: [Color.yellow.opacity(0.7), Color.orange, Color.red],
+                                       startPoint: .bottom,
+                                       endPoint: .top)
+                    )
+                    .frame(width: maxDim * 0.08, height: maxDim * 0.85)
+                    .scaleEffect(y: climatePulse ? 1.1 : 0.8, anchor: .bottom)
+                    .offset(x: CGFloat(index - 2) * maxDim * 0.14,
+                            y: size.height * 0.12)
+                    .blur(radius: 6)
+                    .animation(
+                        .easeInOut(duration: 0.6)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.06),
+                        value: climatePulse
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func heavyRainView(size: CGSize) -> some View {
+        ZStack {
+            Color.blue.opacity(0.3)
+            LinearGradient(
+                colors: [Color.blue.opacity(0.6), Color.blue.opacity(0.05)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .blur(radius: 15)
+            ForEach(0..<18, id: \.self) { index in
+                Capsule()
+                    .fill(Color.cyan.opacity(0.55))
+                    .frame(width: 2, height: size.height * 0.35)
+                    .rotationEffect(.degrees(-5))
+                    .offset(
+                        x: -size.width * 0.45 + CGFloat(index) * (size.width / 9),
+                        y: climatePulse ? size.height * 0.2 : -size.height * 0.2
+                    )
+                    .animation(
+                        .linear(duration: 0.55)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.025),
+                        value: climatePulse
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func droughtView(size: CGSize) -> some View {
+        let maxDim = max(size.width, size.height)
+        ZStack {
+            Color.yellow.opacity(0.25)
+            RadialGradient(
+                colors: [Color.yellow.opacity(0.5), Color.orange.opacity(0.15), .clear],
+                center: .center,
+                startRadius: 0,
+                endRadius: maxDim * 0.9
+            )
+            Circle()
+                .stroke(Color.orange.opacity(0.4), lineWidth: 4)
+                .frame(width: maxDim * 0.8, height: maxDim * 0.8)
+                .scaleEffect(climatePulse ? 1.1 : 0.9)
+                .blur(radius: 8)
+                .animation(
+                    .easeInOut(duration: 0.65)
+                        .repeatForever(autoreverses: true),
+                    value: climatePulse
+                )
+
+            ForEach(0..<5, id: \.self) { index in
+                Capsule()
+                    .fill(Color.orange.opacity(0.5))
+                    .frame(width: maxDim * 0.7, height: 2)
+                    .rotationEffect(.degrees(Double(index) * 18 - 36))
+                    .scaleEffect(x: climatePulse ? 1.05 : 0.95,
+                                 y: 1,
+                                 anchor: .center)
+                    .animation(
+                        .easeInOut(duration: 0.6)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.04),
+                        value: climatePulse
+                    )
+            }
         }
     }
 }

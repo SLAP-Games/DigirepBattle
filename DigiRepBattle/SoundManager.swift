@@ -73,6 +73,14 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
             name = "coinSound"
         case .clairvoyance:
             name = "clairvoyanceSound"
+        case .blizzard:
+            name = "blizzardSound"
+        case .eruption:
+            name = "eruptionSound"
+        case .heavyRain:
+            name = "heavyRainSound"
+        case .drought:
+            name = "droughtSound"
         }
 
         playSE(named: name)

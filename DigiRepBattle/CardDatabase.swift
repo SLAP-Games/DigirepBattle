@@ -380,44 +380,44 @@ enum CardDatabase {
             name: "吹雪",
             symbol: "❄️",
             effect: .aoeDamageByResist(
-                category: .heat,
+                category: .cold,
                 threshold: 10,
                 amount: 50
             ),
-            cost: 100
+            cost: 200
         ),
         "sp-eruption": .spell(
             id: "sp-eruption",
             name: "噴火",
             symbol: "🌋",
             effect: .aoeDamageByResist(
-                category: .cold,
+                category: .heat,
                 threshold: 10,
                 amount: 50
             ),
-            cost: 100
+            cost: 200
         ),
         "sp-heavyRain": .spell(
             id: "sp-heavyRain",
             name: "豪雨",
             symbol: "🌧",
             effect: .aoeDamageByResist(
-                category: .dry,
+                category: .water,
                 threshold: 10,
                 amount: 50
             ),
-            cost: 100
+            cost: 200
         ),
         "sp-drought": .spell(
             id: "sp-drought",
             name: "干魃",
             symbol: "☀️",
             effect: .aoeDamageByResist(
-                category: .water,
+                category: .dry,
                 threshold: 10,
                 amount: 50
             ),
-            cost: 100
+            cost: 200
         ),
 
         // --- マス属性変更 ---
