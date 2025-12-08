@@ -50,7 +50,9 @@ struct ContentView: View {
                         plunderEffectTile: vm.plunderEffectTile,
                         plunderEffectTrigger: vm.plunderEffectTrigger,
                         npcShakeActive: vm.npcShakeActive,
-                        forceCameraFocus: vm.forceCameraFocus
+                        forceCameraFocus: vm.forceCameraFocus,
+                        tileRemovalEffectTile: vm.tileRemovalEffectTile,
+                        tileRemovalEffectTrigger: vm.tileRemovalEffectTrigger
                     )
                     .frame(height: boardH)
                     .background {
@@ -127,13 +129,9 @@ struct ContentView: View {
                     }
                     .overlay(alignment: .top) {
                         if vm.isSelectingSwapCreature {
-                            Text("交換するクリーチャーを選択")
-                                .font(.headline)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Capsule())
-                                .padding(.top, 8)
+                            instructionBadge("交換するクリーチャーを選択")
+                        } else if let text = selectionInstruction(for: vm.specialPending) {
+                            instructionBadge(text)
                         }
                     }
                     
@@ -194,10 +192,6 @@ struct ContentView: View {
                             case .levelUp(let tile):
                                 PopupCard {
                                     LevelUpSheetView(vm: vm, tile: tile)
-                                }
-                            case .moveFrom(let tile):
-                                PopupCard {
-                                    MoveCreatureSheetView(vm: vm, fromTile: tile)
                                 }
                             case .buySpell:
                                 PopupCard {
@@ -1214,6 +1208,29 @@ struct ContentView: View {
             return true
         default:
             return false
+        }
+    }
+
+    @ViewBuilder
+    private func instructionBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.headline)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .padding(.top, 8)
+    }
+
+    private func selectionInstruction(for pending: GameVM.SpecialPendingAction?) -> String? {
+        guard let pending else { return nil }
+        switch pending {
+        case .pickMoveSource:
+            return "移動するデジレプを選択（50G）"
+        case .pickMoveDestination:
+            return "移動先を選択（50G）"
+        case .pickLevelUpSource:
+            return "強化する領地を選択"
         }
     }
 }

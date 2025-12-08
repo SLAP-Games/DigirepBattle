@@ -31,7 +31,11 @@ struct CreatureInspectView {
 final class GameVM: ObservableObject {
     enum Phase { case ready, rolled, moving, branchSelecting, moved }
     enum Dir { case cw, ccw }
-    enum SpecialPendingAction { case pickLevelUpSource, pickMoveSource }
+    enum SpecialPendingAction {
+        case pickLevelUpSource
+        case pickMoveSource
+        case pickMoveDestination(from: Int)
+    }
     
     @Published var branchSource: Int? = nil
     @Published var branchCandidates: [Int] = []
@@ -114,6 +118,9 @@ final class GameVM: ObservableObject {
     @Published var deletingTargetPlayer: Int? = nil
     @Published var pendingDeleteHandIndex: Int? = nil
     @Published var deletePreviewCard: Card? = nil
+    @Published var moveCreatureSourceCandidates: Set<Int> = []
+    @Published var moveCreatureDestinationCandidates: Set<Int> = []
+    @Published var pendingMoveSourceTile: Int? = nil
     // === ここから追加: sp-elixir 用 ===
     @Published var isSelectingFullHealTarget: Bool = false
     @Published var fullHealCandidateTiles: Set<Int> = []
@@ -125,6 +132,8 @@ final class GameVM: ObservableObject {
     @Published var plunderEffectTrigger: UUID = UUID()
     @Published var npcShakeActive: Bool = false
     @Published var forceCameraFocus: Bool = false
+    @Published var tileRemovalEffectTile: Int? = nil
+    @Published var tileRemovalEffectTrigger: UUID = UUID()
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
@@ -189,6 +198,7 @@ final class GameVM: ObservableObject {
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
     private let CHECKPOINTS: Set<Int> = [0, 4, 20]
+    private let creatureTransferCost = 50
     private let nextCW: [Int] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 4, 29, 30, 16
@@ -337,6 +347,7 @@ final class GameVM: ObservableObject {
 //　　　　　　　　　　　　　　　　　　ターン管理
 // MARK: ---------------------------------------------------------------------------
     func endTurn() {
+        cancelMoveSelectionIfNeeded()
         // ★ プレイヤーが敵マスで「戦闘する」を選んだものの、
         //   カードを選ばずに End を押した場合は、自動で通行料を払ってから終了
         if turn == 0,
@@ -1711,6 +1722,27 @@ final class GameVM: ObservableObject {
                 branchLandingTargets = candidates
                 battleResult = "通行量を 2 倍にするマスを選択してください"
             }
+            
+        case .changeTileAttribute(let tileKind):
+            var candidates: Set<Int> = []
+            if tileCount > 0 {
+                for i in 0..<tileCount where !tileAttributeRestrictedTiles.contains(i) {
+                    candidates.insert(i)
+                }
+            }
+
+            if candidates.isEmpty {
+                pushCenterMessage("地形を変更できるマスがありません")
+            } else {
+                guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
+                isSelectingTileAttributeTarget = true
+                tileAttributeCandidateTiles = candidates
+                pendingTileAttributeTarget = nil
+                pendingTileAttributeKind = tileKind
+                pendingTileAttributeSpellName = card.name
+                branchLandingTargets = candidates
+                battleResult = "『\(card.name)』で地形を変更するマスを選択してください"
+            }
 
         case .damageAnyCreature(let n):
             beginDamageSpellSelection(amount: n, card: card, cost: cost)
@@ -2352,21 +2384,111 @@ final class GameVM: ObservableObject {
         return !isSpecialNode(index)
     }
 
-    /// クリーチャー移動の移動先選択を表示
+    /// クリーチャー移動の移動元選択を開始
     func actionMoveCreatureFromSpecialNode() {
-        if let t = focusTile,
-           owner.indices.contains(t), owner[t] == turn,
-           level.indices.contains(t), level[t] >= 1,
-           creatureSymbol.indices.contains(t), creatureSymbol[t] != nil {
-            activeSpecialSheet = .moveFrom(tile: t)
+        cancelMoveSelectionIfNeeded()
+
+        guard players.indices.contains(turn),
+              players[turn].gold >= creatureTransferCost else {
+            pushCenterMessage("GOLDが足りません（必要: \(creatureTransferCost)G）")
             return
         }
+
+        let candidates = moveSourceCandidates(for: turn)
+        guard !candidates.isEmpty else {
+            pushCenterMessage("移動できるデジレプがありません")
+            return
+        }
+
+        moveCreatureSourceCandidates = candidates
+        branchLandingTargets = candidates
         specialPending = .pickMoveSource
-        pushCenterMessage("移動するデジレプを選択")
+        pendingMoveSourceTile = nil
+        pushCenterMessage("移動するデジレプを選択（\(creatureTransferCost)G）")
+    }
+
+    private func resetMoveSelection() {
+        pendingMoveSourceTile = nil
+        moveCreatureSourceCandidates = []
+        moveCreatureDestinationCandidates = []
+        branchLandingTargets = []
+        specialPending = nil
+    }
+
+    private func cancelMoveSelectionIfNeeded() {
+        guard let pending = specialPending else {
+            if !moveCreatureSourceCandidates.isEmpty || !moveCreatureDestinationCandidates.isEmpty {
+                resetMoveSelection()
+            }
+            return
+        }
+        switch pending {
+        case .pickMoveSource, .pickMoveDestination:
+            resetMoveSelection()
+        case .pickLevelUpSource:
+            branchLandingTargets = []
+            specialPending = nil
+        }
+    }
+
+    private func moveSourceCandidates(for pid: Int) -> Set<Int> {
+        guard tileCount > 0 else { return [] }
+        var result: Set<Int> = []
+        for idx in 0..<tileCount {
+            guard owner.indices.contains(idx),
+                  owner[idx] == pid,
+                  level.indices.contains(idx), level[idx] >= 1,
+                  creatureSymbol.indices.contains(idx),
+                  creatureSymbol[idx] != nil else { continue }
+            result.insert(idx)
+        }
+        return result
+    }
+
+    private func moveDestinationCandidates() -> Set<Int> {
+        guard tileCount > 0 else { return [] }
+        var result: Set<Int> = []
+        for idx in 0..<tileCount {
+            guard owner.indices.contains(idx),
+                  owner[idx] == nil,
+                  !isSpecialNode(idx) else { continue }
+            result.insert(idx)
+        }
+        return result
+    }
+
+    private func beginMoveDestinationSelection(from tile: Int) {
+        pendingMoveSourceTile = tile
+        let destinations = moveDestinationCandidates()
+        guard !destinations.isEmpty else {
+            pushCenterMessage("移動できるマスがありません")
+            resetMoveSelection()
+            return
+        }
+
+        moveCreatureDestinationCandidates = destinations
+        branchLandingTargets = destinations
+        specialPending = .pickMoveDestination(from: tile)
+        pushCenterMessage("移動先を選択（\(creatureTransferCost)G）")
+    }
+
+    private func levelUpCandidates(for pid: Int) -> Set<Int> {
+        guard tileCount > 0 else { return [] }
+        var result: Set<Int> = []
+        for idx in 0..<tileCount {
+            guard owner.indices.contains(idx),
+                  owner[idx] == pid,
+                  level.indices.contains(idx),
+                  level[idx] >= 1,
+                  level[idx] < 5 else { continue }
+            result.insert(idx)
+        }
+        return result
     }
 
     /// スペル購入シートを表示
     func actionPurchaseSkillOnSpecialNode() {
+        cancelMoveSelectionIfNeeded()
         activeSpecialSheet = .buySpell
     }
     
@@ -2872,16 +2994,16 @@ final class GameVM: ObservableObject {
     
     /// レベルアップ候補を表示
     func actionLevelUpOnSpecialNode() {
-        // 今立っているマス（focusTile）で即実行できるならそのまま
-        if let t = focusTile,
-           owner.indices.contains(t), owner[t] == turn,
-            level.indices.contains(t), level[t] >= 1 {
-            activeSpecialSheet = .levelUp(tile: t)
+        cancelMoveSelectionIfNeeded()
+        let candidates = levelUpCandidates(for: turn)
+        guard !candidates.isEmpty else {
+            pushCenterMessage("強化できる領地がありません")
             return
         }
-        // それ以外は「選ばせる」モードへ
+
+        branchLandingTargets = candidates
         specialPending = .pickLevelUpSource
-        pushCenterMessage("レベルUPする土地を選択")
+        pushCenterMessage("強化する領地を選択")
     }
     
     func canSeeFullStats(of creature: Creature, viewer: Int) -> Bool {
@@ -3096,6 +3218,7 @@ final class GameVM: ObservableObject {
                 // 自分の占有＆設置済(>=1) ならOK
                 if owner.indices.contains(index), owner[index] == turn,
                    level.indices.contains(index), level[index] >= 1 {
+                    branchLandingTargets = []
                     activeSpecialSheet = .levelUp(tile: index)
                     specialPending = nil
                     battleResult = nil // さっきの案内を消す
@@ -3103,14 +3226,27 @@ final class GameVM: ObservableObject {
                 return
 
             case .pickMoveSource:
-                // 自分の占有＆クリーチャーがいるマス
-                if owner.indices.contains(index), owner[index] == turn,
-                   level.indices.contains(index), level[index] >= 1,
-                   creatureSymbol.indices.contains(index), creatureSymbol[index] != nil {
-                    activeSpecialSheet = .moveFrom(tile: index)
-                    specialPending = nil
-                    battleResult = nil
+                if moveCreatureSourceCandidates.contains(index) {
+                    beginMoveDestinationSelection(from: index)
                 }
+                return
+
+            case .pickMoveDestination(let source):
+                if index == source {
+                    branchLandingTargets = moveCreatureSourceCandidates
+                    moveCreatureDestinationCandidates = []
+                    pendingMoveSourceTile = nil
+                    specialPending = .pickMoveSource
+                    pushCenterMessage("移動するデジレプを選択")
+                    return
+                }
+                if moveCreatureSourceCandidates.contains(index) {
+                    beginMoveDestinationSelection(from: index)
+                    return
+                }
+                guard moveCreatureDestinationCandidates.contains(index) else { return }
+                resetMoveSelection()
+                confirmMoveCreature(from: source, to: index)
                 return
             }
         }
@@ -3208,39 +3344,100 @@ final class GameVM: ObservableObject {
     
     /// クリーチャー移動確定
     func confirmMoveCreature(from: Int, to: Int) {
-        guard owner.indices.contains(from), owner[from] == turn else { return }
+        Task { @MainActor in
+            await performCreatureTransfer(from: from, to: to)
+        }
+    }
+
+    @MainActor
+    private func performCreatureTransfer(from: Int, to: Int) async {
+        let mover = turn
+        guard owner.indices.contains(from),
+              let originalOwner = owner[from],
+              originalOwner == mover else { return }
         guard owner.indices.contains(to), owner[to] == nil else { return }
-        guard !isSpecialNode(to) else { return } // 特別マス禁止（必要なら外せます）
+        guard !isSpecialNode(to) else {
+            pushCenterMessage("ホームやチェックポイントには移動できません")
+            return
+        }
+        guard creatureSymbol.indices.contains(from),
+              let sym = creatureSymbol[from] else { return }
 
-        guard creatureSymbol.indices.contains(from), let sym = creatureSymbol[from] else { return }
+        let fromLv     = level.indices.contains(from) ? level[from] : 0
+        let fromHp     = hp.indices.contains(from) ? hp[from] : 0
+        let fromHpMax  = hpMax.indices.contains(from) ? hpMax[from] : 0
+        let fromAff    = aff.indices.contains(from) ? aff[from] : 0
+        let fromPow    = pow.indices.contains(from) ? pow[from] : 0
+        let fromDur    = dur.indices.contains(from) ? dur[from] : 0
+        let fromDry    = rDry.indices.contains(from) ? rDry[from] : 0
+        let fromWat    = rWat.indices.contains(from) ? rWat[from] : 0
+        let fromHot    = rHot.indices.contains(from) ? rHot[from] : 0
+        let fromCold   = rCold.indices.contains(from) ? rCold[from] : 0
+        let fromCost   = cost.indices.contains(from) ? cost[from] : 0
+        let wasPoisoned = poisonedTiles.indices.contains(from) ? poisonedTiles[from] : false
+        let creature = creatureOnTile[from]
 
-        // 付随ステータス一式コピー
-        let fromLv   = level.indices.contains(from) ? level[from] : 0
-        let fromHp   = hp.indices.contains(from) ? hp[from] : 0
-        let fromHpM  = hpMax.indices.contains(from) ? hpMax[from] : 0
-
-        owner[to] = owner[from]
-        level[to] = fromLv
-        creatureSymbol[to] = sym
-        hp[to] = fromHp
-        hpMax[to] = fromHpM
-        // 表示用tollは都度再計算に統一（下 §5 参照）
-        toll[to] = toll(at: to)
-
-        // creatureOnTile も移設
-        if let c = creatureOnTile[from] {
-            creatureOnTile[to] = c
-            creatureOnTile.removeValue(forKey: from)
+        guard tryPay(creatureTransferCost, by: mover) else {
+            if mover == 0 {
+                pushCenterMessage("GOLDが足りません（必要: \(creatureTransferCost)G）")
+            }
+            return
         }
 
-        // 元をクリア（更地にする）
+        let previousForce = forceCameraFocus
+        forceCameraFocus = true
+        defer { forceCameraFocus = previousForce }
+        focusTile = from
+        tileRemovalEffectTile = from
+        tileRemovalEffectTrigger = UUID()
+        SoundManager.shared.playDeleteSound()
+
+        // カード溶解エフェクトと同じくらいの時間待機
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        tileRemovalEffectTile = nil
+
         clearCreatureInfo(at: from,
                           clearOwnerAndLevel: true,
                           resetToll: true)
 
+        owner[to] = originalOwner
+        level[to] = fromLv
+        creatureSymbol[to] = sym
+        hp[to] = fromHp
+        hpMax[to] = fromHpMax
+        aff[to] = fromAff
+        pow[to] = fromPow
+        dur[to] = fromDur
+        rDry[to] = fromDry
+        rWat[to] = fromWat
+        rHot[to] = fromHot
+        rCold[to] = fromCold
+        cost[to] = fromCost
+        if poisonedTiles.indices.contains(to) {
+            poisonedTiles[to] = wasPoisoned
+        }
+        toll[to] = toll(at: to)
+
+        if var c = creature {
+            c.hp = fromHp
+            creatureOnTile[to] = c
+            creatureOnTile.removeValue(forKey: from)
+        }
+
+        hp = hp
+        focusTile = to
+        spellEffectTile = to
+        spellEffectKind = .place
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            if self?.spellEffectTile == to {
+                self?.spellEffectTile = nil
+            }
+        }
+
         pushCenterMessage("デジレプを移動")
-        activeSpecialSheet = nil
         objectWillChange.send()
+        try? await Task.sleep(nanoseconds: 200_000_000)
     }
     
     func canSwapCreature(withHandIndex idx: Int) -> Bool {
@@ -4346,7 +4543,6 @@ func isSpecialNode(_ index: Int) -> Bool {
 
 enum SpecialActionSheet: Equatable {
     case levelUp(tile: Int)
-    case moveFrom(tile: Int)
     case buySpell
 }
 

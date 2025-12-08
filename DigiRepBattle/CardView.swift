@@ -24,9 +24,11 @@ struct CardView: View {
                 .frame(width: 90, height: 130)
 
             VStack(spacing: 6) {
-                Text(card.kind == .spell ? "スペル" : "デジレプ")
+                Text(card.name)
                     .font(.caption2)
                     .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
                 Image("\(card.symbol)1")
                     .resizable()
                     .scaledToFit()

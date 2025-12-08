@@ -38,10 +38,11 @@ extension DeckList {
         deck.spellSlots = [
 //            "sp-dice1": 1,
 //            "sp-dice3": 1,
+            "sp-dice4": 10,
 //            "sp-dice6": 1,
 //            "sp-doubleDice": 1,
 //            "sp-firstStrike": 1,
-//            "sp-hardFang": 1,
+            "sp-hardFang": 3,
 //            "sp-poisonFang": 1,
 //            "sp-hardScale": 1,
 //            "sp-draw2": 1,
@@ -49,22 +50,22 @@ extension DeckList {
 //            "sp-elixir": 25,
 //            "sp-decay": 2,
 //            "sp-devastation": 2,
-//            "sp-harvest": 2,
-//            "sp-greatStorm": 1,
+//            "sp-harvest": 3,
+            "sp-greatStorm": 3,
 //            "sp-disaster": 2,
 //            "sp-poisonSmoke": 2,
-//            "sp-cure": 2,
+            "sp-cure": 3,
 //            "sp-treasure": 1,
 //            "sp-plunder": 25,
 //            "sp-clairvoyance": 25,
-//            "sp-blizzard": 6,
+            "sp-blizzard": 3,
 //            "sp-eruption": 6,
 //            "sp-heavyRain": 6,
 //            "sp-drought": 6,
 //            "sp-snowMountain": 6,
 //            "sp-desert": 6,
 //            "sp-volcano": 6,
-            "sp-jungle": 25
+            "sp-jungle": 3
         ]
 
         return deck

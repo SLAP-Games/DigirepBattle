@@ -27,8 +27,8 @@ struct PurchaseSpellSheetView: View {
                             // 中央：名前＆価格
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(sp.name)
-                                    .font(.subheadline)
-                                Text("\(sp.price)G")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("価格 \(sp.price)G")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -36,7 +36,7 @@ struct PurchaseSpellSheetView: View {
                             Spacer()
 
                             // 右：購入ボタン
-                            Button("購入") {
+                            Button("購入 (\(sp.price)G)") {
                                 vm.openShopSpellDetail(sp)
                             }
                             .disabled(vm.players[vm.turn].gold < sp.price)

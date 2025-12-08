@@ -79,7 +79,7 @@ struct OverlappingHandView: View {
             .shadow(color: .black.opacity(isFocused ? 0.35 : 0.15),
                     radius: isFocused ? 10 : 4,
                     y: 6)
-            .zIndex(isFocused ? Double(cards.count) + 1 : Double(index))
+            .zIndex(zPriority(for: index))
             .animation(.easeInOut(duration: 0.12), value: focusedIndex)
             .simultaneousGesture(
                 TapGesture()
@@ -101,6 +101,21 @@ struct OverlappingHandView: View {
     private func clampIndex(_ value: Int) -> Int {
         guard !cards.isEmpty else { return 0 }
         return min(max(value, 0), cards.count - 1)
+    }
+
+    private func zPriority(for index: Int) -> Double {
+        guard !cards.isEmpty else { return 0 }
+        if index == focusedIndex { return Double(cards.count) }
+
+        let rightCount = max(cards.count - focusedIndex - 1, 0)
+        let orderPosition: Int
+        if index > focusedIndex {
+            orderPosition = index - focusedIndex
+        } else {
+            orderPosition = rightCount + (focusedIndex - index)
+        }
+
+        return Double(cards.count - orderPosition)
     }
 }
 

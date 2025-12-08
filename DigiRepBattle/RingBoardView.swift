@@ -67,6 +67,8 @@ struct RingBoardView: View {
     var plunderEffectTrigger: UUID = UUID()
     var npcShakeActive: Bool = false
     var forceCameraFocus: Bool = false
+    var tileRemovalEffectTile: Int? = nil
+    var tileRemovalEffectTrigger: UUID = UUID()
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -144,6 +146,11 @@ struct RingBoardView: View {
                         
                         if spellEffectTile == idx {
                             SpellEffectTileOverlay(size: tileSize, kind: spellEffectKind)
+                                .allowsHitTesting(false)
+                        }
+
+                        if tileRemovalEffectTile == idx {
+                            TileRemovalOverlay(size: tileSize, trigger: tileRemovalEffectTrigger)
                                 .allowsHitTesting(false)
                         }
                         

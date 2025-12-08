@@ -6,9 +6,9 @@
 //
 import SwiftUI
 
-//#Preview {
-//    DeckBuilderView(collection: CardCollection(), onStartBattle: { _ in })
-//}
+#Preview {
+    DeckBuilderView(collection: CardCollection(), onStartBattle: { _ in })
+}
 //
 //#Preview {
 //    RootDeckBuilderScreen()
