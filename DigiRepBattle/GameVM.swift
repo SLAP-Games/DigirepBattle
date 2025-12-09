@@ -134,6 +134,8 @@ final class GameVM: ObservableObject {
     @Published var forceCameraFocus: Bool = false
     @Published var tileRemovalEffectTile: Int? = nil
     @Published var tileRemovalEffectTrigger: UUID = UUID()
+    @Published var levelUpEffectTile: Int? = nil
+    @Published var levelUpEffectTrigger: UUID = UUID()
     @Published var homeArrivalTile: Int? = nil
     @Published var homeArrivalTrigger: UUID = UUID()
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
@@ -533,10 +535,16 @@ final class GameVM: ObservableObject {
             }
 
             focusTile = tile
+            spellEffectTile = tile
+            spellEffectKind = .heal
+            SoundManager.shared.playEffect(for: .heal)
             healingAmounts = [tile: heal]    // 回復はプラス値
 
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             healingAmounts.removeAll()
+            if spellEffectTile == tile && spellEffectKind == .heal {
+                spellEffectTile = nil
+            }
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
 
@@ -3388,6 +3396,16 @@ final class GameVM: ObservableObject {
         // 通行料などをレベル依存で再計算したい場合
         if toll.indices.contains(tile) {
             toll[tile] = toll(at: tile)
+        }
+
+        levelUpEffectTile = tile
+        let trigger = UUID()
+        levelUpEffectTrigger = trigger
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+            guard let self = self else { return }
+            if self.levelUpEffectTrigger == trigger {
+                self.levelUpEffectTile = nil
+            }
         }
 
         // ログやフローティングメッセージ

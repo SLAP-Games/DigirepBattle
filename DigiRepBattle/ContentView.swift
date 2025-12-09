@@ -53,6 +53,8 @@ struct ContentView: View {
                         forceCameraFocus: vm.forceCameraFocus,
                         tileRemovalEffectTile: vm.tileRemovalEffectTile,
                         tileRemovalEffectTrigger: vm.tileRemovalEffectTrigger,
+                        levelUpEffectTile: vm.levelUpEffectTile,
+                        levelUpEffectTrigger: vm.levelUpEffectTrigger,
                         homeArrivalTile: vm.homeArrivalTile,
                         homeArrivalTrigger: vm.homeArrivalTrigger
                     )

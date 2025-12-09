@@ -69,6 +69,8 @@ struct RingBoardView: View {
     var forceCameraFocus: Bool = false
     var tileRemovalEffectTile: Int? = nil
     var tileRemovalEffectTrigger: UUID = UUID()
+    var levelUpEffectTile: Int? = nil
+    var levelUpEffectTrigger: UUID = UUID()
     var homeArrivalTile: Int? = nil
     var homeArrivalTrigger: UUID = UUID()
     
@@ -88,9 +90,11 @@ struct RingBoardView: View {
 
     var body: some View {
         GeometryReader { geo in
+            let nodes = graph
+            let nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
             let step = tileSize + gap
             // グリッド境界→盤の自然サイズ（原点はこのビューの左上）
-            let (minX, maxX, minY, maxY) = bounds(graph.map { $0.grid })
+            let (minX, maxX, minY, maxY) = bounds(nodes.map { $0.grid })
             let spanX = CGFloat(maxX - minX)
             let spanY = CGFloat(maxY - minY)
             let boardSize   = CGSize(width: (spanX + 1) * step,
@@ -102,11 +106,11 @@ struct RingBoardView: View {
             ZStack {
                 // エッジ
                 Path { p in
-                    for node in graph {
+                    for node in nodes {
                         let a = node.id
                         let aPos = pointNoOrigin(for: node.grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
                         for b in node.neighbors where b > a {
-                            let bPos = pointNoOrigin(for: graph[b].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                            let bPos = pointNoOrigin(for: nodes[b].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
                             p.move(to: aPos)
                             p.addLine(to: bPos)
                         }
@@ -115,7 +119,7 @@ struct RingBoardView: View {
                 .stroke(.secondary.opacity(0.35), lineWidth: 2)
 
                 // タイル
-                ForEach(graph) { node in
+                ForEach(nodes) { node in
                     let idx = node.id
                     let pos = pointNoOrigin(for: node.grid,
                                             minX: minX, minY: minY,
@@ -145,22 +149,6 @@ struct RingBoardView: View {
                             attribute: terr.attribute,
                             highlightTargets: highlightTargets
                         )
-                        
-                        if spellEffectTile == idx {
-                            SpellEffectTileOverlay(size: tileSize, kind: spellEffectKind)
-                                .allowsHitTesting(false)
-                        }
-
-                        if homeArrivalTile == idx {
-                            HomeArrivalOverlay(size: tileSize, trigger: homeArrivalTrigger)
-                                .allowsHitTesting(false)
-                        }
-
-                        if tileRemovalEffectTile == idx {
-                            TileRemovalOverlay(size: tileSize, trigger: tileRemovalEffectTrigger)
-                                .allowsHitTesting(false)
-                        }
-                        
                         // ★ 回復アニメーションの数字表示
                         if let heal = healingAmounts[idx] {
                             if heal >= 0 {
@@ -186,17 +174,62 @@ struct RingBoardView: View {
                     }
                 }
                 
+                // === タイル外に広がるエフェクト類 ===
+                if let effectTile = spellEffectTile,
+                   let node = nodeMap[effectTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    SpellEffectTileOverlay(size: tileSize * 1.3, kind: spellEffectKind)
+                        .frame(width: tileSize * 1.3, height: tileSize * 1.3)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let removalTile = tileRemovalEffectTile,
+                   let node = nodeMap[removalTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    TileRemovalOverlay(size: tileSize * 1.3, trigger: tileRemovalEffectTrigger)
+                        .frame(width: tileSize * 1.3, height: tileSize * 1.3)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let levelTile = levelUpEffectTile,
+                   let node = nodeMap[levelTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    LevelUpOverlay(size: tileSize * 1.3, trigger: levelUpEffectTrigger)
+                        .frame(width: tileSize * 1.3, height: tileSize * 1.3)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let homeTile = homeArrivalTile,
+                   let node = nodeMap[homeTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    HomeArrivalOverlay(size: tileSize * 1.3, trigger: homeArrivalTrigger)
+                        .frame(width: tileSize * 1.3, height: tileSize * 1.3)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
                 let inset = tileSize * 0.18
                 // === P1 / P2 トークン（タイルとは独立に位置アニメ）
                 let p1CornerPoint = tileCornerPosition(
-                    for: graph[p1Pos].grid,
+                    for: nodes[p1Pos].grid,
                     minX: minX, minY: minY,
                     step: step, tileSize: tileSize,
                     corner: .topLeft,   // プレイヤーは左上
                     inset: inset
                 )
                 let p2CornerPoint = tileCornerPosition(
-                    for: graph[p2Pos].grid,
+                    for: nodes[p2Pos].grid,
                     minX: minX, minY: minY,
                     step: step, tileSize: tileSize,
                     corner: .topRight,  // CPUは右上
@@ -213,7 +246,7 @@ struct RingBoardView: View {
                 .animation(.interpolatingSpring(stiffness: 400, damping: 28), value: p2Pos)
 
                 if let overlayTile = plunderEffectTile,
-                   let node = graph.first(where: { $0.id == overlayTile })
+                   let node = nodeMap[overlayTile]
                 {
                     let pos = pointNoOrigin(for: node.grid,
                                             minX: minX, minY: minY,
@@ -227,11 +260,11 @@ struct RingBoardView: View {
 
                 // 分岐選択UI（既存そのまま）
                 if let src = branchSource,
-                   let srcNode = graph.first(where: { $0.id == src }),
+                   let srcNode = nodeMap[src],
                    !branchCandidates.isEmpty {
                     let srcPos = pointNoOrigin(for: srcNode.grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
                     ForEach(branchCandidates, id: \.self) { cand in
-                        let targetPos = pointNoOrigin(for: graph[cand].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
+                        let targetPos = pointNoOrigin(for: nodes[cand].grid, minX: minX, minY: minY, step: step, tileSize: tileSize)
                         let mid = CGPoint(x: (srcPos.x + targetPos.x) / 2, y: (srcPos.y + targetPos.y) / 2)
                         Button { onPickBranch?(cand) } label: {
                             VStack(spacing: 4) {
