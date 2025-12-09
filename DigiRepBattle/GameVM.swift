@@ -1928,7 +1928,7 @@ final class GameVM: ObservableObject {
     private func terrainImageName(for attr: TileAttribute) -> String {
         switch attr {
         case .normal: return "field"
-        case .dry:    return "desert"
+        case .dry:    return "tileDesert"
         case .water:  return "water"
         case .heat:   return "fire"
         case .cold:   return "snow"
@@ -2837,7 +2837,7 @@ final class GameVM: ObservableObject {
 
         // 指定の固定割り当て（タイル番号は 1..31）
         setRange( 2,  4, image: "field",  attr: .normal) // 2〜4
-        setRange( 6,  9, image: "desert", attr: .dry)    // 6〜9
+        setRange( 6,  9, image: "tileDesert", attr: .dry)    // 6〜9
         setRange(10, 13, image: "water",  attr: .water)  // 10〜13
         setRange(14, 16, image: "field",  attr: .normal) // 14〜16
         setRange(17, 20, image: "fire",   attr: .heat)   // 17〜20

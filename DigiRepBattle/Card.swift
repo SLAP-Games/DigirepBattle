@@ -87,6 +87,15 @@ struct Card: Identifiable, Hashable {
 
 // 使い間違いを避けるためのイニシャライザ補助
 extension Card {
+    func imageName(firstVariant: Bool = true) -> String {
+        switch kind {
+        case .creature:
+            return "\(symbol)\(firstVariant ? "1" : "2")"
+        case .spell:
+            return symbol
+        }
+    }
+
     static func creature(
         id: CardID,
         name: String,

@@ -173,42 +173,42 @@ enum CardDatabase {
         "sp-dice1": .spell(
             id: "sp-dice1",
             name: "ダイス1",
-            symbol: "🎲1",
+            symbol: "dice1",
             effect: .fixNextRoll(1),
             cost: 20
         ),
         "sp-dice2": .spell(
             id: "sp-dice2",
             name: "ダイス2",
-            symbol: "🎲2",
+            symbol: "dice2",
             effect: .fixNextRoll(2),
             cost: 20
         ),
         "sp-dice3": .spell(
             id: "sp-dice3",
             name: "ダイス3",
-            symbol: "🎲3",
+            symbol: "dice3",
             effect: .fixNextRoll(3),
             cost: 20
         ),
         "sp-dice4": .spell(
             id: "sp-dice4",
             name: "ダイス4",
-            symbol: "🎲4",
+            symbol: "dice4",
             effect: .fixNextRoll(4),
             cost: 20
         ),
         "sp-dice5": .spell(
             id: "sp-dice5",
             name: "ダイス5",
-            symbol: "🎲5",
+            symbol: "dice5",
             effect: .fixNextRoll(5),
             cost: 20
         ),
         "sp-dice6": .spell(
             id: "sp-dice6",
             name: "ダイス6",
-            symbol: "🎲6",
+            symbol: "dice6",
             effect: .fixNextRoll(6),
             cost: 20
         ),
@@ -217,14 +217,14 @@ enum CardDatabase {
         "sp-doubleDice": .spell(
             id: "sp-doubleDice",
             name: "ダブルダイス",
-            symbol: "🎲🎲",
+            symbol: "doubleDice",
             effect: .doubleDice,
             cost: 30
         ),
         "sp-firstStrike": .spell(
             id: "sp-firstStrike",
             name: "先制",
-            symbol: "⚡️",
+            symbol: "firstStrike",
             effect: .firstStrike,
             cost: 30
         ),
@@ -233,21 +233,21 @@ enum CardDatabase {
         "sp-hardFang": .spell(
             id: "sp-hardFang",
             name: "硬牙",
-            symbol: "🦷",
+            symbol: "hardFang",
             effect: .buffPower(10),
             cost: 20
         ),
         "sp-sharpFang": .spell(
             id: "sp-sharpFang",
             name: "鋭牙",
-            symbol: "🩸",
+            symbol: "sharpFang",
             effect: .buffPower(20),
             cost: 40
         ),
         "sp-poisonFang": .spell(
             id: "sp-poisonFang",
             name: "毒牙",
-            symbol: "☠️",
+            symbol: "poisonFang",
             effect: .poison,
             cost: 60
         ),
@@ -256,21 +256,21 @@ enum CardDatabase {
         "sp-bigScale": .spell(
             id: "sp-bigScale",
             name: "大鱗",
-            symbol: "🛡",
+            symbol: "bigScale",
             effect: .buffDefense(10),
             cost: 20
         ),
         "sp-hardScale": .spell(
             id: "sp-hardScale",
             name: "硬鱗",
-            symbol: "🛡🛡",
+            symbol: "hardScale",
             effect: .buffDefense(20),
             cost: 40
         ),
         "sp-reflectScale": .spell(
             id: "sp-reflectScale",
             name: "反射鱗",
-            symbol: "🔁",
+            symbol: "reflectScale",
             effect: .reflectSkill,
             cost: 60
         ),
@@ -279,14 +279,14 @@ enum CardDatabase {
         "sp-draw2": .spell(
             id: "sp-draw2",
             name: "ドロー2",
-            symbol: "📥",
+            symbol: "draw2",
             effect: .drawCards(2),
             cost: 30
         ),
         "sp-deleteHand": .spell(
             id: "sp-deleteHand",
             name: "削除",
-            symbol: "🗑",
+            symbol: "deleteHand",
             effect: .discardOpponentCards(1),
             cost: 30
         ),
@@ -295,56 +295,56 @@ enum CardDatabase {
         "sp-elixir": .spell(
             id: "sp-elixir",
             name: "秘薬",
-            symbol: "🧪",
+            symbol: "elixir",
             effect: .fullHealAnyCreature,
             cost: 50
         ),
         "sp-decay": .spell(
             id: "sp-decay",
             name: "腐敗",
-            symbol: "💀",
+            symbol: "decay",
             effect: .changeLandLevel(delta: -1),
             cost: 30
         ),
         "sp-devastation": .spell(
             id: "sp-devastation",
             name: "荒廃",
-            symbol: "🏚",
+            symbol: "devastation",
             effect: .setLandTollZero,
             cost: 100
         ),
         "sp-harvest": .spell(
             id: "sp-harvest",
             name: "豊作",
-            symbol: "🌾",
+            symbol: "harvest",
             effect: .multiplyLandToll(2.0),
             cost: 100
         ),
         "sp-greatStorm": .spell(
             id: "sp-greatStorm",
             name: "大嵐",
-            symbol: "🌪",
+            symbol: "greatStorm",
             effect: .damageAnyCreature(40),
             cost: 50
         ),
         "sp-disaster": .spell(
             id: "sp-disaster",
             name: "落雷",
-            symbol: "⚡️",
+            symbol: "disaster",
             effect: .damageAnyCreature(80),
             cost: 150
         ),
         "sp-poisonSmoke": .spell(
             id: "sp-poisonSmoke",
             name: "毒煙",
-            symbol: "💨",
+            symbol: "poisonSmoke",
             effect: .poisonAnyCreature,
             cost: 100
         ),
         "sp-cure": .spell(
             id: "sp-cure",
             name: "浄化",
-            symbol: "💫",
+            symbol: "cure",
             effect: .cleanseTileStatus,
             cost: 100
         ),
@@ -353,14 +353,14 @@ enum CardDatabase {
         "sp-treasure": .spell(
             id: "sp-treasure",
             name: "財宝",
-            symbol: "💰",
+            symbol: "treasure",
             effect: .gainGold(500),
             cost: 100
         ),
         "sp-plunder": .spell(
             id: "sp-plunder",
             name: "略奪",
-            symbol: "🏴‍☠️",
+            symbol: "plunder",
             effect: .stealGold(200),
             cost: 100
         ),
@@ -369,7 +369,7 @@ enum CardDatabase {
         "sp-clairvoyance": .spell(
             id: "sp-clairvoyance",
             name: "透視",
-            symbol: "👁",
+            symbol: "clairvoyance",
             effect: .inspectCreature,
             cost: 50
         ),
@@ -378,7 +378,7 @@ enum CardDatabase {
         "sp-blizzard": .spell(
             id: "sp-blizzard",
             name: "吹雪",
-            symbol: "❄️",
+            symbol: "blizzard",
             effect: .aoeDamageByResist(
                 category: .cold,
                 threshold: 10,
@@ -389,7 +389,7 @@ enum CardDatabase {
         "sp-eruption": .spell(
             id: "sp-eruption",
             name: "噴火",
-            symbol: "🌋",
+            symbol: "eruption",
             effect: .aoeDamageByResist(
                 category: .heat,
                 threshold: 10,
@@ -400,7 +400,7 @@ enum CardDatabase {
         "sp-heavyRain": .spell(
             id: "sp-heavyRain",
             name: "豪雨",
-            symbol: "🌧",
+            symbol: "heavyRain",
             effect: .aoeDamageByResist(
                 category: .water,
                 threshold: 10,
@@ -411,7 +411,7 @@ enum CardDatabase {
         "sp-drought": .spell(
             id: "sp-drought",
             name: "干魃",
-            symbol: "☀️",
+            symbol: "drought",
             effect: .aoeDamageByResist(
                 category: .dry,
                 threshold: 10,
@@ -424,28 +424,28 @@ enum CardDatabase {
         "sp-snowMountain": .spell(
             id: "sp-snowMountain",
             name: "雪山",
-            symbol: "🏔",
+            symbol: "snowMountain",
             effect: .changeTileAttribute(.cold),
             cost: 30
         ),
         "sp-desert": .spell(
             id: "sp-desert",
             name: "砂漠",
-            symbol: "🏜",
+            symbol: "desert",
             effect: .changeTileAttribute(.dry),
             cost: 30
         ),
         "sp-volcano": .spell(
             id: "sp-volcano",
             name: "火山",
-            symbol: "🔥",
+            symbol: "volcano",
             effect: .changeTileAttribute(.heat),
             cost: 30
         ),
         "sp-jungle": .spell(
             id: "sp-jungle",
             name: "雨林",
-            symbol: "🌊",
+            symbol: "jungle",
             effect: .changeTileAttribute(.water),
             cost: 30
         ),
@@ -454,7 +454,7 @@ enum CardDatabase {
         "sp-purification": .spell(
             id: "sp-purification",
             name: "バグ",
-            symbol: "✨",
+            symbol: "purification",
             effect: .purgeAllCreatures,
             cost: 500
         )

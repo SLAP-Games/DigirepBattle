@@ -29,7 +29,7 @@ struct CardView: View {
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                Image("\(card.symbol)1")
+                Image(card.imageName())
                     .resizable()
                     .scaledToFit()
                     .frame(width: 60, height: 60)

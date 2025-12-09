@@ -166,16 +166,17 @@ struct FrontCardFace: View {
                 let w = geo.size.width
                 let h = geo.size.height
                 let sidePad = w * 0.12
-                let topPad  = h * 0.04
-                let imgH    = h * 0.48
+                let topPad  = h * 0.1
+                let topSpacing = card.kind == .spell ? topPad * 1.5 : topPad
+                let imgH    = h * 0.40
                 let heartH  = h * 0.052
                 let statsTopGap = h * 0.03
                 let detailFontSize = min(w, h) * 0.07
 
                 VStack(spacing: 0) {
-                    Spacer().frame(height: topPad)
+                    Spacer().frame(height: topSpacing)
 
-                    Image(useFirstImage ? "\(card.symbol)1" : "\(card.symbol)2")
+                    Image(card.imageName(firstVariant: useFirstImage))
                         .resizable()
                         .scaledToFit()
                         .frame(height: imgH)
@@ -184,7 +185,7 @@ struct FrontCardFace: View {
                     if let s = card.stats {
                         HeartRow(count: max(0, min(s.affection, 10)))
                             .frame(height: heartH)
-                            .padding(.top, h * 0.05)
+                            .padding(.top, h * 0.07)
                             .padding(.bottom, h * 0.02)
                     } else {
                         Spacer().frame(height: heartH)
