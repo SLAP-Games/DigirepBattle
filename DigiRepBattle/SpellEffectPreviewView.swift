@@ -31,7 +31,7 @@ struct SpellEffectPreviewView: View {
         .overlay(alignment: .bottom) {
             HStack {
                 Text(labelText)
-                    .font(.caption)
+                    .font(.bestTenCaption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(.black.opacity(0.5))

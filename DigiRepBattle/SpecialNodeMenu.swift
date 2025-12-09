@@ -25,7 +25,7 @@ struct SpecialNodeMenu: View {
     var body: some View {
         VStack(spacing: 12) {
             Text(title)
-                .font(.headline)
+                .font(.bestTenHeadline)
 
             HStack(spacing: 12) {
                 Button("領地強化", action: levelUp)

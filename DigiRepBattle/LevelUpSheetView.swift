@@ -13,7 +13,7 @@ struct LevelUpSheetView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("土地をレベルアップ").font(.headline)
+            Text("土地をレベルアップ").font(.bestTenHeadline)
             ForEach(2...5, id: \.self) { lv in
                 let cost = vm.levelUpCost[lv] ?? 0
                 Button("Lv\(lv) にする（\(cost)G）") {

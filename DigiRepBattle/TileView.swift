@@ -85,7 +85,7 @@ struct TileView: View {
             // マス番号
             VStack(spacing: 2) {
                 Text("\(index + 1)")
-                    .font(.caption)
+                    .font(.bestTenCaption)
                     .foregroundStyle(.secondary)
             }
 
@@ -125,11 +125,11 @@ struct TileView: View {
                 if level > 0 {
                     HStack {
                         Text("Lv \(level)")
-                            .font(.caption2).bold()
+                            .font(.bestTenCaption2).bold()
                             .foregroundStyle(.white)
                         Spacer()
                         Text("\(toll)")
-                            .font(.caption2).bold()
+                            .font(.bestTenCaption2).bold()
                             .foregroundStyle(.white)
                     }
                     .padding(.horizontal, 6)

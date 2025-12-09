@@ -130,7 +130,8 @@ struct DeckBuilderView: View {
                 Spacer()
 
                 Text("ク \(deck.totalCreatures)/\(DeckList.creatureLimit)  ス \(deck.totalSpells)/\(DeckList.spellLimit)")
-                    .font(.footnote.weight(.bold))
+                    .font(.bestTenFootnote)
+                    .bold()
             }
 
             // デッキカード一覧（4列グリッド）
@@ -156,7 +157,7 @@ struct DeckBuilderView: View {
     private var collectionArea: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("カードコレクション")
-                .font(.headline)
+                .font(.bestTenHeadline)
 
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 16) {
@@ -224,7 +225,7 @@ struct DeckBuilderView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .font(.headline)
+        .font(.bestTenHeadline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     /// デッキ内のユニークカード一覧（枚数付き）
@@ -357,7 +358,7 @@ struct DeckBuilderView: View {
 
                     VStack(spacing: 16) {
                         Text(countEditMode == .add ? "追加する枚数" : "削除する枚数")
-                            .font(.headline)
+                            .font(.bestTenHeadline)
 
                         Stepper(value: $countValue, in: 1...countMax) {
                             Text("\(countValue) 枚")
@@ -470,7 +471,8 @@ struct CardDetailSimple: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(card.name)
-                .font(.system(size: 26, weight: .semibold))
+                .font(.bestTen(size: 26))
+                .fontWeight(.semibold)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
                 .foregroundColor(.primary)
@@ -484,7 +486,7 @@ struct CardDetailSimple: View {
             // 必要に応じてステータステキストなど追加
             if let stats = card.stats {
                 Text("HP \(stats.hpMax)  POW \(stats.power)  DUR \(stats.durability)")
-                    .font(.footnote)
+                    .font(.bestTenFootnote)
             }
         }
         .padding(.top, 8)

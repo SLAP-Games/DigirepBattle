@@ -51,12 +51,14 @@ struct CyberScanDiceView: View {
 
                 // 中央の数字
                 Text("\(displayNumber)")
-                    .font(.system(size: 110, weight: .heavy, design: .rounded))
+                    .font(.bestTen(size: 110))
+                    .fontWeight(.heavy)
                     .foregroundColor(.cyan)
                     .shadow(color: .cyan, radius: 10)
                     .overlay(
                     Text("\(displayNumber)")
-                        .font(.system(size: 110, weight: .heavy, design: .rounded))
+                        .font(.bestTen(size: 110))
+                        .fontWeight(.heavy)
                         .foregroundColor(.white.opacity(0.5))
                         .blur(radius: 4)
                     )

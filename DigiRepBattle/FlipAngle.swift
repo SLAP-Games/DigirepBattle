@@ -209,11 +209,12 @@ struct FrontCardFace: View {
                             Spacer().frame(height: heartH / 2)
                             VStack(spacing: h * 0.015) {
                                 Text("コスト \(spellCostForDisplay())G")
-                                    .font(.system(size: detailFontSize, weight: .semibold))
+                                    .font(.bestTen(size: detailFontSize))
+                                    .fontWeight(.semibold)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 Text(vm.spellDescription(for: card))
-                                    .font(.system(size: detailFontSize))
+                                    .font(.bestTen(size: detailFontSize))
                                     .foregroundColor(.white)
                                     .multilineTextAlignment(.leading)
                                     .lineSpacing(2)
@@ -374,11 +375,12 @@ struct StatGrid2x4: View {
             ForEach(0..<items.count, id: \.self) { i in
                 HStack {
                     Text(items[i].0)
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.bestTen(size: 16))
                         .foregroundColor(.white.opacity(0.85))
                     Spacer()
                     Text(items[i].1)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.bestTen(size: 18))
+                        .fontWeight(.semibold)
                         .foregroundColor(.white)
                 }
             }

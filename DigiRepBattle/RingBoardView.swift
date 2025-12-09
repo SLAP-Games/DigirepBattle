@@ -69,6 +69,8 @@ struct RingBoardView: View {
     var forceCameraFocus: Bool = false
     var tileRemovalEffectTile: Int? = nil
     var tileRemovalEffectTrigger: UUID = UUID()
+    var homeArrivalTile: Int? = nil
+    var homeArrivalTrigger: UUID = UUID()
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -149,6 +151,11 @@ struct RingBoardView: View {
                                 .allowsHitTesting(false)
                         }
 
+                        if homeArrivalTile == idx {
+                            HomeArrivalOverlay(size: tileSize, trigger: homeArrivalTrigger)
+                                .allowsHitTesting(false)
+                        }
+
                         if tileRemovalEffectTile == idx {
                             TileRemovalOverlay(size: tileSize, trigger: tileRemovalEffectTrigger)
                                 .allowsHitTesting(false)
@@ -158,13 +165,15 @@ struct RingBoardView: View {
                         if let heal = healingAmounts[idx] {
                             if heal >= 0 {
                                 Text("+\(heal)")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.bestTen(size: 24))
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.green)
                                     .shadow(radius: 6)
                                     .offset(y: -tileSize * 0.4)   // タイルの少し上に浮かせる
                             } else {
                                 Text("-\(-heal)")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.bestTen(size: 24))
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.red)
                                     .shadow(radius: 6)
                                     .offset(y: -tileSize * 0.4)   // タイルの少し上に浮かせる
@@ -228,7 +237,8 @@ struct RingBoardView: View {
                             VStack(spacing: 4) {
                                 Image(systemName: "arrowtriangle.forward.fill")
                                     .rotationEffect(angle(from: srcPos, to: targetPos))
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.bestTen(size: 16))
+                                    .fontWeight(.bold)
                             }
                             .padding(8)
                             .background(.ultraThinMaterial, in: Capsule())
@@ -467,7 +477,8 @@ private struct TokenView: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 18, weight: .bold))
+            .font(.bestTen(size: 18))
+            .fontWeight(.bold)
             .foregroundStyle(color)
             .padding(6)
             .background(.thinMaterial, in: Circle())

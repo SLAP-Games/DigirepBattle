@@ -29,19 +29,19 @@ struct CreatureInfoPanel: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("タイル \(iv.tileIndex)")
-                            .font(.subheadline).fontWeight(.semibold)
+                            .font(.bestTenSubheadline).fontWeight(.semibold)
                         Text("属性: \(iv.mapAttribute)")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.bestTenCaption).foregroundStyle(.secondary)
                         Text("レベル: Lv\(iv.tileLevel)")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.bestTenCaption).foregroundStyle(.secondary)
                         Text("状態: \(iv.tileStatus)")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.bestTenCaption).foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
+                        .font(.bestTenTitle3)
                 }
                 .buttonStyle(.plain)
             }
@@ -59,10 +59,10 @@ struct CreatureInfoPanel: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(ownerLabel).font(.headline)
+                        Text(ownerLabel).font(.bestTenHeadline)
                         Spacer()
                         Text("HP \(iv.hpText)")
-                            .font(.subheadline)
+                            .font(.bestTenSubheadline)
                             .monospacedDigit()
                     }
 
@@ -76,7 +76,7 @@ struct CreatureInfoPanel: View {
                         GridRow { Text("熱耐性");   Text(iv.heatRes) }
                         GridRow { Text("冷耐性");   Text(iv.coldRes) }
                     }
-                    .font(.caption)
+                    .font(.bestTenCaption)
                     .foregroundStyle(.primary)
                 }
             }

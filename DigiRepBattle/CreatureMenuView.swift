@@ -16,7 +16,7 @@ struct CreatureMenuView: View {
     var body: some View {
         VStack(spacing: 12) {
             Text("自分の領地です")
-                .font(.subheadline).bold()
+                .font(.bestTenSubheadline).bold()
 
             HStack(spacing: 12) {
                 Button("マスレベルアップ") {
@@ -39,4 +39,3 @@ struct CreatureMenuView: View {
         }
     }
 }
-

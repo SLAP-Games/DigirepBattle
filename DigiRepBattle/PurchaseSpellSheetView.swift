@@ -14,7 +14,7 @@ struct PurchaseSpellSheetView: View {
     var body: some View {
         VStack(spacing: 12) {
             Text("スペルショップ")
-                .font(.headline)
+                .font(.bestTenHeadline)
 
             // ★ スクロール可能なリスト
             ScrollView {
@@ -27,9 +27,10 @@ struct PurchaseSpellSheetView: View {
                             // 中央：名前＆価格
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(sp.name)
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.bestTenSubheadline)
+                                    .fontWeight(.semibold)
                                 Text("価格 \(sp.price)G")
-                                    .font(.caption)
+                                    .font(.bestTenCaption)
                                     .foregroundStyle(.secondary)
                             }
 

@@ -79,7 +79,8 @@ struct DiceGlitchView: View {
 
     private var mainText: some View {
         Text("\(number)")
-            .font(.system(size: 80, weight: .black, design: .rounded))
+            .font(.bestTen(size: 80))
+            .fontWeight(.black)
             .tracking(4)
     }
 
@@ -183,4 +184,3 @@ private struct ScanlineOverlay: View {
         }
     }
 }
-

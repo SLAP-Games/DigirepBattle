@@ -91,11 +91,11 @@ fileprivate struct StatRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title)
-                    .font(.caption)
+                    .font(.bestTenCaption)
                     .foregroundStyle(.white)
                 Spacer()
                 Text("\(displayedValue)")
-                    .font(.caption2)
+                    .font(.bestTenCaption2)
                     .foregroundStyle(.white)
             }
             bar
@@ -112,7 +112,9 @@ fileprivate struct FighterHUD: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(who.name).font(.footnote).foregroundStyle(.white.opacity(0.9))
+            Text(who.name)
+                .font(.bestTenFootnote)
+                .foregroundStyle(.white.opacity(0.9))
 
             // HP (max = hpMax, green)
             StatRow(
@@ -267,7 +269,8 @@ public struct BattleOverlayView: View {
                             // ダメージ表示
                             if showDmgLeft {
                                 Text("-\(dmgLeft)")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.bestTen(size: 28))
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.red)
                                     .shadow(radius: 6)
                                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -275,7 +278,8 @@ public struct BattleOverlayView: View {
                             }
                             if showDmgRight {
                                 Text("-\(dmgRight)")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.bestTen(size: 28))
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.red)
                                     .shadow(radius: 6)
                                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -318,7 +322,7 @@ public struct BattleOverlayView: View {
                             isItemSelecting = false
                         } label: {
                             Text("使用しない")
-                                .font(.headline)
+                                .font(.bestTenHeadline)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
                                 .background(Color.white.opacity(0.9))

@@ -20,9 +20,9 @@ struct Badge: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.name).bold()
                 Text("Gold: \(player.gold)")
-                    .font(.caption)
+                    .font(.bestTenCaption)
                 Text("TOTAL: \(total)")
-                    .font(.caption)
+                    .font(.bestTenCaption)
             }
         }
         .padding(8)

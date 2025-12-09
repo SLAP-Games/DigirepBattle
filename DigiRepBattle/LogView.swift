@@ -13,7 +13,7 @@ struct LogView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
                 ForEach(lines.indices, id: \.self) { i in
-                    Text(lines[i]).font(.caption)
+                    Text(lines[i]).font(.bestTenCaption)
                 }
             }.padding(.horizontal)
         }

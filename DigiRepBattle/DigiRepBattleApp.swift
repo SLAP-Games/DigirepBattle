@@ -16,6 +16,7 @@ struct DigiRepBattleApp: App {
         WindowGroup {
             RootDeckBuilderScreen()
                 .ignoresSafeArea()
+                .environment(\.font, .bestTen(style: .body))
         }
     }
 }

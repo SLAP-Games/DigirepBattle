@@ -134,6 +134,8 @@ final class GameVM: ObservableObject {
     @Published var forceCameraFocus: Bool = false
     @Published var tileRemovalEffectTile: Int? = nil
     @Published var tileRemovalEffectTrigger: UUID = UUID()
+    @Published var homeArrivalTile: Int? = nil
+    @Published var homeArrivalTrigger: UUID = UUID()
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
     @Published var isSelectingLandLevelChangeTarget: Bool = false
     @Published var landLevelChangeCandidateTiles: Set<Int> = []
@@ -157,6 +159,8 @@ final class GameVM: ObservableObject {
     @Published var isShowingBattleSpellEffect: Bool = false
     @Published var battleSpellEffectID: UUID = UUID()
     private var pendingBranchDestination: Int? = nil
+    private var checkpointAutoCloseTask: DispatchWorkItem? = nil
+    private var pendingHomeOverlayTask: DispatchWorkItem? = nil
     @Published var isSelectingCleanseTarget: Bool = false
     @Published var cleanseCandidateTiles: Set<Int> = []
     @Published var pendingCleanseTile: Int? = nil
@@ -308,7 +312,13 @@ final class GameVM: ObservableObject {
 // MARK: ---------------------------------------------------------------------------
     // ポップアップを閉じる
     func closeCheckpointOverlay() {
-        showCheckpointOverlay = false
+        checkpointAutoCloseTask?.cancel()
+        checkpointAutoCloseTask = nil
+        pendingHomeOverlayTask?.cancel()
+        pendingHomeOverlayTask = nil
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showCheckpointOverlay = false
+        }
         checkpointMessage = nil
     }
     
@@ -1094,6 +1104,11 @@ final class GameVM: ObservableObject {
         stepsLeft -= 1
         awardCheckpointIfNeeded(entering: next, pid: turn)
 
+        if next == HOME_NODE {
+            stepsLeft = 0
+            return
+        }
+
         // 分岐ノードに入った & まだ動けるなら分岐処理
         if next == CROSS_NODE, stepsLeft > 0 {
             let cameFrom = cur
@@ -1193,6 +1208,38 @@ final class GameVM: ObservableObject {
         }
     }
     
+    private func presentCheckpointOverlay(message: String, playSound: Bool = false, autoCloseAfter: TimeInterval? = nil) {
+        checkpointAutoCloseTask?.cancel()
+        checkpointMessage = message
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showCheckpointOverlay = true
+        }
+        if playSound {
+            SoundManager.shared.playCheckpointSound()
+        }
+        if let delay = autoCloseAfter {
+            let work = DispatchWorkItem { [weak self] in
+                self?.closeCheckpointOverlay()
+            }
+            checkpointAutoCloseTask = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        } else {
+            checkpointAutoCloseTask = nil
+        }
+    }
+
+    private func triggerHomeArrivalEffect(at index: Int) {
+        homeArrivalTile = index
+        let trigger = UUID()
+        homeArrivalTrigger = trigger
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self else { return }
+            if self.homeArrivalTrigger == trigger {
+                self.homeArrivalTile = nil
+            }
+        }
+    }
+
     // タイルに「入った」タイミングで呼ぶ
     private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
         // 1) CP通過フラグの更新（CP1/CP2それぞれ）
@@ -1201,8 +1248,7 @@ final class GameVM: ObservableObject {
             if pid == 0 {
                 // GOLDはまだ付与しないが、通過ポップアップは出す
                 lastCheckpointGain = 0
-                checkpointMessage = "CP1通過"
-                showCheckpointOverlay = true
+                presentCheckpointOverlay(message: "CP1通過", playSound: true, autoCloseAfter: 2.0)
             }
             return
         }
@@ -1210,14 +1256,17 @@ final class GameVM: ObservableObject {
             passedCP2[pid] = true
             if pid == 0 {
                 lastCheckpointGain = 0
-                checkpointMessage = "CP2通過"
-                showCheckpointOverlay = true
+                presentCheckpointOverlay(message: "CP2通過", playSound: true, autoCloseAfter: 2.0)
             }
             return
         }
 
         // 2) ホーム通過時：両方trueならGOLD付与してフラグをリセット
         if index == HOME_NODE {
+            if pid == 0 {
+                triggerHomeArrivalEffect(at: index)
+                SoundManager.shared.playHomeSound()
+            }
             if passedCP1[pid] && passedCP2[pid] {
                 let gain = checkpointReward(for: pid)
                 players[pid].gold += gain
@@ -1226,8 +1275,14 @@ final class GameVM: ObservableObject {
 
                 if pid == 0 {
                     lastCheckpointGain = gain
-                    checkpointMessage = "帰還しました。CP達成報酬 \(gain) GOLD"
-                    showCheckpointOverlay = true
+                    let message = "帰還しました。CP達成報酬 \(gain) GOLD"
+                    pendingHomeOverlayTask?.cancel()
+                    let work = DispatchWorkItem { [weak self] in
+                        self?.presentCheckpointOverlay(message: message, autoCloseAfter: 2.0)
+                        self?.pendingHomeOverlayTask = nil
+                    }
+                    pendingHomeOverlayTask = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
                 }
             } else {
                 // どちらか未達 → 何もしない（ポップアップも出さない）

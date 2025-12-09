@@ -25,7 +25,7 @@ struct CardView: View {
 
             VStack(spacing: 6) {
                 Text(card.name)
-                    .font(.caption2)
+                    .font(.bestTenCaption2)
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -41,7 +41,8 @@ struct CardView: View {
                 VStack {
                     HStack {
                         Text("\(badgeCount)")
-                            .font(.caption2.bold())
+                            .font(.bestTenCaption2)
+                            .bold()
                             .padding(4)
                             .background(
                                 Circle()

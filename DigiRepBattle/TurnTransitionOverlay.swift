@@ -53,7 +53,8 @@ struct TurnTransitionOverlay: View {
                 .clipped()
 
                 Text(title)
-                    .font(.system(size: min(W, H) * 0.12, weight: .heavy, design: .rounded))
+                    .font(.bestTen(size: min(W, H) * 0.12))
+                    .fontWeight(.heavy)
                     .kerning(2)
                     .foregroundColor(.white)
                     .shadow(radius: 12)
@@ -138,5 +139,4 @@ struct InfiniteSlidingStrip: View {
         }
     }
 }
-
 

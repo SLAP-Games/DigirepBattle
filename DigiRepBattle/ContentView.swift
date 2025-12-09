@@ -52,7 +52,9 @@ struct ContentView: View {
                         npcShakeActive: vm.npcShakeActive,
                         forceCameraFocus: vm.forceCameraFocus,
                         tileRemovalEffectTile: vm.tileRemovalEffectTile,
-                        tileRemovalEffectTrigger: vm.tileRemovalEffectTrigger
+                        tileRemovalEffectTrigger: vm.tileRemovalEffectTrigger,
+                        homeArrivalTile: vm.homeArrivalTile,
+                        homeArrivalTrigger: vm.homeArrivalTrigger
                     )
                     .frame(height: boardH)
                     .background {
@@ -72,7 +74,7 @@ struct ContentView: View {
                                 Image(systemName: cp2CPU ? "star.fill" : "star")
                                     .foregroundStyle(cp2CPU ? .yellow : .gray)
                             }
-                            .font(.caption)
+                            .font(.bestTenCaption)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -98,7 +100,7 @@ struct ContentView: View {
                                 Image(systemName: cp2Player ? "star.fill" : "star")
                                     .foregroundStyle(cp2Player ? .yellow : .gray)
                             }
-                            .font(.caption)
+                            .font(.bestTenCaption)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -140,7 +142,7 @@ struct ContentView: View {
                             Color.black.opacity(0.35).ignoresSafeArea()
                             VStack(spacing: 12) {
                                 Text(vm.checkpointMessage ?? "チェックポイント通過")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 16)
                                 Button("閉じる") {
@@ -210,8 +212,8 @@ struct ContentView: View {
                                 let before = vm.players[0].gold
                                 let after  = vm.sellPreviewAfterGold
 
-                                Text("売却しますか？").font(.headline)
-                                Text("-\(max(0, -before)) GOLD → \(after) GOLD").font(.subheadline)
+                                Text("売却しますか？").font(.bestTenHeadline)
+                                Text("-\(max(0, -before)) GOLD → \(after) GOLD").font(.bestTenSubheadline)
 
                                 HStack {
                                     Button("キャンセル") { vm.cancelSellTile() }
@@ -240,10 +242,10 @@ struct ContentView: View {
                             Color.black.opacity(0.35).ignoresSafeArea()
                             VStack(spacing: 12) {
                                 Text("交換しますか？")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .multilineTextAlignment(.center)
                                 Text("必要コスト \(price) GOLD")
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
                                     .foregroundStyle(.secondary)
 
                                 HStack(spacing: 12) {
@@ -334,7 +336,7 @@ struct ContentView: View {
 
                             VStack(spacing: 16) {
                                 Text("削除するカードを選択")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .padding(.top, 20)
 
                                 ScrollView(.horizontal, showsIndicators: false) {
@@ -381,7 +383,7 @@ struct ContentView: View {
 
                             VStack(spacing: 16) {
                                 Text("このカードを削除しますか？")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
 
                                 // 単純にカード絵だけ大きく見せる
                                 CardView(card: delCard)
@@ -433,7 +435,7 @@ struct ContentView: View {
 
                             VStack(spacing: 16) {
                                 Text("このカードが削除されました")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
 
                                 CardView(card: delCard)
                                     .frame(width: 150)
@@ -467,10 +469,10 @@ struct ContentView: View {
 
                             VStack(spacing: 16) {
                                 Text("回復しますか？")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
 
                                 Text("現在の体力: \(currentHP)/\(maxHP)")
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
 
                                 HStack(spacing: 20) {
                                     Button("OK") {
@@ -504,12 +506,12 @@ struct ContentView: View {
 
                             VStack(spacing: 14) {
                                 Text(vm.pendingDamageSpellName ?? "スペル")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
                                 Text("マス \(tile + 1) のクリーチャーに \(vm.pendingDamageAmount) ダメージを与えますか？")
                                     .multilineTextAlignment(.center)
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
 
                                 Button("ダメージを与える") {
                                     vm.confirmDamageSpell()
@@ -550,12 +552,12 @@ struct ContentView: View {
 
                             VStack(spacing: 14) {
                                 Text(vm.pendingTileAttributeSpellName ?? "スペル")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
                                 Text("マス \(tile + 1) を \(vm.tileAttributeName(for: kind)) に変更しますか？")
                                     .multilineTextAlignment(.center)
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
 
                                 Button("地形を変化させる") {
                                     vm.confirmTileAttributeChange()
@@ -595,12 +597,12 @@ struct ContentView: View {
 
                             VStack(spacing: 14) {
                                 Text(vm.pendingPoisonSpellName ?? "スペル")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
                                 Text("マス \(tile + 1) のクリーチャーを毒状態にしますか？")
                                     .multilineTextAlignment(.center)
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
 
                                 Button("毒を付与する") {
                                     vm.confirmPoisonSpell()
@@ -640,12 +642,12 @@ struct ContentView: View {
 
                             VStack(spacing: 14) {
                                 Text(vm.pendingCleanseSpellName ?? "スペル")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
                                 Text("マス \(tile + 1) の効果を解除しますか？")
                                     .multilineTextAlignment(.center)
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
 
                                 Button("効果を解除する") {
                                     vm.confirmCleanseSpell()
@@ -687,10 +689,10 @@ struct ContentView: View {
 
                             VStack(spacing: 16) {
                                 Text("レベルを１下げますか？")
-                                    .font(.headline)
+                                    .font(.bestTenHeadline)
 
                                 Text("現在のレベル: Lv\(currentLevel)")
-                                    .font(.subheadline)
+                                    .font(.bestTenSubheadline)
 
                                 HStack(spacing: 20) {
                                     Button("OK") {
@@ -722,11 +724,11 @@ struct ContentView: View {
 
                         VStack(spacing: 12) {
                             Text("通行量を 0 にしますか？")
-                                .font(.headline)
+                                .font(.bestTenHeadline)
                                 .multilineTextAlignment(.center)
 
                             Text("現在の通行量: \(vm.toll[tile])G")
-                                .font(.subheadline)
+                                .font(.bestTenSubheadline)
                                 .foregroundStyle(.secondary)
 
                             HStack(spacing: 12) {
@@ -758,11 +760,11 @@ struct ContentView: View {
 
                         VStack(spacing: 12) {
                             Text("通行量を 2 倍にしますか？")
-                                .font(.headline)
+                                .font(.bestTenHeadline)
                                 .multilineTextAlignment(.center)
 
                             Text("現在の通行量: \(vm.toll[tile])G")
-                                .font(.subheadline)
+                                .font(.bestTenSubheadline)
                                 .foregroundStyle(.secondary)
 
                             HStack(spacing: 12) {
@@ -866,7 +868,7 @@ struct ContentView: View {
                             ZStack {
                                 VStack {
                                     Text("このデジレプを配置しますか？")
-                                        .font(.subheadline).bold()
+                                        .font(.bestTenSubheadline).bold()
                                     
                                     HStack(spacing: 12) {
                                         let price = card.stats?.cost ?? 0
@@ -903,7 +905,7 @@ struct ContentView: View {
                                 ZStack {
                                     VStack(spacing: 12) {
                                         Text("占領済みです")
-                                            .font(.subheadline).bold()
+                                            .font(.bestTenSubheadline).bold()
                                         Button("キャンセル") {
                                             vm.closeCardPopup()
                                         }
@@ -927,7 +929,7 @@ struct ContentView: View {
                             ZStack {
                                 VStack(spacing: 12) {
                                     Text("相手の領地です")
-                                        .font(.subheadline).bold()
+                                        .font(.bestTenSubheadline).bold()
                                     Button("キャンセル") {
                                         vm.closeCardPopup()
                                     }
@@ -948,7 +950,7 @@ struct ContentView: View {
                             ZStack {
                                 VStack(spacing: 12) {
                                     Text("この場所では配置できません")
-                                        .font(.subheadline).bold()
+                                        .font(.bestTenSubheadline).bold()
                                     Button("キャンセル") {
                                         vm.closeCardPopup()
                                     }
@@ -985,7 +987,7 @@ struct ContentView: View {
                                 } else {
                                     VStack(spacing: 8) {
                                         Text("召喚できるデジレプがいないため戦闘できません")
-                                            .font(.footnote)
+                                            .font(.bestTenFootnote)
                                         Button("通行料を払う") { vm.payTollAndEndChoice() }
                                             .buttonStyle(.borderedProminent)
                                     }
@@ -1028,7 +1030,7 @@ struct ContentView: View {
                             VStack(spacing: 12) {
                                 Text(text)
                                     .multilineTextAlignment(.center)
-                                    .font(.title3.bold())
+                                    .font(.bestTenTitle3).bold()
                                     .padding(.vertical, 4)
 
                                 Button("閉じる") {
@@ -1088,7 +1090,7 @@ struct ContentView: View {
                         ZStack {
                             VStack {
                                 Text("スペル使用先を選択")
-                                    .font(.subheadline).bold()
+                                    .font(.bestTenSubheadline).bold()
 
                                 HStack(spacing: 12) {
                                     Button("自分") {
@@ -1214,7 +1216,7 @@ struct ContentView: View {
     @ViewBuilder
     private func instructionBadge(_ text: String) -> some View {
         Text(text)
-            .font(.headline)
+            .font(.bestTenHeadline)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.ultraThinMaterial)
@@ -1368,7 +1370,8 @@ struct CardDetailOverlay: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(card.name)
-                .font(.system(size: 26, weight: .semibold))
+                .font(.bestTen(size: 26))
+                .fontWeight(.semibold)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
                 .foregroundColor(.white)
@@ -1524,7 +1527,7 @@ struct DrawCardOverlay: View {
 
             VStack(spacing: 12) {
                 Text("カードをドロー")
-                    .font(.headline)
+                    .font(.bestTenHeadline)
                     .foregroundColor(.white)
 
                 // 既存の Flip 表現を再利用

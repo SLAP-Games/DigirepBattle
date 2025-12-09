@@ -108,6 +108,14 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: "deleteSound")
     }
 
+    func playCheckpointSound() {
+        playSE(named: "checkPointSound")
+    }
+
+    func playHomeSound() {
+        playSE(named: "homeSound")
+    }
+
     private func playSE(named name: String) {
         guard isSoundOn else { return }
 
