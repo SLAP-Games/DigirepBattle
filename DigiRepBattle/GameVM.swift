@@ -84,6 +84,7 @@ final class GameVM: ObservableObject {
     @Published var specialPending: SpecialPendingAction? = nil
     @Published var presentingCard: Card? = nil
     @Published var shopSpellForDetail: ShopSpell? = nil
+    @Published var availableShopSpells: [ShopSpell] = []
     @Published var passedCP1: [Bool] = [false, false]
     @Published var passedCP2: [Bool] = [false, false]
     @Published var showCreatureMenu: Bool = false
@@ -322,6 +323,7 @@ final class GameVM: ObservableObject {
         startTurnIfNeeded()
         self.focusTile = players[turn].pos
         self.terrain = buildFixedTerrain()
+        self.availableShopSpells = ShopSpell.randomCatalog(count: 5)
         checkVictoryCondition()
         victoryMonitor = Timer.publish(every: 0.5, on: .main, in: .common)
             .autoconnect()
@@ -831,6 +833,7 @@ final class GameVM: ObservableObject {
 
         pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
         handleHandOverflowIfNeeded()  // 6枚超の処理があるなら実装済み関数を呼ぶ
+        availableShopSpells = availableShopSpells.filter { $0.id != spell.id }
         activeSpecialSheet = nil
         objectWillChange.send()
     }
@@ -4641,7 +4644,6 @@ final class GameVM: ObservableObject {
         recalcAllTolls()
 
         let attrName = tileAttributeName(for: kind)
-        let spellLabel = spellName ?? attrName
         pushCenterMessage("地形を\(attrName)に改変")
 
         try? await Task.sleep(nanoseconds: 900_000_000)
@@ -4784,14 +4786,40 @@ struct ShopSpell: Identifiable, Equatable {
 
 extension ShopSpell {
     static let catalog: [ShopSpell] = [
-        .init(id: "sp-dice1",  name: "ダイス1",   price: 10),
-        .init(id: "sp-dice2",    name: "ダイス2",   price: 10),
-        .init(id: "sp-dice3",      name: "ダイス3", price: 10),
+        .init(id: "sp-dice1",  name: "ダイス1",   price: 20),
+        .init(id: "sp-dice2",    name: "ダイス2",   price: 20),
+        .init(id: "sp-dice3",      name: "ダイス3", price: 20),
         .init(id: "sp-dice4",      name: "ダイス4", price: 20),
         .init(id: "sp-dice5",      name: "ダイス5", price: 20),
         .init(id: "sp-dice6",      name: "ダイス6", price: 20),
+        .init(id: "sp-doubleDice",      name: "ダブル", price: 30),
+        .init(id: "sp-firstStrike",      name: "先制", price: 30),
         .init(id: "sp-hardFang",      name: "硬牙", price: 20),
-        .init(id: "sp-bigScale",      name: "大鱗", price: 20),
-        .init(id: "sp-draw2",      name: "ドロー2", price: 40)
+        .init(id: "sp-sharpFang",      name: "鋭牙", price: 50),
+        .init(id: "sp-poisonFang",      name: "毒牙", price: 80),
+        .init(id: "sp-bigScale",      name: "硬鱗", price: 20),
+        .init(id: "sp-hardScale",      name: "鋼鱗", price: 50),
+        .init(id: "sp-draw2",      name: "ドロー2", price: 30),
+        .init(id: "sp-deleteHand",      name: "削除", price: 30),
+        .init(id: "sp-elixir",      name: "秘薬", price: 50),
+        .init(id: "sp-decay",      name: "腐敗", price: 40),
+        .init(id: "sp-decay",      name: "腐敗", price: 40),
+        .init(id: "sp-harvest",      name: "豊作", price: 100),
+        .init(id: "sp-greatStorm",      name: "大嵐", price: 50),
+        .init(id: "sp-poisonSmoke",      name: "毒煙", price: 100),
+        .init(id: "sp-cure",      name: "浄化", price: 100),
+        .init(id: "sp-clairvoyance",      name: "透視", price: 50),
+        .init(id: "sp-snowMountain",      name: "雪山", price: 30),
+        .init(id: "sp-desert",      name: "砂漠", price: 30),
+        .init(id: "sp-volcano",      name: "火山", price: 30),
+        .init(id: "sp-jungle",      name: "雨林", price: 30)
     ]
+    static func randomCatalog(count: Int) -> [ShopSpell] {
+        let shuffled = catalog.shuffled()
+        if count >= shuffled.count {
+            return shuffled
+        } else {
+            return Array(shuffled.prefix(count))
+        }
+    }
 }

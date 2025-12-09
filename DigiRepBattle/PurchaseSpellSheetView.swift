@@ -19,7 +19,7 @@ struct PurchaseSpellSheetView: View {
             // ★ スクロール可能なリスト
             ScrollView {
                 VStack(spacing: 8) {
-                    ForEach(ShopSpell.catalog) { sp in
+                    ForEach(vm.availableShopSpells) { sp in
                         HStack {
                             // 左：画像（なければ SF Symbol）
                             spellImageView(for: sp)

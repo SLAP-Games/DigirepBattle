@@ -523,7 +523,7 @@ private struct TokenView: View {
             } keyframes: { _ in
                 KeyframeTrack(\.self) {
                     // ひゅっと上がる（0 → 1）
-                    CubicKeyframe(1.0, duration: 0.12)
+                    CubicKeyframe(1.0, duration: 0.08)
                     // すっと戻る（1 → 0）スプリング
                     SpringKeyframe(0.0, duration: 0.22, spring: .init(response: 0.22, dampingRatio: 0.9))
                 }

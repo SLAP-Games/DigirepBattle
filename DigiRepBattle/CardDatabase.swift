@@ -74,96 +74,96 @@ enum CardDatabase {
 //----------------------------------------------------------------------------
         "cre-defaultLizard": .creature(
             id: "cre-defaultLizard",
-            name: "デジトカゲ",
+            name: "Dトカゲ",
             symbol: "defaultLizard",
             stats: .defaultLizard
         ),
         "cre-defaultGecko": .creature(
             id: "cre-defaultGecko",
-            name: "デジヤモリ",
+            name: "Dヤモリ",
             symbol: "defaultGecko",
             stats: .defaultGecko
         ),
         "cre-defaultCrocodile": .creature(
             id: "cre-defaultCrocodile",
-            name: "デジワニ",
+            name: "Dワニ",
             symbol: "defaultCrocodile",
             stats: .defaultCrocodile
         ),
 
         "cre-defaultSnake": .creature(
             id: "cre-defaultSnake",
-            name: "デジヘビ",
+            name: "Dヘビ",
             symbol: "defaultSnake",
             stats: .defaultSnake
         ),
 
         "cre-defaultIguana": .creature(
             id: "cre-defaultIguana",
-            name: "デジイグアナ",
+            name: "Dイグアナ",
             symbol: "defaultIguana",
             stats: .defaultIguana
         ),
 
         "cre-defaultTurtle": .creature(
             id: "cre-defaultTurtle",
-            name: "デジガメ",
+            name: "Dガメ",
             symbol: "defaultTurtle",
             stats: .defaultTurtle
         ),
 
         "cre-defaultFrog": .creature(
             id: "cre-defaultFrog",
-            name: "デジガエル",
+            name: "Dガエル",
             symbol: "defaultFrog",
             stats: .defaultFrog
         ),
 
         "cre-defaultBeardedDragon": .creature(
             id: "cre-defaultBeardedDragon",
-            name: "デジフトアゴ",
+            name: "Dフトアゴ",
             symbol: "defaultBeardedDragon",
             stats: .defaultBeardedDragon
         ),
 
         "cre-defaultLeopardGecko": .creature(
             id: "cre-defaultLeopardGecko",
-            name: "デジレオパ",
+            name: "Dレオパ",
             symbol: "defaultLeopardGecko",
             stats: .defaultLeopardGecko
         ),
 
         "cre-defaultNileCrocodile": .creature(
             id: "cre-defaultNileCrocodile",
-            name: "デジクロコ",
+            name: "Dクロコ",
             symbol: "defaultNileCrocodile",
             stats: .defaultNileCrocodile
         ),
 
         "cre-defaultBallPython": .creature(
             id: "cre-defaultBallPython",
-            name: "デジパイソン",
+            name: "Dパイソン",
             symbol: "defaultBallPython",
             stats: .defaultBallPython
         ),
 
         "cre-defaultGreenIguana": .creature(
             id: "cre-defaultGreenIguana",
-            name: "デジグリーン",
+            name: "Dグリーン",
             symbol: "defaultGreenIguana",
             stats: .defaultGreenIguana
         ),
 
         "cre-defaultaStarTurtle": .creature(
             id: "cre-defaultaStarTurtle",
-            name: "デジホシガメ",
+            name: "Dホシガメ",
             symbol: "defaultaStarTurtle",
             stats: .defaultaStarTurtle
         ),
 
         "cre-defaultHornedFrog": .creature(
             id: "cre-defaultHornedFrog",
-            name: "デジツノガエル",
+            name: "Dツノガエル",
             symbol: "defaultHornedFrog",
             stats: .defaultHornedFrog
         ),
@@ -242,14 +242,14 @@ enum CardDatabase {
             name: "鋭牙",
             symbol: "sharpFang",
             effect: .buffPower(20),
-            cost: 40
+            cost: 50
         ),
         "sp-poisonFang": .spell(
             id: "sp-poisonFang",
             name: "毒牙",
             symbol: "poisonFang",
             effect: .poison,
-            cost: 60
+            cost: 80
         ),
 
         // --- 鱗系（防御力） ---
@@ -265,7 +265,7 @@ enum CardDatabase {
             name: "硬鱗",
             symbol: "hardScale",
             effect: .buffDefense(20),
-            cost: 40
+            cost: 50
         ),
         "sp-reflectScale": .spell(
             id: "sp-reflectScale",
@@ -304,7 +304,7 @@ enum CardDatabase {
             name: "腐敗",
             symbol: "decay",
             effect: .changeLandLevel(delta: -1),
-            cost: 30
+            cost: 40
         ),
         "sp-devastation": .spell(
             id: "sp-devastation",
