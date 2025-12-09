@@ -10,91 +10,126 @@ import Combine
 
 /// Kavsoft風グリッチダイス表示
 struct DiceGlitchView: View {
+    enum Mode {
+        case rolling
+        case pinned
+    }
+
     let number: Int
     let duration: TimeInterval
+    let mode: Mode
     let onFinished: () -> Void
 
     @State private var startDate: Date? = nil
     @State private var elapsed: TimeInterval = 0
+    @State private var didFinishAnimation = false
+    @State private var displayedNumber: Int = 1
+    @State private var isLocked = false
 
-    // 60fps くらいで更新
+    private let shuffleDuration: TimeInterval = 2.0
+    private var totalDuration: TimeInterval { shuffleDuration + duration }
+    private var randomRange: ClosedRange<Int> {
+        let maxVal = max(6, number)
+        return 1...maxVal
+    }
+
     private let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
 
     private var phase: CGFloat {
         CGFloat(elapsed)
     }
 
+    init(number: Int,
+         duration: TimeInterval,
+         mode: Mode = .rolling,
+         onFinished: @escaping () -> Void = {}) {
+        self.number = number
+        self.duration = duration
+        self.mode = mode
+        self.onFinished = onFinished
+    }
+
     var body: some View {
-        ZStack {
-            // 背景パネル
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            Color.green.opacity(0.8), // 中央が一番濃い
-                            Color.green.opacity(0.0)  // 外側は完全に透明
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 90   // 150x150 に対してちょうどいいくらい
+        GeometryReader { geo in
+            let size = min(geo.size.width, geo.size.height)
+            let textSize = size * 0.58
+
+            ZStack {
+                DigitalStripeBackground()
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.white.opacity(0.45), lineWidth: 1.5)
                     )
-                )
-                .frame(width: 150, height: 150)
-                .shadow(radius: 20)
 
-            // スキャンラインっぽい縞模様
-            ScanlineOverlay(phase: phase)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .blendMode(.overlay)
-                .opacity(0.6)
+                if mode == .rolling {
+                    ScanlineOverlay(phase: phase)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .blendMode(.overlay)
+                        .opacity(0.55)
+                }
 
-            // ベースのテキスト
-            mainText
-                .foregroundStyle(.white)
+                mainText(fontSize: textSize)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // RGBずれ＋横バンドによるグリッチレイヤー
-            glitchLayer(color: .cyan,  xSeed: 0.0,  ySeed: 0.3)
-            glitchLayer(color: .green,   xSeed: 1.3,  ySeed: -0.4)
+                if mode == .rolling && !isLocked {
+                    glitchLayer(fontSize: textSize, color: .cyan, xSeed: 0.0, ySeed: 0.3)
+                    glitchLayer(fontSize: textSize, color: .green, xSeed: 1.3, ySeed: -0.4)
+                }
+            }
+            .frame(width: size, height: size)
+            .position(x: geo.size.width / 2, y: geo.size.height / 2)
         }
+        .aspectRatio(1, contentMode: .fit)
         .onReceive(timer) { date in
+            guard mode == .rolling, !didFinishAnimation else { return }
+
             if startDate == nil {
                 startDate = date
                 elapsed = 0
+                displayedNumber = Int.random(in: randomRange)
                 return
             }
             guard let start = startDate else { return }
 
             let newElapsed = date.timeIntervalSince(start)
 
-            if newElapsed >= duration {
-                // 終了
+            if newElapsed < shuffleDuration {
+                displayedNumber = Int.random(in: randomRange)
+            } else if !isLocked {
+                isLocked = true
+                displayedNumber = number
+            }
+
+            if newElapsed >= totalDuration {
+                didFinishAnimation = true
                 onFinished()
-                // 以後できるだけ負荷を減らす（描画は残り1フレームでほぼ消える）
-                elapsed = duration
+                elapsed = totalDuration
             } else {
                 elapsed = newElapsed
             }
         }
     }
 
-    private var mainText: some View {
-        Text("\(number)")
-            .font(.bestTen(size: 80))
+    private func mainText(fontSize: CGFloat) -> some View {
+        Text("\(mode == .rolling ? displayedNumber : number)")
+            .font(.bestTen(size: fontSize))
             .fontWeight(.black)
             .tracking(4)
+            .shadow(color: .black.opacity(0.6), radius: 6, x: 0, y: 2)
     }
 
-    /// グリッチ用レイヤー（Kavsoft風：横バンドごとに左右にズレる＋色ずれ）
-    private func glitchLayer(color: Color, xSeed: CGFloat, ySeed: CGFloat) -> some View {
-        mainText
+    private func glitchLayer(fontSize: CGFloat, color: Color, xSeed: CGFloat, ySeed: CGFloat) -> some View {
+        mainText(fontSize: fontSize)
             .foregroundColor(color)
             .blendMode(.screen)
             .offset(
                 x: sin(phase * 40 + xSeed * 5) * 6,
                 y: cos(phase * 25 + ySeed * 5) * 3
             )
-            .opacity(0.6 + 0.4 * Double(abs(sin(phase * 50 + xSeed))))
-            // 横バンドごとのマスクで「ガタガタ切れた文字」にする
+            .opacity(0.65 + 0.35 * Double(abs(sin(phase * 50 + xSeed))))
             .mask(
                 GlitchBandMask(
                     phase: phase,
@@ -103,6 +138,7 @@ struct DiceGlitchView: View {
                     ySeed: ySeed
                 )
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -181,6 +217,29 @@ private struct ScanlineOverlay: View {
                 }
             }
             .offset(y: scroll)   // 上から下に流れていく
+        }
+    }
+}
+
+private struct DigitalStripeBackground: View {
+    var body: some View {
+        GeometryReader { geo in
+            let stripeHeight: CGFloat = 3
+            let gap: CGFloat = 1.5
+            let step = stripeHeight + gap
+            let count = Int(geo.size.height / step) + 2
+            let stripeColor = Color(red: 0.35, green: 0.95, blue: 0.45).opacity(0.8)
+
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.65)
+
+                ForEach(0..<count, id: \.self) { idx in
+                    Rectangle()
+                        .fill(stripeColor)
+                        .frame(height: stripeHeight)
+                        .offset(y: CGFloat(idx) * step)
+                }
+            }
         }
     }
 }

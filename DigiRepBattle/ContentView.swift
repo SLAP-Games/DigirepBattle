@@ -793,14 +793,34 @@ struct ContentView: View {
                     }
                     
                     if vm.isShowingDiceGlitch, let n = vm.diceGlitchNumber {
-                        DiceGlitchView(number: n, duration: 0.6) {
-                            // 終了時にフラグを落とす
-                            vm.isShowingDiceGlitch = false
-                            vm.diceGlitchNumber = nil
+                        GeometryReader { diceGeo in
+                            let minEdge = min(diceGeo.size.width, diceGeo.size.height)
+                            let largeSize = min(minEdge * 0.45, 240)
+                            let compactSize = max(72, minEdge * 0.18)
+                            let cornerPadding: CGFloat = 20
+                            let safeTop = diceGeo.safeAreaInsets.top
+                            let victoryBarHeight: CGFloat = 52
+                            let pinnedPoint = CGPoint(
+                                x: cornerPadding + compactSize / 2,
+                                y: safeTop + victoryBarHeight + cornerPadding + compactSize / 2
+                            )
+                            let centerPoint = CGPoint(x: diceGeo.size.width / 2,
+                                                      y: diceGeo.size.height / 2)
+
+                            DiceGlitchView(
+                                number: n,
+                                duration: 0.35,
+                                mode: vm.diceGlitchPinned ? .pinned : .rolling,
+                                onFinished: {
+                                    vm.handleDiceGlitchRevealFinished()
+                                }
+                            )
+                            .frame(width: vm.diceGlitchPinned ? compactSize : largeSize,
+                                   height: vm.diceGlitchPinned ? compactSize : largeSize)
+                            .position(vm.diceGlitchPinned ? pinnedPoint : centerPoint)
+                            .animation(.easeInOut(duration: 0.35), value: vm.diceGlitchPinned)
                         }
-                        // ボード全体を覆うようにして中央に固定
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .allowsHitTesting(false)   // 入力は下のボードに通す
+                        .allowsHitTesting(false)
                         .zIndex(30)
                     }
 
@@ -829,7 +849,6 @@ struct ContentView: View {
                                     .disabled(!(vm.turn == 0 && vm.phase == .moved))
                                     .disabled(!vm.canEndTurn)
                                 
-                                Text("Roll: \(vm.lastRoll)")
                                 Spacer()
                             }
                             .buttonStyle(.borderedProminent)
@@ -1303,6 +1322,7 @@ private struct VictoryBannerView: View {
         .allowsHitTesting(false)
     }
 }
+
 
 private extension GameVM.VictoryStatus {
     var displayText: String {

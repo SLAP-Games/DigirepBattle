@@ -181,6 +181,7 @@ final class GameVM: ObservableObject {
     @Published var activeBoardWideEffect: BoardWideSpellEffectKind? = nil
     @Published var isShowingDiceGlitch: Bool = false
     @Published var diceGlitchNumber: Int? = nil
+    @Published var diceGlitchPinned: Bool = false
     // === ここから追加: sp-devastation 用（通行量 0） ===
     @Published var isSelectingLandTollZeroTarget: Bool = false
     @Published var landTollZeroCandidateTiles: Set<Int> = []
@@ -212,10 +213,13 @@ final class GameVM: ObservableObject {
     private var pendingSpellCost: Int = 0
     private var willPoisonDefender: Bool = false
     private var plunderAnimationTask: Task<Void, Never>? = nil
+    private var diceGlitchContinuation: CheckedContinuation<Void, Never>? = nil
+    private var diceGlitchShouldPinAfterReveal: Bool = false
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
     private let CHECKPOINTS: Set<Int> = [0, 4, 20]
     private let creatureTransferCost = 50
+    private let diceGlitchCornerAnimationDuration: TimeInterval = 0.35
     private let nextCW: [Int] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 4, 29, 30, 16
@@ -377,6 +381,7 @@ final class GameVM: ObservableObject {
 // MARK: ---------------------------------------------------------------------------
     func endTurn() {
         cancelMoveSelectionIfNeeded()
+        hideDiceGlitch()
         // ★ プレイヤーが敵マスで「戦闘する」を選んだものの、
         //   カードを選ばずに End を押した場合は、自動で通行料を払ってから終了
         if turn == 0,
@@ -895,36 +900,51 @@ final class GameVM: ObservableObject {
         
         let r: Int
         if let forced = nextForcedRoll[turn] {
-            // 強制出目が指定されている場合はそれを優先
             r = forced
+        } else if doubleDice[turn] {
+            let d1 = Int.random(in: 1...6)
+            let d2 = Int.random(in: 1...6)
+            r = d1 + d2
         } else {
-            if doubleDice[turn] {
-                // ダイス2個 → 2〜12
-                let d1 = Int.random(in: 1...6)
-                let d2 = Int.random(in: 1...6)
-                r = d1 + d2
-            } else {
-                // 通常 → 1〜6
-                r = Int.random(in: 1...6)
-            }
+            r = Int.random(in: 1...6)
         }
+
         doubleDice[turn] = false
         nextForcedRoll[turn] = nil
         forceRollToOneFor[turn] = false
         lastRoll = r
         stepsLeft = r
+        phase = .moving
+        focusTile = players[turn].pos
 
-        if players[turn].pos == CROSS_NODE, stepsLeft > 0 {
-            focusTile = players[turn].pos
+        let mover = turn
+        Task { @MainActor in
+            await self.animateDiceRollPresentation(number: r)
+            guard self.turn == mover else { return }
+            self.beginMovementAfterDiceRoll()
+        }
+    }
+
+    private func beginMovementAfterDiceRoll() {
+        focusTile = players[turn].pos
+
+        guard stepsLeft > 0 else {
+            phase = .moved
+            handleAfterMove()
+            return
+        }
+
+        if players[turn].pos == CROSS_NODE {
             branchSource = CROSS_NODE
             branchCandidates = CROSS_CHOICES
+            branchCameFrom = nil
             phase = .branchSelecting
             recomputeBranchLandingHints()
             return
         }
+
         phase = .moving
         Task { await continueMoveAnimated() }
-        focusTile = players[turn].pos
     }
     
     @MainActor
@@ -1128,10 +1148,12 @@ final class GameVM: ObservableObject {
         }
         players[turn].pos = next
         stepsLeft -= 1
+        updateDiceGlitchCountdown()
         awardCheckpointIfNeeded(entering: next, pid: turn)
 
         if next == HOME_NODE {
             stepsLeft = 0
+            updateDiceGlitchCountdown()
             return
         }
 
@@ -1300,6 +1322,7 @@ final class GameVM: ObservableObject {
         }
         victoryStatus = status
         SoundManager.shared.stopBGM()
+        hideDiceGlitch()
         showVictoryBanner = false
         shouldReturnToDeckBuilder = false
         victoryShowWorkItem?.cancel()
@@ -2635,10 +2658,52 @@ final class GameVM: ObservableObject {
         activeSpecialSheet = .buySpell
     }
     
-    func showDiceGlitch(number: Int) {
+    private func configureDiceGlitch(number: Int, shouldPinAfterReveal: Bool) {
         diceGlitchNumber = number
         isShowingDiceGlitch = true
+        diceGlitchPinned = false
+        diceGlitchShouldPinAfterReveal = shouldPinAfterReveal
         SoundManager.shared.playDiceFixSE()
+    }
+
+    func showDiceGlitch(number: Int) {
+        configureDiceGlitch(number: number, shouldPinAfterReveal: false)
+    }
+
+    @MainActor
+    private func animateDiceRollPresentation(number: Int) async {
+        await withCheckedContinuation { continuation in
+            diceGlitchContinuation = continuation
+            configureDiceGlitch(number: number, shouldPinAfterReveal: true)
+        }
+    }
+
+    func handleDiceGlitchRevealFinished() {
+        guard isShowingDiceGlitch else { return }
+        if diceGlitchShouldPinAfterReveal {
+            diceGlitchShouldPinAfterReveal = false
+            diceGlitchPinned = true
+            let continuation = diceGlitchContinuation
+            diceGlitchContinuation = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + diceGlitchCornerAnimationDuration) {
+                continuation?.resume()
+            }
+        } else {
+            hideDiceGlitch()
+        }
+    }
+
+    private func hideDiceGlitch() {
+        diceGlitchContinuation = nil
+        diceGlitchShouldPinAfterReveal = false
+        isShowingDiceGlitch = false
+        diceGlitchPinned = false
+        diceGlitchNumber = nil
+    }
+
+    private func updateDiceGlitchCountdown() {
+        guard isShowingDiceGlitch, diceGlitchPinned else { return }
+        diceGlitchNumber = max(0, stepsLeft)
     }
 
     private func playBattleSpellCastEffect(completion: @escaping () -> Void) {
@@ -2700,7 +2765,8 @@ final class GameVM: ObservableObject {
         }
 
         phase = .moving
-        // ★ ここで“本当に”移動完了を待つ
+        focusTile = players[turn].pos
+        await animateDiceRollPresentation(number: r)
         await continueMoveAnimated()
 
         let t = players[1].pos
