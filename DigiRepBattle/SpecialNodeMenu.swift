@@ -28,21 +28,20 @@ struct SpecialNodeMenu: View {
                 .font(.bestTenHeadline)
 
             HStack(spacing: 12) {
-                Button("領地強化", action: levelUp)
+                Button("領地\n強化", action: levelUp)
                     .buttonStyle(.borderedProminent)
 
-                Button("デジレプ転送", action: moveCreature)
-                    .buttonStyle(.bordered)
+                Button("デジレプ\n転送", action: moveCreature)
+                    .buttonStyle(.borderedProminent)
 
-                Button("スキル購入", action: buySkill)
-                    .buttonStyle(.bordered)
+                Button("スキル\n購入", action: buySkill)
+                    .buttonStyle(.borderedProminent)
 
-                Button("ターン終了", action: endTurn)
-                    .buttonStyle(.bordered)
+                Button("ターン\n終了", action: endTurn)
+                    .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
     }
 }

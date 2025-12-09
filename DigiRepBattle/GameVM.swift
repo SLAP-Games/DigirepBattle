@@ -399,6 +399,7 @@ final class GameVM: ObservableObject {
         }
 
         showSpecialMenu = false
+        currentSpecialKind = nil
 
         if turn == 0,
            isForcedSaleMode {
@@ -740,33 +741,33 @@ final class GameVM: ObservableObject {
     func spellDescription(_ effect: SpellEffect) -> String {
         switch effect {
         case .fixNextRoll(let n):
-            return "次のサイコロの出目を \(n) に固定する"
+            return "次の出目を \(n) に固定"
         case .doubleDice:
-            return "次のターン、サイコロを2つ振ることができる"
+            return "次のターン、サイコロを2つ振る"
 
         case .buffPower(let n):
-            return "この戦闘中、戦闘力を \(n) 上昇させる"
+            return "戦闘中、戦闘力を \(n) 上昇"
         case .buffDefense(let n):
-            return "この戦闘中、耐久力を \(n) 上昇させる"
+            return "戦闘中、耐久力を \(n) 上昇"
         case .firstStrike:
-            return "この戦闘で先に攻撃を行う"
+            return "戦闘中、先に攻撃を行う"
         case .poison:
-            return "敵クリーチャーに毎ターン最大HPの20%の毒ダメージを付与する"
+            return "毎ターンHPの20%の毒ダメージを付与"
         case .reflectSkill:
             return "敵の特殊スキルを跳ね返す"
 
         case .teleport:
-            return "盤上の任意のマスへワープする"
+            return "任意のマスへワープする"
         case .healHP(let n):
             return "HPを \(n) 回復する"
 
         case .drawCards(let n):
-            return "自分の手札を \(n) 枚引く"
+            return "手札を \(n) 枚引く"
         case .discardOpponentCards(let n):
-            return "相手の手札を \(n) 枚捨てさせる"
+            return "相手の手札を \(n) 枚削除"
 
         case .fullHealAnyCreature:
-            return "任意のマスのクリーチャーのHPを全回復させる"
+            return "デジレプのHPを全回復させる"
         case .changeLandLevel:
             return "任意の土地のレベルを1下げる"
         case .setLandTollZero:
@@ -774,19 +775,19 @@ final class GameVM: ObservableObject {
         case .multiplyLandToll:
             return "任意の土地の通行料を2倍にする"
         case .damageAnyCreature(let n):
-            return "任意のマスのクリーチャーに \(n) ダメージを与える"
+            return "デジレプに \(n) ダメージを与える"
         case .poisonAnyCreature:
-            return "任意のマスのクリーチャーを毒状態にする"
+            return "デジレプを毒状態にする"
         case .cleanseTileStatus:
-            return "マスにかかっている効果を解除する"
+            return "土地にかかっている効果を解除する"
 
         case .gainGold(let n):
-            return "\(n)GOLDを獲得する"
+            return "\(n)Gを獲得する"
         case .stealGold(let n):
-            return "相手から \(n)GOLD 奪い、自分のGOLDに加える"
+            return "相手から \(n)G 奪い、自分のGOLDに加える"
 
         case .inspectCreature:
-            return "任意の相手クリーチャーのステータスを確認できる"
+            return "相手デジレプのステータスを確認できる"
 
         case .aoeDamageByResist(let category, _, let n):
             let label: String
@@ -796,21 +797,21 @@ final class GameVM: ObservableObject {
             case .heat:  label = "熱耐性"
             case .cold:  label = "冷耐性"
             }
-            return "マップ上の全クリーチャーに対し \(label)が8未満なら \(n) ダメージ、8以上なら \(n) - (耐性×3) のダメージを与える"
+            return "全デジレプに対し \(label)8未満で \(n) 、8以上で \(n) - (耐性×3) ダメージ"
 
         case .changeTileAttribute(let kind):
             let label: String
             switch kind {
-            case .normal: label = "normal"
-            case .dry:    label = "dry"
-            case .water:  label = "water"
-            case .heat:   label = "heat"
-            case .cold:   label = "cold"
+            case .normal: label = "草原"
+            case .dry:    label = "砂漠"
+            case .water:  label = "水辺"
+            case .heat:   label = "火山"
+            case .cold:   label = "雪山"
             }
-            return "任意のマスを \(label) マスに変える"
+            return "任意の土地を \(label) に変える"
 
         case .purgeAllCreatures:
-            return "自軍を含む全てのマスのクリーチャーを破壊する"
+            return "自軍を含む全てのデジレプを削除する"
         }
     }
     
@@ -1385,7 +1386,7 @@ final class GameVM: ObservableObject {
 
                 if pid == 0 {
                     lastCheckpointGain = gain
-                    let message = "帰還しました。CP達成報酬 \(gain) GOLD"
+                    let message = "帰還しました。CP達成報酬 \(gain) G"
                     pendingHomeOverlayTask?.cancel()
                     let work = DispatchWorkItem { [weak self] in
                         self?.presentCheckpointOverlay(message: message, autoCloseAfter: 2.0)
@@ -1411,7 +1412,7 @@ final class GameVM: ObservableObject {
         // 2. GOLD コストを支払う
         guard tryPay(def.cost, by: pid) else {
             // ここでログやアラートなど
-            battleResult = "GOLDが足りません（必要: \(def.cost)）"
+            battleResult = "G不要（必要: \(def.cost)G）"
             return
         }
 
@@ -1445,7 +1446,7 @@ final class GameVM: ObservableObject {
             return true
         } else {
             if pid == 0 {
-                battleResult = "G不足（必要: \(price)）"
+                battleResult = "G不足（必要: \(price)G）"
             }
             return false
         }
@@ -1472,10 +1473,10 @@ final class GameVM: ObservableObject {
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             nextForcedRoll[target] = n
             if target == turn {
-                pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+                pushCenterMessage("次のサイコロを \(n) に固定")
                 showDiceGlitch(number: n)
             } else {
-                pushCenterMessage("CPUの次のサイコロを \(n) に固定（コスト\(cost)）")
+                pushCenterMessage("CPUの次のサイコロを \(n) に固定")
                 showDiceGlitch(number: n)
             }
             consumeFromHand(card, for: 0)
@@ -1484,9 +1485,9 @@ final class GameVM: ObservableObject {
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             doubleDice[target] = true
             if target == turn {
-                pushCenterMessage("次のサイコロがダブルダイスになります（コスト\(cost)）")
+                pushCenterMessage("次のサイコロが２つになります")
             } else {
-                pushCenterMessage("CPUの次のサイコロがダブルダイスになります（コスト\(cost)）")
+                pushCenterMessage("NPCの次のサイコロが２つになります")
             }
             consumeFromHand(card, for: 0)
             
@@ -1494,7 +1495,7 @@ final class GameVM: ObservableObject {
             guard target == 0 else { break }    // 念のため CPU には使わせない
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             queuePreviewDraws(n, for: 0)
-            pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
+            pushCenterMessage("カードを \(n) 枚ドロー")
             consumeFromHand(card, for: 0)
             
         case .discardOpponentCards(_):
@@ -1559,20 +1560,20 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("回復できるマスがありません")
+                pushCenterMessage("回復できるデジレプがいません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingFullHealTarget = true
                 fullHealCandidateTiles = candidates
                 // 既存の highlight を流用してボード側を強調
                 branchLandingTargets = candidates
-                battleResult = "回復するマスを選択してください"
+                battleResult = "回復するデジレプを選択してください"
             }
             
         case .changeLandLevel(let delta):
             // 今回は sp-decay（delta = -1）だけ対応
             guard delta < 0 else {
-                pushCenterMessage("この土地レベル変更はできません")
+                pushCenterMessage("レベル変更不可")
                 break
             }
 
@@ -1586,7 +1587,7 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("レベルを下げられるマスがありません")
+                pushCenterMessage("レベルを下げられる土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandLevelChangeTarget = true
@@ -1594,7 +1595,7 @@ final class GameVM: ObservableObject {
                 pendingLandLevelChangeTile = nil
                 // ボード側のハイライトに既存のプロパティを流用
                 branchLandingTargets = candidates
-                battleResult = "レベルを下げるマスを選択してください"
+                battleResult = "レベルを下げる土地を選択してください"
             }
             
         case .setLandTollZero:
@@ -1609,13 +1610,13 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("通行量が設定されているマスがありません")
+                pushCenterMessage("通行量が設定されている土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollZeroTarget = true
                 landTollZeroCandidateTiles = candidates
                 branchLandingTargets = candidates   // ボード側のハイライトに流用
-                battleResult = "通行量を 0 にするマスを選択してください"
+                battleResult = "通行量を 0 にする土地を選択してください"
             }
             
         case .multiplyLandToll(_):
@@ -1632,14 +1633,14 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("通行量を 2 倍にできるマスがありません")
+                pushCenterMessage("通行量を 2 倍にできる土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollDoubleTarget = true
                 landTollDoubleCandidateTiles = candidates
                 pendingLandTollDoubleTile = nil
                 branchLandingTargets = candidates
-                battleResult = "通行量を 2 倍にするマスを選択してください"
+                battleResult = "通行量を 2 倍にする土地を選択してください"
             }
 
         case .changeTileAttribute(let tileKind):
@@ -1651,7 +1652,7 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("地形を変更できるマスがありません")
+                pushCenterMessage("地形を改変できる土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingTileAttributeTarget = true
@@ -1660,7 +1661,7 @@ final class GameVM: ObservableObject {
                 pendingTileAttributeKind = tileKind
                 pendingTileAttributeSpellName = card.name
                 branchLandingTargets = candidates
-                battleResult = "『\(card.name)』で地形を変更するマスを選択してください"
+                battleResult = "地形を改変する土地を選択してください"
             }
 
         case .damageAnyCreature(let n):
@@ -1740,19 +1741,19 @@ final class GameVM: ObservableObject {
         case .fixNextRoll(let n) where (1...6).contains(n):
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             nextForcedRoll[0] = n
-            pushCenterMessage("次のサイコロを \(n) に固定（コスト\(cost)）")
+            pushCenterMessage("次のサイコロを \(n) に固定")
             consumeFromHand(card, for: 0)
 
         case .doubleDice:
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             doubleDice[0] = true
-            pushCenterMessage("次のサイコロがダブルダイスになります（コスト\(cost)）")
+            pushCenterMessage("次のサイコロが２つになります")
             consumeFromHand(card, for: 0)
             
         case .drawCards(let n):
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             queuePreviewDraws(n, for: 0)
-            pushCenterMessage("カードを \(n) 枚ドロー（コスト\(cost)）")
+            pushCenterMessage("カードを \(n) 枚ドロー")
             consumeFromHand(card, for: 0)
             
         case .discardOpponentCards(_):
@@ -1805,20 +1806,20 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("回復できるマスがありません")
+                pushCenterMessage("回復できるデジレプがいません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingFullHealTarget = true
                 fullHealCandidateTiles = candidates
                 // 既存の highlight を流用してボード側を強調
                 branchLandingTargets = candidates
-                battleResult = "回復するマスを選択してください"
+                battleResult = "回復するデジレプを選択してください"
             }
             
         case .changeLandLevel(let delta):
             // 今回は sp-decay（delta = -1）だけ対応
             guard delta < 0 else {
-                pushCenterMessage("この土地レベル変更はできません")
+                pushCenterMessage("この土地はレベル変更できません")
                 break
             }
 
@@ -1832,7 +1833,7 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("レベルを下げられるマスがありません")
+                pushCenterMessage("レベルを下げられる土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandLevelChangeTarget = true
@@ -1840,7 +1841,7 @@ final class GameVM: ObservableObject {
                 pendingLandLevelChangeTile = nil
                 // ボード側のハイライトに既存のプロパティを流用
                 branchLandingTargets = candidates
-                battleResult = "レベルを下げるマスを選択してください"
+                battleResult = "レベルを下げる土地を選択してください"
             }
             
         case .setLandTollZero:
@@ -1855,13 +1856,13 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("通行量が設定されているマスがありません")
+                pushCenterMessage("通行量が設定されている土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollZeroTarget = true
                 landTollZeroCandidateTiles = candidates
                 branchLandingTargets = candidates   // ボード側のハイライトに流用
-                battleResult = "通行量を 0 にするマスを選択してください"
+                battleResult = "通行量を 0 にする土地を選択してください"
             }
             
         case .multiplyLandToll(_):
@@ -1878,14 +1879,14 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("通行量を 2 倍にできるマスがありません")
+                pushCenterMessage("通行量を 2 倍にできる土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingLandTollDoubleTarget = true
                 landTollDoubleCandidateTiles = candidates
                 pendingLandTollDoubleTile = nil
                 branchLandingTargets = candidates
-                battleResult = "通行量を 2 倍にするマスを選択してください"
+                battleResult = "通行量を 2 倍にする土地を選択してください"
             }
             
         case .changeTileAttribute(let tileKind):
@@ -1897,7 +1898,7 @@ final class GameVM: ObservableObject {
             }
 
             if candidates.isEmpty {
-                pushCenterMessage("地形を変更できるマスがありません")
+                pushCenterMessage("地形を改変できる土地がありません")
             } else {
                 guard beginPendingSpellUsage(card: card, owner: 0, cost: cost) else { return }
                 isSelectingTileAttributeTarget = true
@@ -1906,7 +1907,7 @@ final class GameVM: ObservableObject {
                 pendingTileAttributeKind = tileKind
                 pendingTileAttributeSpellName = card.name
                 branchLandingTargets = candidates
-                battleResult = "『\(card.name)』で地形を変更するマスを選択してください"
+                battleResult = "地形を改変する土地を選択してください"
             }
 
         case .damageAnyCreature(let n):
@@ -1951,7 +1952,7 @@ final class GameVM: ObservableObject {
         }
 
         if candidates.isEmpty {
-            pushCenterMessage("ダメージを与えられるマスがありません")
+            pushCenterMessage("ダメージを与えられるデジレプがいません")
             return
         }
 
@@ -1964,7 +1965,7 @@ final class GameVM: ObservableObject {
         pendingDamageEffect = boardWideEffectKind(for: card.id)
         pendingDamageSpellName = card.name
         branchLandingTargets = candidates
-        battleResult = "『\(card.name)』の対象マスを選択してください"
+        battleResult = "対象の土地を選択してください"
     }
 
     private func beginPoisonSpellSelection(card: Card,
@@ -1983,7 +1984,7 @@ final class GameVM: ObservableObject {
         }
 
         if candidates.isEmpty {
-            pushCenterMessage("毒を付与できるマスがありません")
+            pushCenterMessage("毒を付与できる土地がありません")
             return
         }
 
@@ -1994,7 +1995,7 @@ final class GameVM: ObservableObject {
         pendingPoisonTile = nil
         pendingPoisonSpellName = card.name
         branchLandingTargets = candidates
-        battleResult = "『\(card.name)』の対象マスを選択してください"
+        battleResult = "対象の土地を選択してください"
     }
 
     private func beginCleanseSpellSelection(card: Card,
@@ -2009,7 +2010,7 @@ final class GameVM: ObservableObject {
         }
 
         if candidates.isEmpty {
-            pushCenterMessage("解除できるマスがありません")
+            pushCenterMessage("解除できる土地がありません")
             return
         }
 
@@ -2020,7 +2021,7 @@ final class GameVM: ObservableObject {
         pendingCleanseTile = nil
         pendingCleanseSpellName = card.name
         branchLandingTargets = candidates
-        battleResult = "『\(card.name)』の対象マスを選択してください"
+        battleResult = "対象の土地を選択してください"
     }
 
     private func boardWideEffectKind(for cardID: CardID) -> BoardWideSpellEffectKind? {
@@ -2252,7 +2253,7 @@ final class GameVM: ObservableObject {
         guard paySpellCostIfNeeded(cost, by: 0) else { return false }
         let gain = max(0, amount)
         addGold(gain, to: 0)
-        pushCenterMessage("\(gain)GOLDを獲得（コスト\(cost)）")
+        pushCenterMessage("\(gain)Gを獲得")
         triggerBoardWideEffect(.treasure)
         return true
     }
@@ -2262,9 +2263,9 @@ final class GameVM: ObservableObject {
         guard paySpellCostIfNeeded(cost, by: 0) else { return false }
         let stolen = stealGold(amount: amount, from: 1, to: 0, showVisual: true)
         if stolen > 0 {
-            pushCenterMessage("\(stolen)GOLDを奪った（コスト\(cost)）")
+            pushCenterMessage("\(stolen)Gを奪った")
         } else {
-            pushCenterMessage("奪えるGOLDがありません（コスト\(cost)だけ消費）")
+            pushCenterMessage("奪えるGOLDがありません（コスト\(cost)Gだけ消費）")
         }
         return true
     }
@@ -2328,14 +2329,14 @@ final class GameVM: ObservableObject {
         // ② GOLD獲得
         case let .gainGold(n):
             addGold(n, to: pid)
-            pushCenterMessage("\(n)GOLD を獲得")
+            pushCenterMessage("\(n)G を獲得")
             triggerBoardWideEffect(.treasure)
 
         // ③ GOLD奪取（とりあえずシンプルに実装）
         case let .stealGold(n):
             let other = 1 - pid
             let stolen = stealGold(amount: n, from: other, to: pid, showVisual: pid == 0 && other == 1)
-            pushCenterMessage("\(stolen)GOLD を奪った")
+            pushCenterMessage("\(stolen)G を奪った")
 
         case .inspectCreature:
             performClairvoyance(for: pid)
@@ -2351,11 +2352,11 @@ final class GameVM: ObservableObject {
 
         case let .changeTileAttribute(tileKind):
             guard let tile = targetTile else {
-                pushCenterMessage("地形を変更するマスが指定されていません")
+                pushCenterMessage("地形を改変する土地が指定されていません")
                 return
             }
             guard canChangeTileAttribute(at: tile) else {
-                pushCenterMessage("ホームやチェックポイントでは使用できません")
+                pushCenterMessage("城や塔では使用できません")
                 return
             }
             Task { @MainActor [weak self] in
@@ -2372,7 +2373,7 @@ final class GameVM: ObservableObject {
             for _ in 0..<n {
                 drawOne(for: pid)
             }
-            pushCenterMessage("プレイヤー\(pid) がカードを \(n) 枚ドロー")
+            pushCenterMessage("カードを \(n) 枚ドロー")
             if pid == turn {
                 handleHandOverflowIfNeeded()
             }
@@ -2416,7 +2417,7 @@ final class GameVM: ObservableObject {
             // GOLD 支払い
             guard tryPay(cost, by: user) else {
                 if user == 0 {
-                    battleResult = "G不足（必要: \(cost)）"
+                    battleResult = "G不足（必要: \(cost)G）"
                 }
                 return false
             }
@@ -2514,7 +2515,7 @@ final class GameVM: ObservableObject {
         let cost = pendingSpellCost
         if cost > 0 && !tryPay(cost, by: owner) {
             if owner == 0 {
-                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
+                pushCenterMessage("G不足（必要: \(cost)G）")
             }
             restorePendingSpellUsage()
             return false
@@ -2527,7 +2528,7 @@ final class GameVM: ObservableObject {
         guard cost > 0 else { return true }
         guard tryPay(cost, by: pid) else {
             if pid == 0 {
-                pushCenterMessage("GOLDが足りません（必要: \(cost)）")
+                pushCenterMessage("G不足（必要: \(cost)G）")
             }
             return false
         }
@@ -2556,13 +2557,13 @@ final class GameVM: ObservableObject {
 
         guard players.indices.contains(turn),
               players[turn].gold >= creatureTransferCost else {
-            pushCenterMessage("GOLDが足りません（必要: \(creatureTransferCost)G）")
+            pushCenterMessage("G不足（必要: \(creatureTransferCost)G）")
             return
         }
 
         let candidates = moveSourceCandidates(for: turn)
         guard !candidates.isEmpty else {
-            pushCenterMessage("移動できるデジレプがありません")
+            pushCenterMessage("移動できるデジレプがいません")
             return
         }
 
@@ -2627,7 +2628,7 @@ final class GameVM: ObservableObject {
         pendingMoveSourceTile = tile
         let destinations = moveDestinationCandidates()
         guard !destinations.isEmpty else {
-            pushCenterMessage("移動できるマスがありません")
+            pushCenterMessage("移動できる土地がありません")
             resetMoveSelection()
             return
         }
@@ -3235,21 +3236,21 @@ final class GameVM: ObservableObject {
 
         if enemyIDs.isEmpty {
             if pid == 0 {
-                pushCenterMessage("透視できる敵クリーチャーがいません")
+                pushCenterMessage("透視できる敵デジレプがいません")
             } else {
-                pushCenterMessage("CPUは透視を使用しましたが対象がいません")
+                pushCenterMessage("NPCは透視を使用しましたが対象がいません")
             }
         } else if updated.count > beforeCount {
             if pid == 0 {
-                pushCenterMessage("敵クリーチャーのステータスを解析しました")
+                pushCenterMessage("敵デジレプのステータスを透視しました")
             } else {
-                pushCenterMessage("CPUが透視を使用しました")
+                pushCenterMessage("NPCが透視を使用しました")
             }
         } else {
             if pid == 0 {
-                pushCenterMessage("新たに解析できる敵クリーチャーはいません")
+                pushCenterMessage("新たに透視できる敵デジレプはいません")
             } else {
-                pushCenterMessage("CPUが透視を使用しました（新情報なし）")
+                pushCenterMessage("NPCが透視を使用しました")
             }
         }
 
@@ -3579,7 +3580,7 @@ final class GameVM: ObservableObject {
               originalOwner == mover else { return }
         guard owner.indices.contains(to), owner[to] == nil else { return }
         guard !isSpecialNode(to) else {
-            pushCenterMessage("ホームやチェックポイントには移動できません")
+            pushCenterMessage("城や塔には移動できません")
             return
         }
         guard creatureSymbol.indices.contains(from),
@@ -3601,7 +3602,7 @@ final class GameVM: ObservableObject {
 
         guard tryPay(creatureTransferCost, by: mover) else {
             if mover == 0 {
-                pushCenterMessage("GOLDが足りません（必要: \(creatureTransferCost)G）")
+                pushCenterMessage("G不足（必要: \(creatureTransferCost)G）")
             }
             return
         }
@@ -3877,7 +3878,7 @@ final class GameVM: ObservableObject {
 
         // 左=攻撃者（あなた or CPU）、右=防御者（盤面クリーチャー）
         let attacker = BattleCombatant(
-            name: (turn == 0 ? "あなた" : "CPU"),
+            name: (turn == 0 ? "あなた" : "NPC"),
             imageName: card.symbol,
             hp: atkStats.hpMax, hpMax: atkStats.hpMax,
             power: atkStats.power, durability: atkStats.durability,
@@ -3886,7 +3887,7 @@ final class GameVM: ObservableObject {
         )
 
         let defender = BattleCombatant(
-            name: (defOwner == 0 ? "あなた" : "相手"),
+            name: (defOwner == 0 ? "あなた" : "NPC"),
             imageName: creatureOnTile[t]?.imageName ?? "enemyCreature",
             hp: hp.indices.contains(t) ? hp[t] : 0,
             hpMax: hpMax.indices.contains(t) ? hpMax[t] : 0,
@@ -4470,7 +4471,7 @@ final class GameVM: ObservableObject {
                                   spellName: String?) async {
         guard hp.indices.contains(tile),
               hp[tile] > 0 else {
-            pushCenterMessage("対象のクリーチャーが存在しません")
+            pushCenterMessage("対象のデジレプが存在しません")
             return
         }
 
@@ -4531,7 +4532,7 @@ final class GameVM: ObservableObject {
               hp.indices.contains(tile),
               hp[tile] > 0,
               poisonedTiles.indices.contains(tile) else {
-            pushCenterMessage("対象のクリーチャーが存在しません")
+            pushCenterMessage("対象のデジレプが存在しません")
             return
         }
 
@@ -4561,7 +4562,7 @@ final class GameVM: ObservableObject {
     @MainActor
     private func applyCleanseSpell(to tile: Int, spellName: String?) async {
         guard (0..<tileCount).contains(tile) else {
-            pushCenterMessage("対象のマスが存在しません")
+            pushCenterMessage("対象の土地が存在しません")
             return
         }
 
@@ -4605,11 +4606,11 @@ final class GameVM: ObservableObject {
                                           kind: SpellEffect.TileKind,
                                           spellName: String?) async {
         guard (0..<tileCount).contains(tile) else {
-            pushCenterMessage("対象のマスが存在しません")
+            pushCenterMessage("対象の土地が存在しません")
             return
         }
         guard canChangeTileAttribute(at: tile) else {
-            pushCenterMessage("ホームやチェックポイントでは使用できません")
+            pushCenterMessage("城や塔では使用できません")
             return
         }
 
@@ -4641,7 +4642,7 @@ final class GameVM: ObservableObject {
 
         let attrName = tileAttributeName(for: kind)
         let spellLabel = spellName ?? attrName
-        pushCenterMessage("『\(spellLabel)』でマス\(tile + 1)を\(attrName)に変更")
+        pushCenterMessage("地形を\(attrName)に改変")
 
         try? await Task.sleep(nanoseconds: 900_000_000)
 

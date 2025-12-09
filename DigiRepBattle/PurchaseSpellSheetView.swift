@@ -57,7 +57,7 @@ struct PurchaseSpellSheetView: View {
                 vm.activeSpecialSheet = nil
                 vm.specialPending = nil
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
         }
         .padding()
     }

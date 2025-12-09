@@ -19,9 +19,9 @@ struct Badge: View {
                 .foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.name).bold()
-                Text("Gold: \(player.gold)")
+                Text("Gold: \(player.gold)G")
                     .font(.bestTenCaption)
-                Text("TOTAL: \(total)")
+                Text("TOTAL: \(total)G")
                     .font(.bestTenCaption)
             }
         }

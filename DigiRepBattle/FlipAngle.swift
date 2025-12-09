@@ -195,7 +195,7 @@ struct FrontCardFace: View {
                         if case .creature = card.kind, let s = card.stats {
                             StatGrid2x4(items: [
                                 ("コスト", "\(s.cost)"),
-                                ("HP", "\(s.hpMax)"),
+                                ("体力", "\(s.hpMax)"),
                                 ("戦闘力", "\(s.power)"),
                                 ("耐久力", "\(s.durability)"),
                                 ("乾耐性", "\(s.resistDry)"),

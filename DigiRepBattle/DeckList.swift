@@ -36,9 +36,10 @@ extension DeckList {
         ]
 
         deck.spellSlots = [
+//以下テスト用
 //            "sp-dice1": 1,
 //            "sp-dice3": 1,
-//            "sp-dice4": 10,
+            "sp-dice4": 25,
 //            "sp-dice6": 5,
 //            "sp-doubleDice": 1,
 //            "sp-firstStrike": 1,
@@ -55,7 +56,7 @@ extension DeckList {
 //            "sp-disaster": 2,
 //            "sp-poisonSmoke": 2,
 //            "sp-cure": 3,
-            "sp-treasure": 25,
+//            "sp-treasure": 25,
 //            "sp-plunder": 10,
 //            "sp-clairvoyance": 25,
 //            "sp-blizzard": 3,
@@ -66,6 +67,26 @@ extension DeckList {
 //            "sp-desert": 6,
 //            "sp-volcano": 6,
 //            "sp-jungle": 3
+            
+//以下本番テスト用
+//            "sp-dice1": 1,
+//            "sp-dice2": 1,
+//            "sp-dice3": 1,
+//            "sp-dice4": 1,
+//            "sp-dice5": 1,
+//            "sp-dice6": 1,
+//            "sp-firstStrike": 2,
+//            "sp-hardFang": 2,
+//            "sp-poisonFang": 1,
+//            "sp-hardScale": 2,
+//            "sp-draw2": 2,
+//            "sp-elixir": 2,
+//            "sp-harvest": 2,
+//            "sp-greatStorm": 2,
+//            "sp-snowMountain": 1,
+//            "sp-desert": 1,
+//            "sp-volcano": 1,
+//            "sp-jungle": 1
         ]
 
         return deck

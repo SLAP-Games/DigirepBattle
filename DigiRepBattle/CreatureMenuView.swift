@@ -15,24 +15,24 @@ struct CreatureMenuView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("自分の領地です")
+            Text("自軍の領地です")
                 .font(.bestTenSubheadline).bold()
 
             HStack(spacing: 12) {
-                Button("マスレベルアップ") {
+                Button("土地強化") {
                     vm.actionLevelUpOnMyTile()
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button("クリーチャー交換") {
+                Button("デジレプ交換") {
                     onChangeCreature()           // ★ここで交換モードへ
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
 
                 Button("終了") {
                     onClose()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)

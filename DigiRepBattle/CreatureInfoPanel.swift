@@ -28,7 +28,7 @@ struct CreatureInfoPanel: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.4)))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("タイル \(iv.tileIndex)")
+                        Text("土地 \(iv.tileIndex)")
                             .font(.bestTenSubheadline).fontWeight(.semibold)
                         Text("属性: \(iv.mapAttribute)")
                             .font(.bestTenCaption).foregroundStyle(.secondary)

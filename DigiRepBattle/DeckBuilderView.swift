@@ -318,7 +318,7 @@ struct DeckBuilderView: View {
                             Button("閉じる") {
                                 closeDetail()
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                     .padding(16)
@@ -379,7 +379,7 @@ struct DeckBuilderView: View {
                             Button("キャンセル") {
                                 showCountPicker = false
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                     .padding(20)

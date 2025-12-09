@@ -314,7 +314,7 @@ public struct BattleOverlayView: View {
                         .allowsHitTesting(true)
 
                     VStack(spacing: 16) {
-                        Text("装備品を手札から選択してください")
+                        Text("手札から装備選択")
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
 

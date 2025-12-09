@@ -137,7 +137,7 @@ struct ContentView: View {
                     }
                     .overlay(alignment: .top) {
                         if vm.isSelectingSwapCreature {
-                            instructionBadge("交換するクリーチャーを選択")
+                            instructionBadge("デジレプ選択")
                         } else if let text = selectionInstruction(for: vm.specialPending) {
                             instructionBadge(text)
                         }
@@ -190,25 +190,28 @@ struct ContentView: View {
                     }
                     
                     if let sheet = vm.activeSpecialSheet {
-                        Color.black.opacity(0.35)
-                            .ignoresSafeArea()
-                            .onTapGesture {
-                                vm.activeSpecialSheet = nil
-                            }
-                        Group {
-                            switch sheet {
-                            case .levelUp(let tile):
-                                PopupCard {
-                                    LevelUpSheetView(vm: vm, tile: tile)
+                        ZStack {
+                            Color.black.opacity(0.35)
+                                .ignoresSafeArea()
+                                .onTapGesture {
+                                    vm.activeSpecialSheet = nil
                                 }
-                            case .buySpell:
-                                PopupCard {
-                                    PurchaseSpellSheetView(vm: vm)
+                            Group {
+                                switch sheet {
+                                case .levelUp(let tile):
+                                    PopupCard {
+                                        LevelUpSheetView(vm: vm, tile: tile)
+                                    }
+                                case .buySpell:
+                                    PopupCard {
+                                        PurchaseSpellSheetView(vm: vm)
+                                    }
                                 }
                             }
                         }
                         .transition(.scale.combined(with: .opacity))
                         .animation(.spring(response: 0.25, dampingFraction: 0.9), value: vm.activeSpecialSheet)
+                        .zIndex(80)
                     }
                     
                     if vm.sellConfirmTile != nil {
@@ -250,7 +253,7 @@ struct ContentView: View {
                                 Text("交換しますか？")
                                     .font(.bestTenHeadline)
                                     .multilineTextAlignment(.center)
-                                Text("必要コスト \(price) GOLD")
+                                Text("必要コスト \(price) G")
                                     .font(.bestTenSubheadline)
                                     .foregroundStyle(.secondary)
 
@@ -265,7 +268,7 @@ struct ContentView: View {
                                     Button("キャンセル") {
                                         vm.cancelSwapPending()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(16)
@@ -297,6 +300,7 @@ struct ContentView: View {
                         ) { finalL, finalR in
                             vm.finishBattle(finalL: finalL, finalR: finalR)
                         }
+                        .zIndex(100)
                     }
                     
                     if let card = vm.presentingCard {
@@ -324,7 +328,7 @@ struct ContentView: View {
                                 .ignoresSafeArea()
                             VStack {
                                 Spacer()
-                                Text("捨てる手札を選択してください")
+                                Text("捨てる手札を選択")
                                     .foregroundColor(.white)
                                 Spacer()
                             }
@@ -388,7 +392,7 @@ struct ContentView: View {
                                 .ignoresSafeArea()
 
                             VStack(spacing: 16) {
-                                Text("このカードを削除しますか？")
+                                Text("削除しますか？")
                                     .font(.bestTenHeadline)
 
                                 // 単純にカード絵だけ大きく見せる
@@ -402,7 +406,7 @@ struct ContentView: View {
                                            vm.hands[target].indices.contains(idx)
                                         {
                                             vm.hands[target].remove(at: idx)
-                                            vm.battleResult = "カードを削除しました"
+                                            vm.battleResult = "カードを削除"
                                         }
                                         // 状態リセット
                                         vm.deletePreviewCard = nil
@@ -417,7 +421,7 @@ struct ContentView: View {
                                         vm.deletePreviewCard = nil
                                         vm.pendingDeleteHandIndex = nil
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(20)
@@ -489,7 +493,7 @@ struct ContentView: View {
                                     Button("閉じる") {
                                         vm.cancelFullHealConfirm()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(16)
@@ -515,25 +519,25 @@ struct ContentView: View {
                                     .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
-                                Text("マス \(tile + 1) のクリーチャーに \(vm.pendingDamageAmount) ダメージを与えますか？")
+                                Text("このデジレプに \(vm.pendingDamageAmount) 使用しますか？")
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("ダメージを与える") {
+                                Button("使用する") {
                                     vm.confirmDamageSpell()
                                 }
                                 .buttonStyle(.borderedProminent)
 
                                 HStack(spacing: 12) {
-                                    Button("対象を変更") {
+                                    Button("対象変更") {
                                         vm.cancelDamageConfirm()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
 
-                                    Button("選択を終了") {
+                                    Button("選択終了") {
                                         vm.cancelDamageSelection()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(20)
@@ -561,25 +565,25 @@ struct ContentView: View {
                                     .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
-                                Text("マス \(tile + 1) を \(vm.tileAttributeName(for: kind)) に変更しますか？")
+                                Text("土地を\(vm.tileAttributeName(for: kind)) に改変しますか？")
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("地形を変化させる") {
+                                Button("土地改変") {
                                     vm.confirmTileAttributeChange()
                                 }
                                 .buttonStyle(.borderedProminent)
 
                                 HStack(spacing: 12) {
-                                    Button("対象を変更") {
+                                    Button("対象変更") {
                                         vm.cancelTileAttributeConfirm()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
 
-                                    Button("選択を終了") {
+                                    Button("選択終了") {
                                         vm.cancelTileAttributeSelection()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(20)
@@ -606,25 +610,25 @@ struct ContentView: View {
                                     .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
-                                Text("マス \(tile + 1) のクリーチャーを毒状態にしますか？")
+                                Text("デジレプを毒状態にしますか？")
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("毒を付与する") {
+                                Button("毒を付与") {
                                     vm.confirmPoisonSpell()
                                 }
                                 .buttonStyle(.borderedProminent)
 
                                 HStack(spacing: 12) {
-                                    Button("対象を変更") {
+                                    Button("対象変更") {
                                         vm.cancelPoisonConfirm()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
 
-                                    Button("選択を終了") {
+                                    Button("選択終了") {
                                         vm.cancelPoisonSelection()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(20)
@@ -651,25 +655,25 @@ struct ContentView: View {
                                     .font(.bestTenHeadline)
                                     .padding(.top, 4)
 
-                                Text("マス \(tile + 1) の効果を解除しますか？")
+                                Text("効果を解除しますか？")
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("効果を解除する") {
+                                Button("効果解除") {
                                     vm.confirmCleanseSpell()
                                 }
                                 .buttonStyle(.borderedProminent)
 
                                 HStack(spacing: 12) {
-                                    Button("対象を変更") {
+                                    Button("対象変更") {
                                         vm.cancelCleanseConfirm()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
 
-                                    Button("選択を終了") {
+                                    Button("選択終了") {
                                         vm.cancelCleanseSelection()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(20)
@@ -709,7 +713,7 @@ struct ContentView: View {
                                     Button("閉じる") {
                                         vm.cancelLandLevelChangeConfirm()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(16)
@@ -746,7 +750,7 @@ struct ContentView: View {
                                 Button("閉じる") {
                                     vm.cancelLandTollZeroConfirm()
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(.borderedProminent)
                             }
                         }
                         .padding()
@@ -782,7 +786,7 @@ struct ContentView: View {
                                 Button("閉じる") {
                                     vm.cancelLandTollDoubleConfirm()
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(.borderedProminent)
                             }
                         }
                         .padding()
@@ -910,7 +914,7 @@ struct ContentView: View {
                                         Button("キャンセル") {
                                             vm.closeCardPopup()
                                         }
-                                        .buttonStyle(.bordered)
+                                        .buttonStyle(.borderedProminent)
                                     }
                                     .padding(.vertical, 8)
                                     .padding(.horizontal, 12)
@@ -934,7 +938,7 @@ struct ContentView: View {
                                         Button("キャンセル") {
                                             vm.closeCardPopup()
                                         }
-                                        .buttonStyle(.bordered)
+                                        .buttonStyle(.borderedProminent)
                                     }
                                     .padding(.vertical, 8)
                                     .padding(.horizontal, 12)
@@ -958,7 +962,7 @@ struct ContentView: View {
                                     Button("キャンセル") {
                                         vm.closeCardPopup()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -979,7 +983,7 @@ struct ContentView: View {
                                     Button("キャンセル") {
                                         vm.closeCardPopup()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -999,14 +1003,14 @@ struct ContentView: View {
                         let canBattle = vm.hasSummonableCreature(for: 0)
                         ZStack{
                             VStack(spacing: 12) {
-                                Text("相手の領地です。").bold()
+                                Text("相手の領地です").bold()
 
                                 if canBattle {
                                     HStack(spacing: 12) {
                                         Button("戦闘する") { vm.chooseBattle() }
                                             .buttonStyle(.borderedProminent)
                                         Button("通行料を払う") { vm.payTollAndEndChoice() }
-                                            .buttonStyle(.bordered)
+                                            .buttonStyle(.borderedProminent)
                                     }
                                     .padding(8)
                                 } else {
@@ -1122,13 +1126,13 @@ struct ContentView: View {
                                         vm.useSpellPreRoll(card, target: 0)
                                         vm.closeCardPopup()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
 
-                                    Button("CPU") {
+                                    Button("NPC") {
                                         vm.useSpellPreRoll(card, target: 1)
                                         vm.closeCardPopup()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
 
                                     Button("キャンセル") {
                                         vm.closeCardPopup()
@@ -1175,7 +1179,8 @@ struct ContentView: View {
                 .frame(height: controlsH)
                 .frame(maxWidth: .infinity)
                 .background {
-                    Image("underMenuBackground")
+                    let backgroundName = vm.currentSpecialKind != nil ? "underMenuBackgroundRed" : "underMenuBackground"
+                    Image(backgroundName)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 }
@@ -1292,7 +1297,7 @@ private struct VictoryConditionBar: View {
             Color.clear
 
             VStack(spacing: 0) {
-                Text("勝利条件：（TOTL 5,000G）")
+                Text("勝利条件：TOTL 5,000G")
                     .font(.bestTenSubheadline)
                     .foregroundColor(.white)
                     .padding(.horizontal, 16)
@@ -1372,7 +1377,7 @@ struct CardDetailOverlay: View {
         if vm.isBattleItemSelectionPhase {
             let cost = card.stats?.cost ?? spellCostForUI(card)
             let hasEnoughGold = gold >= cost
-            let title = hasEnoughGold ? "装備を使用" : "G不足"
+            let title = hasEnoughGold ? "装備使用" : "G不足"
 
             return (
                 title,
@@ -1447,7 +1452,7 @@ struct CardDetailOverlay: View {
                 }
 
                 let hasEnoughGold = gold >= cost
-                let title = hasEnoughGold ? "カードを使用" : "G不足"
+                let title = hasEnoughGold ? "カード使用" : "G不足"
 
                 return (
                     title,
@@ -1510,7 +1515,7 @@ struct CardDetailOverlay: View {
                         vm.shopSpellForDetail = nil
                         onClose()
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(UIColor.systemBackground))
@@ -1525,7 +1530,7 @@ struct CardDetailOverlay: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(!primaryAction.enabled)
                     Button("閉じる") { onClose() }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(Color(UIColor.systemBackground))
@@ -1622,7 +1627,7 @@ struct DrawCardOverlay: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 12) {
-                Text("カードをドロー")
+                Text(" ")
                     .font(.bestTenHeadline)
                     .foregroundColor(.white)
 
