@@ -112,7 +112,7 @@ struct DeckBuilderView: View {
 
         return VStack(alignment: .leading, spacing: 6) {
             // デッキ切り替え & 枚数表示
-            HStack {
+            HStack(spacing: 8) {
                 HStack(spacing: 8) {
                     ForEach(0..<3, id: \.self) { idx in
                         Button("\(idx + 1)") {
@@ -204,6 +204,7 @@ struct DeckBuilderView: View {
                 Button("バトル開始") {
                     if deck.totalCreatures == DeckList.creatureLimit &&
                         deck.totalSpells == DeckList.spellLimit {
+                        SoundManager.shared.playStartSound()
                         onStartBattle(deck)
                     } else {
                         alertMessage = "デッキ枚数が不足しています。\nク \(deck.totalCreatures)/\(DeckList.creatureLimit)  ス \(deck.totalSpells)/\(DeckList.spellLimit)"

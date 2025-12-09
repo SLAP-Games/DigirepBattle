@@ -64,11 +64,17 @@ struct RootDeckBuilderScreen: View {
             }
             .navigationDestination(isPresented: Binding(
                 get: { selectedDeck != nil },
-                set: { _ in }
+                set: { presented in
+                    if !presented {
+                        selectedDeck = nil
+                    }
+                }
             )) {
                 if let deck = selectedDeck {
-                    ContentView()
-                        .environmentObject(GameVM(selectedDeck: deck))
+                    ContentView(onBattleEnded: {
+                        selectedDeck = nil
+                    })
+                    .environmentObject(GameVM(selectedDeck: deck))
                 }
             }
         }

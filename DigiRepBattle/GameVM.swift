@@ -31,6 +31,10 @@ struct CreatureInspectView {
 final class GameVM: ObservableObject {
     enum Phase { case ready, rolled, moving, branchSelecting, moved }
     enum Dir { case cw, ccw }
+    enum VictoryStatus {
+        case win
+        case lose
+    }
     enum SpecialPendingAction {
         case pickLevelUpSource
         case pickMoveSource
@@ -136,6 +140,9 @@ final class GameVM: ObservableObject {
     @Published var tileRemovalEffectTrigger: UUID = UUID()
     @Published var levelUpEffectTile: Int? = nil
     @Published var levelUpEffectTrigger: UUID = UUID()
+    @Published var victoryStatus: VictoryStatus? = nil
+    @Published var showVictoryBanner: Bool = false
+    @Published var shouldReturnToDeckBuilder: Bool = false
     @Published var homeArrivalTile: Int? = nil
     @Published var homeArrivalTrigger: UUID = UUID()
     // === ここから追加: sp-decay 用（任意マスレベルダウン） ===
@@ -163,6 +170,10 @@ final class GameVM: ObservableObject {
     private var pendingBranchDestination: Int? = nil
     private var checkpointAutoCloseTask: DispatchWorkItem? = nil
     private var pendingHomeOverlayTask: DispatchWorkItem? = nil
+    private var victoryShowWorkItem: DispatchWorkItem? = nil
+    private var victoryDismissWorkItem: DispatchWorkItem? = nil
+    private let victoryThreshold: Int = 5000
+    private var victoryMonitor: AnyCancellable?
     @Published var isSelectingCleanseTarget: Bool = false
     @Published var cleanseCandidateTiles: Set<Int> = []
     @Published var pendingCleanseTile: Int? = nil
@@ -307,6 +318,12 @@ final class GameVM: ObservableObject {
         startTurnIfNeeded()
         self.focusTile = players[turn].pos
         self.terrain = buildFixedTerrain()
+        checkVictoryCondition()
+        victoryMonitor = Timer.publish(every: 0.5, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.checkVictoryCondition()
+            }
     }
     
 // MARK: ---------------------------------------------------------------------------
@@ -385,6 +402,7 @@ final class GameVM: ObservableObject {
         }
 
         beginTurnTransition()
+        checkVictoryCondition()
     }
     
     func beginTurnTransition() {
@@ -1248,6 +1266,67 @@ final class GameVM: ObservableObject {
         }
     }
 
+    private func logVictoryCheck(playerTotal: Int, npcTotal: Int, reason: String) {
+        print("[VictoryCheck] reason=\(reason) playerTotal=\(playerTotal) npcTotal=\(npcTotal) status=\(String(describing: victoryStatus)) threshold=\(victoryThreshold)")
+    }
+
+    private func checkVictoryCondition() {
+        let playerTotal = totalAssets(for: 0)
+        let npcTotal = totalAssets(for: 1)
+
+        if let status = victoryStatus {
+            logVictoryCheck(playerTotal: playerTotal, npcTotal: npcTotal, reason: "blocked(status=\(status))")
+            return
+        } else {
+            logVictoryCheck(playerTotal: playerTotal, npcTotal: npcTotal, reason: "evaluating")
+        }
+
+        if playerTotal >= victoryThreshold {
+            triggerVictory(.win)
+        } else if npcTotal >= victoryThreshold {
+            triggerVictory(.lose)
+        } else if playerTotal <= 0 {
+            triggerVictory(.lose)
+        } else if npcTotal <= 0 {
+            triggerVictory(.win)
+        }
+    }
+
+    private func triggerVictory(_ status: VictoryStatus) {
+        print("[Victory] attempting status=\(status) currentStatus=\(String(describing: victoryStatus))")
+        guard victoryStatus == nil else {
+            print("[Victory] skipped because status already set")
+            return
+        }
+        victoryStatus = status
+        SoundManager.shared.stopBGM()
+        showVictoryBanner = false
+        shouldReturnToDeckBuilder = false
+        victoryShowWorkItem?.cancel()
+        victoryDismissWorkItem?.cancel()
+
+        let show = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.showVictoryBanner = true
+            }
+            switch status {
+            case .win:
+                SoundManager.shared.playWinSoundWithFade()
+            case .lose:
+                SoundManager.shared.playLoseSoundWithFade()
+            }
+        }
+        victoryShowWorkItem = show
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: show)
+
+        let dismiss = DispatchWorkItem { [weak self] in
+            self?.shouldReturnToDeckBuilder = true
+        }
+        victoryDismissWorkItem = dismiss
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7.0, execute: dismiss)
+    }
+
     // タイルに「入った」タイミングで呼ぶ
     private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
         // 1) CP通過フラグの更新（CP1/CP2それぞれ）
@@ -1277,7 +1356,7 @@ final class GameVM: ObservableObject {
             }
             if passedCP1[pid] && passedCP2[pid] {
                 let gain = checkpointReward(for: pid)
-                players[pid].gold += gain
+                addGold(gain, to: pid)
                 passedCP1[pid] = false
                 passedCP2[pid] = false
 
@@ -2142,6 +2221,7 @@ final class GameVM: ObservableObject {
             toll[i] = toll(at: i)
         }
         toll = toll
+        checkVictoryCondition()
     }
 
     @discardableResult
@@ -3022,6 +3102,7 @@ final class GameVM: ObservableObject {
             hp: s.hpMax
         )
         toll[tile] = toll(at: tile)
+        checkVictoryCondition()
         return true
     }
     
@@ -3224,6 +3305,7 @@ final class GameVM: ObservableObject {
         // View更新用
         hp = hp
         objectWillChange.send()
+        checkVictoryCondition()
     }
     
     // タイルタップ時ハンドラ（クリーチャーがいないタイルは無視）
@@ -3372,9 +3454,7 @@ final class GameVM: ObservableObject {
     // ▼ 売却の実処理（共通）: 所有解除・レベル/通行料/シンボル初期化
     private func performSell(tile idx: Int, for player: Int) {
         let v = saleValue(for: idx)
-        if players.indices.contains(player) {
-            players[player].gold += v
-        }
+        addGold(v, to: player)
         clearCreatureInfo(at: idx,
                           clearOwnerAndLevel: true,
                           resetToll: true)
@@ -3398,6 +3478,8 @@ final class GameVM: ObservableObject {
             toll[tile] = toll(at: tile)
         }
 
+        SoundManager.shared.playLevelSound()
+
         levelUpEffectTile = tile
         let trigger = UUID()
         levelUpEffectTrigger = trigger
@@ -3410,6 +3492,7 @@ final class GameVM: ObservableObject {
 
         // ログやフローティングメッセージ
         pushCenterMessage("土地を Lv\(newLevel) に強化 -\(cost)G")
+        checkVictoryCondition()
 
         activeSpecialSheet = nil
         objectWillChange.send()
@@ -3511,6 +3594,7 @@ final class GameVM: ObservableObject {
         pushCenterMessage("デジレプを移動")
         objectWillChange.send()
         try? await Task.sleep(nanoseconds: 200_000_000)
+        checkVictoryCondition()
     }
     
     func canSwapCreature(withHandIndex idx: Int) -> Bool {
@@ -3581,6 +3665,7 @@ final class GameVM: ObservableObject {
 
         // 見た目更新
         hp = hp
+        checkVictoryCondition()
         return true
     }
     
@@ -3631,11 +3716,10 @@ final class GameVM: ObservableObject {
         guard amount > 0 else { return true }
         guard players.indices.contains(pid) else { return false }
         if players[pid].gold >= amount {
-            players[pid].gold -= amount
+            addGold(-amount, to: pid)
             return true
-        } else {
-            return false
         }
+        return false
     }
 
     func hpRatio(_ tile: Int) -> CGFloat? {
@@ -3841,6 +3925,7 @@ final class GameVM: ObservableObject {
         if players[player].gold < 0 {
             startForcedSaleIfNeeded(for: player)
         }
+        checkVictoryCondition()
     }
     
     // マイナスなら売却フロー開始（Youは手動、CPUは自動）
@@ -4018,6 +4103,7 @@ final class GameVM: ObservableObject {
         landLevelChangeCandidateTiles = []
         pendingLandLevelChangeTile = nil
         branchLandingTargets = []
+        checkVictoryCondition()
     }
     
     func cancelLandTollZeroSelection() {
@@ -4077,6 +4163,7 @@ final class GameVM: ObservableObject {
         landTollZeroCandidateTiles = []
         pendingLandTollZeroTile = nil
         branchLandingTargets = []
+        checkVictoryCondition()
     }
     
     func cancelLandTollDoubleSelection() {
@@ -4136,6 +4223,7 @@ final class GameVM: ObservableObject {
         landTollDoubleCandidateTiles = []
         pendingLandTollDoubleTile = nil
         branchLandingTargets = []
+        checkVictoryCondition()
     }
 
     func cancelPoisonSelection() {
@@ -4443,6 +4531,7 @@ final class GameVM: ObservableObject {
         pushCenterMessage("\(spellName ?? "スペル") で \(detail) を解除")
 
         try? await Task.sleep(nanoseconds: 300_000_000)
+        checkVictoryCondition()
     }
 
     @MainActor

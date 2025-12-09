@@ -9,6 +9,9 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var vm: GameVM
+    @Environment(\.dismiss) private var dismiss
+    @State private var isFadingOut: Bool = false
+    var onBattleEnded: (() -> Void)? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -16,7 +19,8 @@ struct ContentView: View {
             let controlsH = geo.size.height * controlRatio
             let boardH = geo.size.height - controlsH
 
-            VStack(spacing: 0) {
+            ZStack {
+                VStack(spacing: 0) {
 // -------------------------------------------------------------------------------
 //　　　　　　　　　　　　　　　　　　　　上部：ボードエリア
 // -------------------------------------------------------------------------------
@@ -1158,16 +1162,39 @@ struct ContentView: View {
                 }
                 .overlay(Divider(), alignment: .top)
             }
+            if vm.showVictoryBanner, let status = vm.victoryStatus {
+                VictoryBannerView(text: status.displayText)
+                    .transition(.opacity)
+                    .zIndex(2000)
+            }
+            }
+            .opacity(isFadingOut ? 0 : 1)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .overlay(alignment: .top) {
+                VictoryConditionBar()
+            }
+        }
+        .onChange(of: vm.shouldReturnToDeckBuilder) { oldValue, newValue in
+            guard newValue else { return }
+            withAnimation(.easeInOut(duration: 0.6)) {
+                isFadingOut = true
+            }
+            SoundManager.shared.stopBGM()
+            let completion = {
+                if let onBattleEnded {
+                    onBattleEnded()
+                } else {
+                    dismiss()
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+                completion()
+            }
         }
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(edges: .bottom)
         .onAppear {
             SoundManager.shared.playBGM(.map)
-        }
-        // 画面から消えるときは一旦停止（任意）
-        .onDisappear {
-            SoundManager.shared.stopBGM()
         }
         // ターンチェンジ状態の変化に応じて BGM 切り替え
         .onChange(of: vm.isTurnTransition) { oldValue, newValue in
@@ -1235,6 +1262,53 @@ struct ContentView: View {
             return "移動先を選択（50G）"
         case .pickLevelUpSource:
             return "強化する領地を選択"
+        }
+    }
+}
+
+private struct VictoryConditionBar: View {
+
+    var body: some View {
+        ZStack {
+            Color.clear
+
+            VStack(spacing: 0) {
+                Text("勝利条件：（TOTL 5,000G）")
+                    .font(.bestTenSubheadline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black.opacity(0.75))
+                Spacer()
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct VictoryBannerView: View {
+    let text: String
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.75)
+                .ignoresSafeArea()
+            Text(text)
+                .font(.bestTen(size: 48))
+                .fontWeight(.heavy)
+                .foregroundColor(.white)
+                .shadow(color: .white.opacity(0.6), radius: 12)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private extension GameVM.VictoryStatus {
+    var displayText: String {
+        switch self {
+        case .win:  return "YOU WIN"
+        case .lose: return "YOU LOSE"
         }
     }
 }

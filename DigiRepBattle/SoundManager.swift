@@ -23,6 +23,7 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     
     // 効果音(SE) 用プレイヤーたち
     private var players: [String: AVAudioPlayer] = [:]
+    private var fadeTimers: [String: Timer] = [:]
 
     // メインBGM用プレイヤー（deck / map / battle）
     private var bgmPlayer: AVAudioPlayer?
@@ -36,6 +37,7 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
 
     // サウンドON/OFF
     var isSoundOn: Bool = true
+    private let winSoundFadeDelay: TimeInterval = 4.0
 
     // MARK: - 効果音
 
@@ -115,28 +117,94 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     func playHomeSound() {
         playSE(named: "homeSound")
     }
+    
+    func playLevelSound() {
+        playSE(named: "levelSound")
+    }
+    
+    func playStartSound() {
+        playSE(named: "startSound")
+    }
+
+    func playWinSoundWithFade() {
+        playSoundWithFadeOut(named: "winSound", delay: winSoundFadeDelay)
+    }
+
+    func playLoseSoundWithFade() {
+        playSoundWithFadeOut(named: "loseSound")
+    }
 
     private func playSE(named name: String) {
         guard isSoundOn else { return }
+        guard let player = player(for: name) else { return }
+        player.currentTime = 0
+        player.volume = 1.0
+        player.play()
+    }
 
+    private func player(for name: String) -> AVAudioPlayer? {
         if let player = players[name] {
-            player.currentTime = 0
-            player.play()
-            return
+            player.prepareToPlay()
+            return player
         }
 
         guard let url = Bundle.main.url(forResource: name, withExtension: "mp3") else {
             print("SE not found: \(name)")
-            return
+            return nil
         }
 
         do {
             let player = try AVAudioPlayer(contentsOf: url)
+            player.numberOfLoops = 0
             player.prepareToPlay()
-            player.play()
             players[name] = player
+            return player
         } catch {
             print("Failed to play SE: \(error)")
+            return nil
+        }
+    }
+
+    private func playSoundWithFadeOut(named name: String,
+                                      duration: TimeInterval = 3.0,
+                                      delay: TimeInterval = 0.0) {
+        guard isSoundOn else { return }
+        guard let player = player(for: name) else { return }
+        player.currentTime = 0
+        player.volume = 1.0
+        player.play()
+
+        fadeTimers[name]?.invalidate()
+
+        let startFade = { [weak self, weak player] in
+            guard let self = self else { return }
+            let steps = max(1, Int(duration / 0.15))
+            var currentStep = 0
+            let interval = duration / Double(steps)
+            let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self, weak player] timer in
+                guard let player = player else {
+                    timer.invalidate()
+                    return
+                }
+                currentStep += 1
+                let progress = min(1.0, Double(currentStep) / Double(steps))
+                player.volume = Float(max(0.0, 1.0 - progress))
+                if currentStep >= steps {
+                    player.stop()
+                    timer.invalidate()
+                    self?.fadeTimers[name] = nil
+                }
+            }
+            self.fadeTimers[name] = timer
+            RunLoop.main.add(timer, forMode: .common)
+        }
+
+        if delay <= 0 {
+            startFade()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                startFade()
+            }
         }
     }
 
