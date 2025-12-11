@@ -26,20 +26,22 @@ extension DeckList {
         var deck = DeckList()
 
         deck.creatureSlots = [
-            "cre-defaultLizard":        5,
-            "cre-defaultCrocodile":     5,
-            "cre-defaultTurtle":        5,
-            "cre-defaultBeardedDragon": 5,
-            "cre-defaultHornedFrog":    5,
-            "cre-defaultGreenIguana":   5,
-            "cre-defaultBallPython":    5
+//            "cre-defaultLizard":        5,
+//            "cre-defaultCrocodile":     5,
+//            "cre-defaultTurtle":        5,
+//            "cre-defaultBeardedDragon": 5,
+//            "cre-defaultHornedFrog":    5,
+//            "cre-defaultGreenIguana":   5,
+//            "cre-defaultBallPython":    5
+            
+            "cre-defaultLizard":        25
         ]
 
         deck.spellSlots = [
 //以下テスト用
-//            "sp-dice1": 1,
+            "sp-dice1": 25,
 //            "sp-dice3": 1,
-            "sp-dice4": 25,
+//            "sp-dice4": 25,
 //            "sp-dice6": 5,
 //            "sp-doubleDice": 1,
 //            "sp-firstStrike": 1,

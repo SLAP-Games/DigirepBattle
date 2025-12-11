@@ -275,10 +275,10 @@ final class GameVM: ObservableObject {
         cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
         cardStates[1].collection.add("sp-dice2", count: 20)
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultBeardedDragon": 35
+            "cre-defaultLizard": 35
         ]
         cardStates[1].deckList.spellSlots = [
-            "sp-decay": 25
+            "sp-dice1": 25
         ]
         
         //NPCデッキ

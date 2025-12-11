@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SpriteKit
 import Combine
 
 // MARK: - Models
@@ -51,6 +52,115 @@ fileprivate func resistColor(for attr: BattleAttribute) -> Color {
     case .dry:   return Color(red: 0.85, green: 0.76, blue: 0.62) // beige
     case .cold:  return .cyan
     case .normal: return .gray
+    }
+}
+
+fileprivate enum AttackDirection {
+    case leftToRight
+    case rightToLeft
+}
+
+fileprivate struct SpeedLineField: View {
+    let direction: AttackDirection
+    @State private var animatePhase = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = geo.size.height
+            let travel = width * 1.2
+            let startX = direction == .leftToRight ? -travel : travel
+            let endX = -startX
+
+            ZStack {
+                Rectangle()
+                    .fill(Color.white.opacity(0.35))
+                ForEach(0..<8, id: \.self) { idx in
+                    let spacing = height / 8
+                    Capsule()
+                        .fill(Color.white.opacity(0.65))
+                        .frame(width: max(width * 0.45, 150), height: 2)
+                        .offset(
+                            x: animatePhase ? endX : startX,
+                            y: -height / 2 + spacing * CGFloat(idx) + spacing * 0.3
+                        )
+                        .animation(
+                            .linear(duration: 0.5)
+                                .repeatForever(autoreverses: false)
+                                .delay(Double(idx) * 0.06),
+                            value: animatePhase
+                        )
+                }
+            }
+            .clipped()
+            .onAppear { animatePhase = true }
+            .onDisappear { animatePhase = false }
+        }
+    }
+}
+
+fileprivate final class BloodParticleScene: SKScene {
+    private let splashColor: UIColor
+
+    init(size: CGSize, splashColor: Color) {
+        self.splashColor = UIColor(splashColor)
+        super.init(size: size)
+        scaleMode = .resizeFill
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMove(to view: SKView) {
+        runSplash()
+    }
+
+    private func runSplash() {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        for idx in 0..<26 {
+            let radius = CGFloat.random(in: size.width * 0.25...size.width * 0.55)
+            let angle = (CGFloat(idx) / 26.0) * .pi * 2 + CGFloat.random(in: -0.3...0.3)
+            let target = CGPoint(
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle)
+            )
+
+            let node = SKShapeNode(circleOfRadius: CGFloat.random(in: 2...4))
+            node.fillColor = splashColor
+            node.strokeColor = splashColor.withAlphaComponent(0.4)
+            node.lineWidth = 0.3
+            node.position = center
+            node.alpha = 0.95
+            addChild(node)
+
+            let travel = SKAction.move(to: target, duration: 0.45)
+            travel.timingMode = .easeOut
+            let fade = SKAction.fadeOut(withDuration: 0.45)
+            let scale = SKAction.scale(to: 0.2, duration: 0.45)
+            let group = SKAction.group([travel, fade, scale])
+            let delay = SKAction.wait(forDuration: Double.random(in: 0.0...0.08))
+            node.run(SKAction.sequence([delay, group, .removeFromParent()]))
+        }
+
+        let cleanup = SKAction.sequence([
+            SKAction.wait(forDuration: 0.6),
+            SKAction.run { [weak self] in self?.removeAllChildren() }
+        ])
+        run(cleanup)
+    }
+}
+
+fileprivate struct BloodParticleSplash: View {
+    let color: Color
+    private var scene: SKScene {
+        BloodParticleScene(size: CGSize(width: 90, height: 90), splashColor: color)
+    }
+
+    var body: some View {
+        SpriteView(scene: scene, options: [.allowsTransparency])
+            .allowsHitTesting(false)
     }
 }
 
@@ -201,6 +311,15 @@ public struct BattleOverlayView: View {
     private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
     @State private var flashOpacity: Double = 0
     @State private var shakeOffset: CGFloat = 0
+    @State private var showLeftBattleBackground = false
+    @State private var showRightBattleBackground = false
+    @State private var leftBattleBGOffset: CGFloat = -400
+    @State private var rightBattleBGOffset: CGFloat = 400
+    @State private var leftBattleBGOpacity: Double = 0
+    @State private var rightBattleBGOpacity: Double = 0
+    @State private var currentEnergyDirection: AttackDirection?
+    @State private var containerWidth: CGFloat = 0
+    @State private var skipIntroDelay = false
 
     public init(
         left: BattleCombatant,
@@ -237,6 +356,12 @@ public struct BattleOverlayView: View {
             
             let mainBattleLayers = ZStack {
                 ZStack {
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .onAppear { containerWidth = W }
+                        .onChange(of: geo.size.width) { _, newWidth in
+                            containerWidth = newWidth
+                        }
                     Color.black.opacity(0.6)
                     
                     VStack(spacing: 0) {
@@ -245,18 +370,61 @@ public struct BattleOverlayView: View {
                         
                         // センター：キャラ画像＋ダメージのみ
                         ZStack {
-                            Rectangle().fill(Color.black).frame(height: centerH)
+                            Image("battleBackground")
+                                .resizable(resizingMode: .stretch)
+                                .frame(width: W)
+                                .frame(height: centerH)
                             
+                            if let direction = currentEnergyDirection {
+                                SpeedLineField(direction: direction)
+                                    .transition(.opacity)
+                                    .frame(width: W, height: centerH)
+                                    .allowsHitTesting(false)
+                            }
+
                             HStack {
                                 Spacer(minLength: 0)
-                                // 画像のみ（HUDは出さない）
-                                fighterSpriteView(isLeft: true, who: L)
-                                    .frame(width: W * 0.38)
-                                    .offset(x: leftOffset)
+                                ZStack {
+                                    fighterSpriteView(isLeft: true, who: L)
+                                        .frame(width: W * 0.38)
+                                        .offset(x: leftOffset)
+                                        .zIndex(0)
+                                    if showLeftBattleBackground {
+                                        fighterBackgroundView(isAttacker: true, who: L)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .opacity(leftBattleBGOpacity)
+                                            .offset(x: leftBattleBGOffset)
+                                            .zIndex(1)
+                                    }
+                                    if showDmgLeft {
+                                        BloodParticleSplash(color: .red)
+                                            .frame(width: 140, height: 140)
+                                            .offset(y: -10)
+                                            .zIndex(2)
+                                    }
+                                }
+                                .frame(width: W * 0.48, height: centerH)
                                 Spacer()
-                                fighterSpriteView(isLeft: false, who: R)
-                                    .frame(width: W * 0.38)
-                                    .offset(x: rightOffset)
+                                ZStack {
+                                    fighterSpriteView(isLeft: false, who: R)
+                                        .frame(width: W * 0.38)
+                                        .offset(x: rightOffset)
+                                        .zIndex(0)
+                                    if showRightBattleBackground {
+                                        fighterBackgroundView(isAttacker: false, who: R)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .opacity(rightBattleBGOpacity)
+                                            .offset(x: rightBattleBGOffset)
+                                            .zIndex(1)
+                                    }
+                                    if showDmgRight {
+                                        BloodParticleSplash(color: .red)
+                                            .frame(width: 140, height: 140)
+                                            .offset(y: -10)
+                                            .zIndex(2)
+                                    }
+                                }
+                                .frame(width: W * 0.48, height: centerH)
                                 Spacer(minLength: 0)
                             }
                             .frame(height: centerH)
@@ -304,6 +472,7 @@ public struct BattleOverlayView: View {
                 }
                 .onChange(of: isItemSelecting) { oldValue, newValue in
                     if oldValue == true && newValue == false {
+                        skipIntroDelay = true
                         startTimelineIfNeeded(W: W)
                     }
                 }
@@ -384,6 +553,15 @@ public struct BattleOverlayView: View {
             .shadow(color: .white.opacity(0.15), radius: 8, x: 0, y: 3)
     }
 
+    private func fighterBackgroundView(isAttacker: Bool, who: BattleCombatant) -> some View {
+        let bgName = "\(who.imageName)Battle"
+        return Image(bgName)
+            .resizable()
+            .scaledToFit()
+            .scaleEffect(x: isAttacker ? 1 : -1, y: 1)
+            .shadow(color: .black.opacity(0.45), radius: 12, x: 0, y: 8)
+    }
+
     
     @ViewBuilder
     private func hudRow() -> some View {
@@ -416,8 +594,9 @@ public struct BattleOverlayView: View {
     }
 
     private func timeline() {
-        // 0s: intro（左だけ見せる）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
+        let delay: Double = skipIntroDelay ? 0.0 : 3.0
+        skipIntroDelay = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
             guard !isFinished else { return }
 
             if defenderHasFirstStrike {
@@ -431,83 +610,125 @@ public struct BattleOverlayView: View {
     }
     
     private func runNormalTimeline() {
-        // 1) 左→右へスライドして、右にダメージ
-        withAnimation(.easeInOut(duration: 0.6)) {
-            leftOffset = -600
-            rightOffset = 0
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
+        performAttackSequence(attackerIsLeft: true) { [self] in
             guard !isFinished else { return }
-
-            // 通常：先に左→右へ攻撃
-            resolveAttack(attackerIsLeft: true)
-
-            // 2) 3秒眺めてから、右→左へ戻して左にダメージ
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
+            performAttackSequence(attackerIsLeft: false) { [self] in
                 guard !isFinished else { return }
-
-                withAnimation(.easeInOut(duration: 0.6)) {
-                    leftOffset = 0
-                    rightOffset = 600
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [self] in
                     guard !isFinished else { return }
-
-                    // 反撃：右→左へ攻撃
-                    resolveAttack(attackerIsLeft: false)
-
-                    // 3) 3秒眺めて通常終了
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
-                        guard !isFinished else { return }
-                        onFinished(L, R)
-                    }
+                    onFinished(L, R)
                 }
             }
         }
     }
 
     private func runFirstStrikeTimeline() {
-        // 1) まず右へフォーカス（ここではまだダメージなし）
-        withAnimation(.easeInOut(duration: 0.6)) {
-            leftOffset = -600
-            rightOffset = 0
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
+        performAttackSequence(attackerIsLeft: false) { [self] in
             guard !isFinished else { return }
+            performAttackSequence(attackerIsLeft: true) { [self] in
+                guard !isFinished else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [self] in
+                    guard !isFinished else { return }
+                    onFinished(L, R)
+                }
+            }
+        }
+    }
 
-            // 2) 左へ戻してから、左にダメージ表示（＝防御側の先制）
-            withAnimation(.easeInOut(duration: 0.6)) {
+    private func performAttackSequence(attackerIsLeft: Bool, completion: @escaping () -> Void) {
+        guard !isFinished else { return }
+        startBattleEffect(attackerIsLeft: attackerIsLeft) { [self] in
+            guard !isFinished else { return }
+            focusOnDefender(attackerIsLeft: attackerIsLeft) {
+                guard !isFinished else { return }
+                completion()
+            }
+        }
+    }
+
+    private func startBattleEffect(attackerIsLeft: Bool, completion: @escaping () -> Void) {
+        guard !isFinished else { return }
+        let direction: AttackDirection = attackerIsLeft ? .leftToRight : .rightToLeft
+        let slideDuration: Double = 1.5
+        withAnimation(.easeInOut(duration: 0.2)) {
+            currentEnergyDirection = direction
+        }
+        triggerBackground(forLeft: attackerIsLeft, duration: slideDuration)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + slideDuration) { [self] in
+            guard !isFinished else { return }
+            hideBackground(forLeft: attackerIsLeft) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    currentEnergyDirection = nil
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    completion()
+                }
+            }
+        }
+    }
+
+    private func triggerBackground(forLeft isLeft: Bool, duration: Double) {
+        let travel = max(containerWidth, 400)
+        if isLeft {
+            leftBattleBGOffset = -travel
+            leftBattleBGOpacity = 0
+            showLeftBattleBackground = true
+            withAnimation(.easeOut(duration: duration)) {
+                leftBattleBGOffset = 0
+                leftBattleBGOpacity = 1
+            }
+        } else {
+            rightBattleBGOffset = travel
+            rightBattleBGOpacity = 0
+            showRightBattleBackground = true
+            withAnimation(.easeOut(duration: duration)) {
+                rightBattleBGOffset = 0
+                rightBattleBGOpacity = 1
+            }
+        }
+    }
+
+    private func hideBackground(forLeft isLeft: Bool, completion: @escaping () -> Void) {
+        let travel = max(containerWidth, 400)
+        let hideDuration = 0.4
+        withAnimation(.easeIn(duration: hideDuration)) {
+            if isLeft {
+                leftBattleBGOffset = travel * 0.2
+                leftBattleBGOpacity = 0
+            } else {
+                rightBattleBGOffset = -travel * 0.2
+                rightBattleBGOpacity = 0
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + hideDuration) { [self] in
+            if isLeft {
+                showLeftBattleBackground = false
+                leftBattleBGOffset = -travel
+            } else {
+                showRightBattleBackground = false
+                rightBattleBGOffset = travel
+            }
+            completion()
+        }
+    }
+
+    private func focusOnDefender(attackerIsLeft: Bool, completion: @escaping () -> Void) {
+        let slideDuration: Double = 0.6
+        withAnimation(.easeInOut(duration: slideDuration)) {
+            if attackerIsLeft {
+                leftOffset = -600
+                rightOffset = 0
+            } else {
                 leftOffset = 0
                 rightOffset = 600
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
-                guard !isFinished else { return }
-
-                // 先制攻撃：右→左（attackerIsLeft = false）
-                resolveAttack(attackerIsLeft: false)
-
-                // 左が死んだら finishNow() 内で isFinished が立つので、以降の guard で止まる
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
-                    guard !isFinished else { return }
-
-                    // 3) まだ生きていれば、右へフォーカスして右にダメージ（反撃）
-                    withAnimation(.easeInOut(duration: 0.6)) {
-                        leftOffset = -600
-                        rightOffset = 0
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [self] in
-                        guard !isFinished else { return }
-
-                        // 反撃：左→右（attackerIsLeft = true）
-                        resolveAttack(attackerIsLeft: true)
-
-                        // 4) 3秒眺めて終了
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [self] in
-                            guard !isFinished else { return }
-                            onFinished(L, R)
-                        }
-                    }
-                }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + slideDuration + 0.05) { [self] in
+            guard !isFinished else { return }
+            resolveAttack(attackerIsLeft: attackerIsLeft)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                completion()
             }
         }
     }
@@ -558,7 +779,7 @@ public struct BattleOverlayView: View {
         }
     }
 
-private func triggerImpactEffect() {
+    private func triggerImpactEffect() {
         flashOpacity = 0.4
         withAnimation(.easeOut(duration: 0.25)) {
             flashOpacity = 0
