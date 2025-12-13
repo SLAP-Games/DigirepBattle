@@ -2791,6 +2791,10 @@ final class GameVM: ObservableObject {
             return
         }
 
+        if isSpecialNode(t) {
+            await cpuHandleSpecialNode(at: t)
+        }
+
         // 自軍タイルならLv+1（可能なら）
         if owner.indices.contains(t), owner[t] == 1,
            level.indices.contains(t), level[t] >= 1, level[t] < 5 {
@@ -2814,6 +2818,69 @@ final class GameVM: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         endTurn()
+    }
+
+    @MainActor
+    private func cpuHandleSpecialNode(at index: Int) async {
+        guard let nodeKind = specialNodeKind(for: index) else { return }
+        let pid = 1
+        guard players.indices.contains(pid) else { return }
+        let total = totalAssets(for: pid)
+        guard total > 0 else { return }
+        let thresholdRatio: Double = (nodeKind == .castle) ? 0.5 : 0.3
+        let minGold = Int(Double(total) * thresholdRatio)
+        guard players[pid].gold > minGold else { return }
+
+        var candidateTiles: [Int] = []
+        for i in 0..<tileCount {
+            if owner.indices.contains(i),
+               owner[i] == pid,
+               level.indices.contains(i),
+               level[i] >= 1,
+               level[i] < 5 {
+                candidateTiles.append(i)
+            }
+        }
+        guard !candidateTiles.isEmpty else { return }
+
+        var upgradeableTiles = Set(candidateTiles)
+
+        let previousFocus = focusTile
+        let previousForce = forceCameraFocus
+        forceCameraFocus = true
+
+        defer {
+            forceCameraFocus = previousForce
+            let fallback = previousFocus ?? (players.indices.contains(pid) ? players[pid].pos : nil)
+            focusTile = fallback
+        }
+
+        while players[pid].gold > minGold, !upgradeableTiles.isEmpty {
+            guard let tile = upgradeableTiles.randomElement() else { break }
+            let currentGold = players[pid].gold
+            if currentGold <= minGold { break }
+            guard level.indices.contains(tile) else {
+                upgradeableTiles.remove(tile)
+                continue
+            }
+            let currentLevel = level[tile]
+            let nextLevel = currentLevel + 1
+            guard nextLevel <= 5,
+                  let cost = incrementalLevelUpCost(from: currentLevel, to: nextLevel) else {
+                upgradeableTiles.remove(tile)
+                continue
+            }
+            if currentGold - cost < minGold {
+                upgradeableTiles.remove(tile)
+                continue
+            }
+            focusTile = tile
+            confirmLevelUp(tile: tile, to: nextLevel)
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if nextLevel >= 5 {
+                upgradeableTiles.remove(tile)
+            }
+        }
     }
     
     private func cpuUseRandomDiceFixSpellIfAvailable() {
