@@ -3212,14 +3212,16 @@ final class GameVM: ObservableObject {
     }
 
     // ★ レベルアップ・クリーチャー交換のアクションの入り口
-    func actionLevelUpOnMyTile() {
+    func actionLevelUpOnMyTile(closeMenus: Bool = true) {
         // まずは CreatureMenu 優先で見る
         let target = creatureMenuTile ?? myTileIndex
         guard let t = target else { return }
 
-        // メニューは閉じる
-        showCreatureMenu = false
-        closeMyTileMenu()
+        if closeMenus {
+            // メニューは閉じる
+            showCreatureMenu = false
+            closeMyTileMenu()
+        }
 
         // レベルアップ用シートを表示
         activeSpecialSheet = .levelUp(tile: t)

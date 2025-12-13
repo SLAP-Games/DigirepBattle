@@ -20,7 +20,7 @@ struct CreatureMenuView: View {
 
             HStack(spacing: 12) {
                 Button("土地強化") {
-                    vm.actionLevelUpOnMyTile()
+                    vm.actionLevelUpOnMyTile(closeMenus: false)
                 }
                 .buttonStyle(.borderedProminent)
 
