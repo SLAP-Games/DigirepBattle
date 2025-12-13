@@ -6,9 +6,12 @@ struct OverlappingHandView: View {
     @Binding var dragOffset: CGFloat
     var onTap: (Int) -> Void
     var onTapUp: (Int) -> Void
+    var highlightCreatureCards: Bool = false
 
     @State private var dragStartIndex: Int = 0
     @State private var isDragging = false
+    @State private var glowOpacity: Double = 0
+    @State private var glowAnimating = false
 
     private let cardSize = CGSize(width: 90, height: 130)
 
@@ -59,6 +62,10 @@ struct OverlappingHandView: View {
                         }
                     }
             )
+            .onAppear(perform: updateGlowAnimation)
+            .onChange(of: highlightCreatureCards) { _, _ in
+                updateGlowAnimation()
+            }
         }
     }
 
@@ -71,11 +78,20 @@ struct OverlappingHandView: View {
         let baseY = canvasSize.height - (cardSize.height / 2)
         let isFocused = focusedIndex == index
 
+        let shouldHighlight = highlightCreatureCards && card.kind == .creature
+        let currentGlow = shouldHighlight ? glowOpacity : 0
+
         return CardView(card: card)
             .frame(width: cardSize.width, height: cardSize.height)
             .scaleEffect(isFocused ? 1.1 : 0.92)
             .position(x: xPosition, y: baseY)
             .offset(y: isFocused ? -22 : 0)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.yellow.opacity(currentGlow), lineWidth: shouldHighlight ? 3 : 0)
+                    .shadow(color: Color.yellow.opacity(currentGlow),
+                            radius: shouldHighlight ? (10 + 8 * currentGlow) : 0)
+            )
             .shadow(color: .black.opacity(isFocused ? 0.35 : 0.15),
                     radius: isFocused ? 10 : 4,
                     y: 6)
@@ -116,6 +132,31 @@ struct OverlappingHandView: View {
         }
 
         return Double(cards.count - orderPosition)
+    }
+
+    private func updateGlowAnimation() {
+        if highlightCreatureCards {
+            startGlowAnimation()
+        } else {
+            stopGlowAnimation()
+        }
+    }
+
+    private func startGlowAnimation() {
+        guard !glowAnimating else { return }
+        glowAnimating = true
+        glowOpacity = 0
+        withAnimation(Animation.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+            glowOpacity = 1
+        }
+    }
+
+    private func stopGlowAnimation() {
+        guard glowAnimating else { return }
+        glowAnimating = false
+        withAnimation(.easeOut(duration: 0.2)) {
+            glowOpacity = 0
+        }
     }
 }
 

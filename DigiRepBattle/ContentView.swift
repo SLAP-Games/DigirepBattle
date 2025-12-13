@@ -459,7 +459,7 @@ struct ContentView: View {
                             .padding(20)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(UIColor.systemBackground))
+                                    .fill(Color.black.opacity(0.8))
                             )
                             .padding()
                         }
@@ -862,7 +862,8 @@ struct ContentView: View {
 
                         OverlappingHandView(cards: vm.hands[0],
                                             focusedIndex: $vm.focusedHandIndex,
-                                            dragOffset: $vm.handDragOffset) { index in
+                                            dragOffset: $vm.handDragOffset,
+                                            onTap: { index in
                             let card = vm.hands[0][index]
                             if vm.isSelectingSwapCreature,
                                card.kind == .creature {
@@ -870,10 +871,11 @@ struct ContentView: View {
                             } else {
                                 vm.openCard(card)
                             }
-                        } onTapUp: { index in
+                        }, onTapUp: { index in
                             let card = vm.hands[0][index]
                             vm.openCard(card)
-                        }
+                        },
+                        highlightCreatureCards: vm.highlightSummonableCreatures)
                         .frame(height: controlsH * 0.9)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
@@ -1217,6 +1219,40 @@ struct ContentView: View {
         }
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(edges: .bottom)
+        .overlay {
+            if vm.showEndTurnWithoutSummonConfirm {
+                ZStack {
+                    Color.black.opacity(0.45)
+                        .ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        Text("クリーチャーを設置せずに終了しますか？")
+                            .font(.bestTenHeadline)
+                            .multilineTextAlignment(.center)
+                        Text("空き地に配置しないと領地にできません。")
+                            .font(.bestTenFootnote)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Button("キャンセル") {
+                                vm.cancelEndTurnWithoutSummonWarning()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            
+                            Button("終了する") {
+                                vm.confirmEndTurnWithoutSummon()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding(24)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .shadow(radius: 20)
+                    .padding()
+                }
+                .transition(.opacity)
+            }
+        }
         .onAppear {
             SoundManager.shared.playBGM(.map)
         }

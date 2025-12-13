@@ -70,6 +70,8 @@ final class GameVM: ObservableObject {
     @Published var mustDiscardFor: Int? = nil
     @Published var showLogOverlay: Bool = false
     @Published var canEndTurn: Bool = true
+    @Published var highlightSummonableCreatures: Bool = false
+    @Published var showEndTurnWithoutSummonConfirm: Bool = false
     @Published var terrain: [TileTerrain] = []
     @Published var inspectTarget: Int? = nil
     @Published var creatureOnTile: [Int: Creature] = [:]
@@ -392,6 +394,25 @@ final class GameVM: ObservableObject {
 //　　　　　　　　　　　　　　　　　　ターン管理
 // MARK: ---------------------------------------------------------------------------
     func endTurn() {
+        if shouldRequireSummonReminder() {
+            showEndTurnWithoutSummonConfirm = true
+            return
+        }
+        performEndTurnCore()
+    }
+
+    func confirmEndTurnWithoutSummon() {
+        showEndTurnWithoutSummonConfirm = false
+        performEndTurnCore()
+    }
+
+    func cancelEndTurnWithoutSummonWarning() {
+        showEndTurnWithoutSummonConfirm = false
+    }
+
+    private func performEndTurnCore() {
+        highlightSummonableCreatures = false
+        showEndTurnWithoutSummonConfirm = false
         cancelMoveSelectionIfNeeded()
         hideDiceGlitch()
         // ★ プレイヤーが敵マスで「戦闘する」を選んだものの、
@@ -422,6 +443,31 @@ final class GameVM: ObservableObject {
         beginTurnTransition()
         checkVictoryCondition()
     }
+
+    private func shouldRequireSummonReminder() -> Bool {
+        guard turn == 0,
+              phase == .moved,
+              landedOnOpponentTileIndex == nil,
+              !expectBattleCardSelection,
+              players.indices.contains(0) else {
+            return false
+        }
+        let tile = players[0].pos
+        guard owner.indices.contains(tile),
+              owner[tile] == nil,
+              canPlaceCreature(at: tile) else {
+            return false
+        }
+        return hasSummonableCreature(for: 0)
+    }
+
+    private func refreshSummonReminderState() {
+        let needsReminder = shouldRequireSummonReminder()
+        highlightSummonableCreatures = needsReminder
+        if !needsReminder {
+            showEndTurnWithoutSummonConfirm = false
+        }
+    }
     
     func beginTurnTransition() {
         guard !isTurnTransition else { return }
@@ -448,6 +494,7 @@ final class GameVM: ObservableObject {
     private func runHealSequenceAndStartTurn() async {
         isTurnTransition = false
         try? await Task.sleep(nanoseconds: 300_000_000)
+        refreshSummonReminderState()
 
         // --------------------------------------------------
         // ① 毒ダメージ（そのクリーチャーの持ち主のターンだけ）
@@ -705,6 +752,7 @@ final class GameVM: ObservableObject {
         canEndTurn = true
         showCreatureMenu = false
         creatureMenuTile = nil
+        refreshSummonReminderState()
     }
     
     /// 手札上限処理（>5 のとき捨てフェーズ等へ）
@@ -983,6 +1031,7 @@ final class GameVM: ObservableObject {
         didStop(at: players[turn].pos, isYou: turn == 0)
         handleAfterMove()
         focusTile = players[turn].pos
+        refreshSummonReminderState()
     }
     
     private func handleAfterMove() {
