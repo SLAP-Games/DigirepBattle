@@ -136,11 +136,28 @@ struct ContentView: View {
                         }
                     }
                     .overlay(alignment: .top) {
-                        if vm.isSelectingSwapCreature {
+                        if vm.mustDiscardFor == 0 {
+                            instructionBadge("捨てる手札を選択してください")
+                        } else if vm.isSelectingSwapCreature {
                             instructionBadge("デジレプ選択")
                         } else if let text = selectionInstruction(for: vm.specialPending) {
                             instructionBadge(text)
                         }
+                    }
+                    
+                    if vm.mustDiscardFor == 0 {
+                        ZStack {
+                            Color.black.opacity(0.7)
+                                .ignoresSafeArea()
+                            VStack {
+                                Spacer()
+                                Text("捨てる手札を選択")
+                                    .foregroundColor(.white)
+                                    .font(.bestTenHeadline)
+                                Spacer()
+                            }
+                        }
+                        .allowsHitTesting(false)
                     }
                     
                     if vm.showCheckpointOverlay {
@@ -326,20 +343,6 @@ struct ContentView: View {
                         }
                         .transition(.opacity.combined(with: .scale))
                         .zIndex(1200)
-                    }
-                    
-                    if vm.mustDiscardFor == 0 {
-                        ZStack {
-                            Color.black.opacity(0.7)
-                                .ignoresSafeArea()
-                            VStack {
-                                Spacer()
-                                Text("捨てる手札を選択")
-                                    .foregroundColor(.white)
-                                Spacer()
-                            }
-                        }
-                        .allowsHitTesting(false)
                     }
                     
                     // ★ 相手手札削除用：NPC 手札一覧表示オーバーレイ

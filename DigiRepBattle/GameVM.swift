@@ -395,8 +395,16 @@ final class GameVM: ObservableObject {
 //　　　　　　　　　　　　　　　　　　ターン管理
 // MARK: ---------------------------------------------------------------------------
     func endTurn() {
+        showSpecialMenu = false
+        currentSpecialKind = nil
         if shouldRequireSummonReminder() {
             showEndTurnWithoutSummonConfirm = true
+            return
+        }
+        if let discardPid = mustDiscardFor, discardPid == turn {
+            if turn == 0 {
+                pushCenterMessage("手札が多すぎます。捨てるカードを選択してください")
+            }
             return
         }
         performEndTurnCore()
