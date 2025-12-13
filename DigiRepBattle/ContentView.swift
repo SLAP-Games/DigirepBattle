@@ -1125,7 +1125,7 @@ struct ContentView: View {
                        card.kind == .spell,
                        vm.turn == 0,
                        vm.mustDiscardFor == nil,
-                       isPreRollTargetSpell(card),
+                       isTargetedDiceSpell(card),
                        vm.shopSpellForDetail == nil {
                         ZStack {
                             VStack {
@@ -1134,13 +1134,13 @@ struct ContentView: View {
 
                                 HStack(spacing: 12) {
                                     Button("自分") {
-                                        vm.useSpellPreRoll(card, target: 0)
+                                        vm.useTargetedDiceSpell(card, target: 0)
                                         vm.closeCardPopup()
                                     }
                                     .buttonStyle(.borderedProminent)
 
                                     Button("NPC") {
-                                        vm.useSpellPreRoll(card, target: 1)
+                                        vm.useTargetedDiceSpell(card, target: 1)
                                         vm.closeCardPopup()
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -1299,7 +1299,7 @@ struct ContentView: View {
         }
     }
     
-    private func isPreRollTargetSpell(_ card: Card) -> Bool {
+    private func isTargetedDiceSpell(_ card: Card) -> Bool {
         guard card.kind == .spell, let e = card.spell else { return false }
         switch e {
         case .fixNextRoll(let n):

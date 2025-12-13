@@ -1819,7 +1819,7 @@ final class GameVM: ObservableObject {
     }
 
     
-    func useSpellAfterMove(_ card: Card) {
+    func useSpellAfterMove(_ card: Card, target: Int = 0) {
         guard turn == 0,
               phase == .moved,
               card.kind == .spell else { return }
@@ -1837,15 +1837,25 @@ final class GameVM: ObservableObject {
         switch effect {
 
         case .fixNextRoll(let n) where (1...6).contains(n):
+            guard (0...1).contains(target) else { return }
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
-            nextForcedRoll[0] = n
-            pushCenterMessage("次のサイコロを \(n) に固定")
+            nextForcedRoll[target] = n
+            if target == 0 {
+                pushCenterMessage("次のサイコロを \(n) に固定")
+            } else {
+                pushCenterMessage("NPCの次のサイコロを \(n) に固定")
+            }
             consumeFromHand(card, for: 0)
 
         case .doubleDice:
+            guard (0...1).contains(target) else { return }
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
-            doubleDice[0] = true
-            pushCenterMessage("次のサイコロが２つになります")
+            doubleDice[target] = true
+            if target == 0 {
+                pushCenterMessage("次のサイコロが２つになります")
+            } else {
+                pushCenterMessage("NPCの次のサイコロが２つになります")
+            }
             consumeFromHand(card, for: 0)
             
         case .drawCards(let n):
@@ -2032,6 +2042,16 @@ final class GameVM: ObservableObject {
             guard paySpellCostIfNeeded(cost, by: 0) else { return }
             pushCenterMessage("未対応のスペル効果です（コスト\(cost)だけ消費）")
             consumeFromHand(card, for: 0)
+        }
+    }
+
+    func useTargetedDiceSpell(_ card: Card, target: Int) {
+        guard (0...1).contains(target),
+              isTargetedDiceSpell(card) else { return }
+        if phase == .ready {
+            useSpellPreRoll(card, target: target)
+        } else if phase == .moved {
+            useSpellAfterMove(card, target: target)
         }
     }
 
@@ -2638,6 +2658,19 @@ final class GameVM: ObservableObject {
               let effect = card.spell else { return false }
         switch effect {
         case .buffPower, .buffDefense, .firstStrike, .poison, .reflectSkill:
+            return true
+        default:
+            return false
+        }
+    }
+
+    func isTargetedDiceSpell(_ card: Card) -> Bool {
+        guard card.kind == .spell,
+              let effect = card.spell else { return false }
+        switch effect {
+        case .fixNextRoll(let n):
+            return (1...6).contains(n)
+        case .doubleDice:
             return true
         default:
             return false
