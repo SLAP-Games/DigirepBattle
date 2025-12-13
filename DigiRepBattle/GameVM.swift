@@ -3828,12 +3828,15 @@ final class GameVM: ObservableObject {
                 cost: cost[t]
             )
 
+            let reconstructedName = creatureName(forSymbol: oldSym) ?? oldSym
+
             // Card は id が必須なので、新規UUIDを振る
             let oldCard = Card(
                 id: UUID().uuidString,
                 kind: .creature,
-                name: oldSym,
+                name: reconstructedName,
                 symbol: oldSym,
+                cost: oldStats.cost,
                 stats: oldStats,
                 spell: nil
             )
@@ -3865,6 +3868,10 @@ final class GameVM: ObservableObject {
         hp = hp
         checkVictoryCondition()
         return true
+    }
+
+    private func creatureName(forSymbol symbol: String) -> String? {
+        CardDatabase.all.values.first { $0.symbol == symbol }?.name
     }
     
     private func cpuUseEquipSkillIfAvailable() {
