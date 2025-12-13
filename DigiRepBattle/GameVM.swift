@@ -243,6 +243,18 @@ final class GameVM: ObservableObject {
     let tileCount: Int
     var levelUpCost: [Int: Int] { [2: 30, 3: 60, 4: 140, 5: 300] }
 
+    private func totalLevelUpCost(to level: Int) -> Int? {
+        if level <= 1 { return 0 }
+        return levelUpCost[level]
+    }
+
+    func incrementalLevelUpCost(from currentLevel: Int, to targetLevel: Int) -> Int? {
+        guard targetLevel >= 2, targetLevel <= 5, targetLevel > currentLevel else { return nil }
+        guard let targetTotal = totalLevelUpCost(to: targetLevel),
+              let currentTotal = totalLevelUpCost(to: currentLevel) else { return nil }
+        return targetTotal - currentTotal
+    }
+
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
     
@@ -274,12 +286,12 @@ final class GameVM: ObservableObject {
         //NPCテスト
         cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
         cardStates[1].collection.add("sp-dice2", count: 20)
-        cardStates[1].deckList.creatureSlots = [
-            "cre-defaultLizard": 35
-        ]
-        cardStates[1].deckList.spellSlots = [
-            "sp-dice1": 25
-        ]
+//        cardStates[1].deckList.creatureSlots = [
+//            "cre-defaultLizard": 35
+//        ]
+//        cardStates[1].deckList.spellSlots = [
+//            "sp-dice1": 25
+//        ]
         
         //NPCデッキ
 //        cardStates[1].collection.add("cre-defaultLizard", count: 30)
@@ -295,22 +307,20 @@ final class GameVM: ObservableObject {
 //        cardStates[1].collection.add("sp-doubleDice", count: 5)
 //        cardStates[1].collection.add("sp-firstStrike", count: 5)
 //        
-//        cardStates[1].deckList.creatureSlots = [
-//            "cre-defaultLizard": 5,
-//            "cre-defaultCrocodile": 5,
-//            "cre-defaultTurtle": 5,
-//            "cre-defaultBeardedDragon": 5,
-//            "cre-defaultHornedFrog": 5,
-//            "cre-defaultGreenIguana": 5,
-//            "cre-defaultBallPython": 5
-//        ]
-//        cardStates[1].deckList.spellSlots = [
-//            "sp-hardFang": 5,
-//            "sp-bigScale": 5,
-//            "sp-deleteHand": 5,
-//            "sp-doubleDice": 5,
-//            "sp-firstStrike": 5
-//        ]
+        cardStates[1].deckList.creatureSlots = [
+            "cre-defaultLizard": 7,
+            "cre-defaultCrocodile": 7,
+            "cre-defaultBeardedDragon": 7,
+            "cre-defaultGreenIguana": 7,
+            "cre-defaultBallPython": 7
+        ]
+        cardStates[1].deckList.spellSlots = [
+            "sp-hardFang": 5,
+            "sp-bigScale": 5,
+            "sp-deleteHand": 5,
+            "sp-doubleDice": 5,
+            "sp-firstStrike": 5
+        ]
         
         for pid in 0...1 {
             decks[pid] = cardStates[pid].deckList.buildDeckCards()
@@ -2785,7 +2795,9 @@ final class GameVM: ObservableObject {
         if owner.indices.contains(t), owner[t] == 1,
            level.indices.contains(t), level[t] >= 1, level[t] < 5 {
             let cur = level[t], nextLv = cur + 1
-            if players[1].gold >= (levelUpCost[nextLv] ?? .max) {
+            if let cost = incrementalLevelUpCost(from: cur, to: nextLv),
+               players.indices.contains(1),
+               players[1].gold >= cost {
                 confirmLevelUp(tile: t, to: nextLv)
             }
         }
@@ -3137,15 +3149,8 @@ final class GameVM: ObservableObject {
         guard canPlaceCreature(at: tile) else { return false }
         
         let s = card.stats ?? CreatureStats.defaultLizard
-        
-        self.spellEffectTile = tile
-        self.spellEffectKind = .place
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            if self?.spellEffectTile == tile {
-                self?.spellEffectTile = nil
-            }
-        }
+
+        triggerPlaceEffect(at: tile)
 
         owner[tile] = pid
         level[tile] = max(level[tile], 1)
@@ -3174,6 +3179,17 @@ final class GameVM: ObservableObject {
         toll[tile] = toll(at: tile)
         checkVictoryCondition()
         return true
+    }
+
+    private func triggerPlaceEffect(at tile: Int) {
+        spellEffectTile = tile
+        spellEffectKind = .place
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            if self?.spellEffectTile == tile {
+                self?.spellEffectTile = nil
+            }
+        }
     }
     
     /// マスの属性を返す
@@ -3483,9 +3499,10 @@ final class GameVM: ObservableObject {
         owner.reduce(0) { $0 + (($1 == pid) ? 1 : 0) }
     }
 
-    // 300 + (自分の設置マス数 × 30)
+    // 300 + (自分の設置マス数 × 45) ※変動分を1.5倍に増量
     private func checkpointReward(for pid: Int) -> Int {
-        300 + ownedTileCount(of: pid) * 30
+        let perTileBonus = 45
+        return 300 + ownedTileCount(of: pid) * perTileBonus
     }
     
     func totalAssets(for pid: Int) -> Int {
@@ -3536,7 +3553,7 @@ final class GameVM: ObservableObject {
         guard level.indices.contains(tile) else { return }
         let cur = level[tile]
         guard newLevel >= 2, newLevel <= 5, newLevel > cur else { return }
-        guard let cost = levelUpCost[newLevel] else { return }
+        guard let cost = incrementalLevelUpCost(from: cur, to: newLevel) else { return }
 
         if players[turn][keyPath: goldRef] < cost { return } // 足りない
 
@@ -3652,14 +3669,7 @@ final class GameVM: ObservableObject {
 
         hp = hp
         focusTile = to
-        spellEffectTile = to
-        spellEffectKind = .place
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            if self?.spellEffectTile == to {
-                self?.spellEffectTile = nil
-            }
-        }
+        triggerPlaceEffect(at: to)
 
         pushCenterMessage("デジレプを移動")
         objectWillChange.send()
@@ -3729,6 +3739,8 @@ final class GameVM: ObservableObject {
         cost[t] = s.cost
         toll[t] = toll(at: t)
         creatureOnTile[t] = Creature(id: UUID().uuidString, owner: turn, imageName: newCard.symbol, stats: s, hp: s.hpMax)
+
+        triggerPlaceEffect(at: t)
 
         // 新カードを手札から除去
         hands[turn].remove(at: idx)

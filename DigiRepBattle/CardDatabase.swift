@@ -154,11 +154,11 @@ enum CardDatabase {
             stats: .defaultGreenIguana
         ),
 
-        "cre-defaultaStarTurtle": .creature(
-            id: "cre-defaultaStarTurtle",
+        "cre-defaultStarTurtle": .creature(
+            id: "cre-defaultStarTurtle",
             name: "Dホシガメ",
             symbol: "defaultaStarTurtle",
-            stats: .defaultaStarTurtle
+            stats: .defaultStarTurtle
         ),
 
         "cre-defaultHornedFrog": .creature(
