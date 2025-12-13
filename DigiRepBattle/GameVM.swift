@@ -72,6 +72,7 @@ final class GameVM: ObservableObject {
     @Published var canEndTurn: Bool = true
     @Published var highlightSummonableCreatures: Bool = false
     @Published var showEndTurnWithoutSummonConfirm: Bool = false
+    @Published var npcSpellPreviewCard: Card? = nil
     @Published var terrain: [TileTerrain] = []
     @Published var inspectTarget: Int? = nil
     @Published var creatureOnTile: [Int: Creature] = [:]
@@ -731,6 +732,12 @@ final class GameVM: ObservableObject {
     }
     
     func confirmPlaceCreatureFromHand(_ card: Card, at tile: Int, by pid: Int) {
+        if showBattleOverlay {
+            if pid == 0 {
+                pushCenterMessage("戦闘中はクリーチャーを使用できません")
+            }
+            return
+        }
         guard canPlaceCreature(at: tile),
               owner.indices.contains(tile),
               owner[tile] == nil else {
@@ -770,6 +777,11 @@ final class GameVM: ObservableObject {
     }
     
     func openCard(_ card: Card) {
+        if card.kind == .creature,
+           showBattleOverlay {
+            pushCenterMessage("戦闘中はクリーチャーを使用できません")
+            return
+        }
         presentingCard = card
         if let idx = hands.indices.contains(turn) ? hands[turn].firstIndex(of: card) : nil {
             focusedHandIndex = idx
@@ -913,6 +925,22 @@ final class GameVM: ObservableObject {
                 spell: nil
             )
             hands[turn].append(card)
+        }
+    }
+
+    private func presentNPCSpellPreview(for card: Card) async {
+        await MainActor.run {
+            self.npcSpellPreviewCard = card
+        }
+        do {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+        } catch {
+            // ignore cancellation
+        }
+        await MainActor.run {
+            if self.npcSpellPreviewCard?.id == card.id {
+                self.npcSpellPreviewCard = nil
+            }
         }
     }
     
@@ -2793,8 +2821,8 @@ final class GameVM: ObservableObject {
         if hands[1].count > 4, let c = hands[1].randomElement() { discard(c, for: 1) }
 
         // ロール前にスペル使用
-        cpuUseRandomDiceFixSpellIfAvailable()
-        cpuUseDeleteHandIfAvailable()
+        await cpuUseRandomDiceFixSpellIfAvailable()
+        await cpuUseDeleteHandIfAvailable()
 
         let r: Int
         if let forced = nextForcedRoll[1] {
@@ -2932,7 +2960,7 @@ final class GameVM: ObservableObject {
         }
     }
     
-    private func cpuUseRandomDiceFixSpellIfAvailable() {
+    private func cpuUseRandomDiceFixSpellIfAvailable() async {
         // すでに強制出目 or ダブルダイスが決まっていたら何もしない
         if nextForcedRoll[1] != nil || doubleDice[1] { return }
 
@@ -2958,16 +2986,20 @@ final class GameVM: ObservableObject {
 
         switch pick {
         case let .fix(idx, n):
-            _ = hands[1].remove(at: idx)
+            guard hands[1].indices.contains(idx) else { return }
+            let card = hands[1].remove(at: idx)
+            await presentNPCSpellPreview(for: card)
             nextForcedRoll[1] = n
 
         case let .double(idx):
-            _ = hands[1].remove(at: idx)
+            guard hands[1].indices.contains(idx) else { return }
+            let card = hands[1].remove(at: idx)
+            await presentNPCSpellPreview(for: card)
             doubleDice[1] = true
         }
     }
     
-    private func cpuUseDeleteHandIfAvailable() {
+    private func cpuUseDeleteHandIfAvailable() async {
         let npcId = 1          // CPU
         let playerId = 0       // プレイヤー
 
@@ -3005,6 +3037,8 @@ final class GameVM: ObservableObject {
 
         // スペルカード自体をCPU手札から削除
         hands[npcId].remove(at: idx)
+
+        await presentNPCSpellPreview(for: spellCard)
 
         // プレイヤー手札からランダムに1枚削除
         guard !hands[playerId].isEmpty else { return }

@@ -179,6 +179,12 @@ struct ContentView: View {
                         .transition(.opacity)
                         .zIndex(1300)
                     }
+
+                    if let npcSpellCard = vm.npcSpellPreviewCard {
+                        NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
+                            .transition(.opacity)
+                            .zIndex(1250)
+                    }
                     
                     if let idx = vm.inspectTarget,
                        let iv = vm.makeInspectView(for: idx, viewer: 0) {
@@ -1641,6 +1647,58 @@ struct CardDetailOverlay: View {
             vm.discard(card, for: 0)
         }
         onClose()
+    }
+}
+
+struct NPCSpellPreviewOverlay: View {
+    @ObservedObject var vm: GameVM
+    let card: Card
+
+    @State private var offsetY: CGFloat = -40
+    @State private var opacity: Double = 0
+    @State private var spinAngle: Double = 0
+
+    private let frameImageName = "cardL"
+    private let backImageName  = "cardLreverse"
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                Text("NPCがスペルを使用")
+                    .font(.bestTenHeadline)
+                    .foregroundColor(.white)
+
+                FlipAngle(angle: spinAngle) {
+                    FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
+                } back: {
+                    BackCardFace(frameImageName: backImageName)
+                }
+                .frame(maxWidth: 430)
+                .onTapGesture {
+                    withAnimation(.linear(duration: 0.75)) {
+                        spinAngle += 360
+                    }
+                }
+            }
+            .padding(20)
+            .offset(y: offsetY)
+            .opacity(opacity)
+            .onAppear {
+                offsetY = -40
+                opacity = 0
+                spinAngle = 0
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+                    offsetY = 0
+                    opacity = 1
+                }
+                withAnimation(.linear(duration: 0.6)) {
+                    spinAngle = 360
+                }
+            }
+        }
     }
 }
 
