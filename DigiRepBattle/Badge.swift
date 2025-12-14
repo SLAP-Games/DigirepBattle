@@ -17,16 +17,24 @@ struct Badge: View {
         HStack(spacing: 8) {
             Image(systemName: "person.fill")
                 .foregroundStyle(tint)
+                .foregroundColor(.white)
             VStack(alignment: .leading, spacing: 2) {
-                Text(player.name).bold()
+                Text(player.name)
+                    .bold()
+                    .foregroundColor(.white)
                 Text("Gold: \(player.gold)G")
                     .font(.bestTenCaption)
+                    .foregroundColor(.white)
                 Text("TOTAL: \(total)G")
                     .font(.bestTenCaption)
+                    .foregroundColor(.white)
             }
         }
-        .padding(8)
-        .background(active ? .yellow.opacity(0.8) : .white.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(10)
+        .background(
+            Image(active ? "playerWindow" : "playerWindow2")
+                .resizable()
+                .scaledToFill()
+        )
     }
 }

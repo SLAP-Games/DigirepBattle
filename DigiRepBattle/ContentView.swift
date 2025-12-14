@@ -16,6 +16,7 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geo in
             let controlRatio: CGFloat = 0.25
+            let controlsW = geo.size.width
             let controlsH = geo.size.height * controlRatio
             let boardH = geo.size.height - controlsH
 
@@ -70,20 +71,21 @@ struct ContentView: View {
                             .ignoresSafeArea()
                     }
                     .overlay(
-                        VStack(alignment: .trailing, spacing: 6) {
-                            HStack(spacing: 6) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            HStack(spacing: 2) {
                                 let cp1CPU = vm.passedCP1.indices.contains(1) && vm.passedCP1[1]
                                 let cp2CPU = vm.passedCP2.indices.contains(1) && vm.passedCP2[1]
 
-                                Image(systemName: cp1CPU ? "star.fill" : "star")
-                                    .foregroundStyle(cp1CPU ? .yellow : .gray)
-                                Image(systemName: cp2CPU ? "star.fill" : "star")
-                                    .foregroundStyle(cp2CPU ? .yellow : .gray)
+                                Image(cp1CPU ? "checkMark" : "checkMark2")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                Image(cp2CPU ? "checkMark" : "checkMark2")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
                             }
-                            .font(.bestTenCaption)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
                             Badge(player: vm.players[1],
                                   active: vm.turn == 1,
                                   tint: .red,
@@ -96,20 +98,20 @@ struct ContentView: View {
                         alignment: .bottomTrailing
                     )
                     .overlay(
-                        VStack(alignment: .trailing, spacing: 6) {
-                            HStack(spacing: 6) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            HStack(spacing: 2) {
                                 let cp1Player = vm.passedCP1.indices.contains(0) && vm.passedCP1[0]
                                 let cp2Player = vm.passedCP2.indices.contains(0) && vm.passedCP2[0]
 
-                                Image(systemName: cp1Player ? "star.fill" : "star")
-                                    .foregroundStyle(cp1Player ? .yellow : .gray)
-                                Image(systemName: cp2Player ? "star.fill" : "star")
-                                    .foregroundStyle(cp2Player ? .yellow : .gray)
+                                Image(cp1Player ? "checkMark" : "checkMark2")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                Image(cp2Player ? "checkMark" : "checkMark2")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
                             }
-                            .font(.bestTenCaption)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
                             
                             Badge(player: vm.players[0],
                                   active: vm.turn == 0,
@@ -851,23 +853,43 @@ struct ContentView: View {
 // -------------------------------------------------------------------------------
 
                 ZStack(alignment: .center) {
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .top, spacing: 8) {
                         ZStack {
                             VStack(alignment: .leading, spacing: 6) {
                                 Spacer()
-                                Button("🎲 Roll") { vm.rollDice() }
-                                    .disabled(!(vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil))
-                                
-                                Button("✅ End") { vm.endTurn() }
-                                    .disabled(!(vm.turn == 0 && vm.phase == .moved))
-                                    .disabled(!vm.canEndTurn)
+                                let canRoll = vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil
+                                Button {
+                                    vm.rollDice()
+                                } label: {
+                                    Image(canRoll ? "goButton" : "goButton2")
+                                        .renderingMode(.original)
+                                        .resizable()
+                                        .scaledToFit()
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!canRoll)
+                                .frame(maxWidth: .infinity)
+
+                                let canEnd = vm.turn == 0 && vm.phase == .moved && vm.canEndTurn
+                                Button {
+                                    vm.endTurn()
+                                } label: {
+                                    Image(canEnd ? "endButton" : "endButton2")
+                                        .renderingMode(.original)
+                                        .resizable()
+                                        .scaledToFit()
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!canEnd)
+                                .frame(maxWidth: .infinity)
                                 
                                 Spacer()
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.plain)
                         }
+                        .frame(width: controlsW * 0.25)
 
-                        Divider().frame(height: controlsH * 0.8)
+                        Divider().frame(height: controlsH)
 
                         OverlappingHandView(cards: vm.hands[0],
                                             focusedIndex: $vm.focusedHandIndex,
@@ -885,9 +907,9 @@ struct ContentView: View {
                             vm.openCard(card)
                         },
                         highlightCreatureCards: vm.highlightSummonableCreatures)
-                        .frame(height: controlsH * 0.9)
+                        .frame(height: controlsH * 0.95)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 4)
                     }
                     .padding(.horizontal)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -1547,41 +1569,64 @@ struct CardDetailOverlay: View {
                 let canBuy = vm.players[vm.turn].gold >= shopSpell.price
 
                 HStack(spacing: 10) {
-                    Button(canBuy ? "購入" : "G不足") {
+                    Button {
                         guard canBuy else { return }
                         vm.confirmPurchaseSpell(shopSpell)   // GOLD 消費 + 手札に追加 + シート閉じ
                         vm.shopSpellForDetail = nil         // コンテキストクリア
                         onClose()                           // カード詳細を閉じる（presentingCard=nil）
+                    } label: {
+                        Image("okButton")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
+                            .opacity(canBuy ? 1 : 0.4)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.plain)
                     .disabled(!canBuy)
 
-                    Button("閉じる") {
+                    Button {
                         vm.shopSpellForDetail = nil
                         onClose()
+                    } label: {
+                        Image("cancelButton")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(UIColor.systemBackground))
-                            .shadow(radius: 12)
-                    )
+                    .buttonStyle(.plain)
                 }
+                .frame(maxWidth: .infinity)
 
             } else {
                 // ★ 従来どおりの通常モード
                 HStack(spacing: 10) {
-                    Button(primaryAction.title) { primaryAction.action?() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!primaryAction.enabled)
-                    Button("閉じる") { onClose() }
-                        .buttonStyle(.borderedProminent)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(UIColor.systemBackground))
-                                .shadow(radius: 12)
-                        )
+                    Button {
+                        primaryAction.action?()
+                    } label: {
+                        Image("okButton")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
+                            .opacity(primaryAction.enabled ? 1 : 0.4)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!primaryAction.enabled)
+
+                    Button {
+                        onClose()
+                    } label: {
+                        Image("cancelButton")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 20)
