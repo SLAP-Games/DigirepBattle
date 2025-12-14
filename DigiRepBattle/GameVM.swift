@@ -938,7 +938,9 @@ final class GameVM: ObservableObject {
 
     private func presentNPCSpellPreview(for card: Card) async {
         await MainActor.run {
-            self.npcSpellPreviewCard = card
+            withAnimation(.easeInOut(duration: 0.4)) {
+                self.npcSpellPreviewCard = card
+            }
         }
         do {
             try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -947,7 +949,9 @@ final class GameVM: ObservableObject {
         }
         await MainActor.run {
             if self.npcSpellPreviewCard?.id == card.id {
-                self.npcSpellPreviewCard = nil
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    self.npcSpellPreviewCard = nil
+                }
             }
         }
     }

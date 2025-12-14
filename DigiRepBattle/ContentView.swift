@@ -135,6 +135,25 @@ struct ContentView: View {
                             .padding(12)
                             .transition(.opacity.combined(with: .scale))
                             .zIndex(900)
+                        } else if let drawCard = vm.drawPreviewCard {
+                            DrawCardOverlay(
+                                vm: vm,
+                                card: drawCard,
+                                onFinished: {
+                                    vm.confirmDrawPreview()
+                                }
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(12)
+                            .transition(.opacity)
+                            .zIndex(1300)
+                        } else if let npcSpellCard = vm.npcSpellPreviewCard {
+                            NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(12)
+                                .transition(.asymmetric(insertion: .opacity,
+                                                        removal: .move(edge: .top).combined(with: .opacity)))
+                                .zIndex(1250)
                         }
                     }
                     .overlay(alignment: .top) {
@@ -185,24 +204,6 @@ struct ContentView: View {
                         }
                         .transition(.opacity)
                         .zIndex(999)
-                    }
-                    
-                    if let drawCard = vm.drawPreviewCard {
-                        DrawCardOverlay(
-                            vm: vm,
-                            card: drawCard,
-                            onFinished: {
-                                vm.confirmDrawPreview()
-                            }
-                        )
-                        .transition(.opacity)
-                        .zIndex(1300)
-                    }
-
-                    if let npcSpellCard = vm.npcSpellPreviewCard {
-                        NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
-                            .transition(.opacity)
-                            .zIndex(1250)
                     }
                     
                     if let idx = vm.inspectTarget,
@@ -1536,145 +1537,142 @@ struct CardDetailOverlay: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text(card.name)
-                .font(.bestTen(size: 26))
-                .fontWeight(.semibold)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-                .foregroundColor(.white)
-                .frame(maxWidth: 430)
-                .padding(.horizontal, 20)
-
-            // 角度制御版
-            flipCardAngle
-                .frame(maxWidth: 430)
-                .opacity(appearOpacity)
-                .onAppear {
-                    appearOpacity = 0
-                    withAnimation(.easeOut(duration: 0.7)) { appearOpacity = 1 }
-
-                    spinAngle = 0
-                    withAnimation(.linear(duration: 0.6)) {
-                        spinAngle = 360
+        ZStack {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 8) {
+                Text(card.name)
+                    .font(.bestTen(size: 22))
+                    .fontWeight(.semibold)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 300)
+                    .padding(.horizontal, 20)
+                
+                // 角度制御版
+                flipCardAngle
+                    .frame(maxWidth: 300)
+                    .opacity(appearOpacity)
+                    .onAppear {
+                        appearOpacity = 0
+                        withAnimation(.easeOut(duration: 0.7)) { appearOpacity = 1 }
+                        
+                        spinAngle = 0
+                        withAnimation(.linear(duration: 0.6)) {
+                            spinAngle = 360
+                        }
                     }
+                    .onDisappear {
+                        appearOpacity = 0
+                        spinAngle = 0
+                    }
+                
+                if let shopSpell = vm.shopSpellForDetail {
+                    // ★ スペルショップから開いたとき
+                    let canBuy = vm.players[vm.turn].gold >= shopSpell.price
+                    
+                    HStack(spacing: 10) {
+                        Button {
+                            guard canBuy else { return }
+                            vm.confirmPurchaseSpell(shopSpell)   // GOLD 消費 + 手札に追加 + シート閉じ
+                            vm.shopSpellForDetail = nil         // コンテキストクリア
+                            onClose()                           // カード詳細を閉じる（presentingCard=nil）
+                        } label: {
+                            Image("okButton")
+                                .renderingMode(.original)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 44)
+                                .opacity(canBuy ? 1 : 0.4)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!canBuy)
+                        
+                        Button {
+                            vm.shopSpellForDetail = nil
+                            onClose()
+                        } label: {
+                            Image("cancelButton")
+                                .renderingMode(.original)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 44)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                } else {
+                    // ★ 従来どおりの通常モード
+                    HStack(spacing: 10) {
+                        Button {
+                            primaryAction.action?()
+                        } label: {
+                            Image("okButton")
+                                .renderingMode(.original)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 44)
+                                .opacity(primaryAction.enabled ? 1 : 0.4)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!primaryAction.enabled)
+                        
+                        Button {
+                            onClose()
+                        } label: {
+                            Image("cancelButton")
+                                .renderingMode(.original)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 44)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .onDisappear {
-                    appearOpacity = 0
-                    spinAngle = 0
-                }
-
-            if let shopSpell = vm.shopSpellForDetail {
-                // ★ スペルショップから開いたとき
-                let canBuy = vm.players[vm.turn].gold >= shopSpell.price
-
-                HStack(spacing: 10) {
-                    Button {
-                        guard canBuy else { return }
-                        vm.confirmPurchaseSpell(shopSpell)   // GOLD 消費 + 手札に追加 + シート閉じ
-                        vm.shopSpellForDetail = nil         // コンテキストクリア
-                        onClose()                           // カード詳細を閉じる（presentingCard=nil）
-                    } label: {
-                        Image("okButton")
-                            .renderingMode(.original)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 44)
-                            .opacity(canBuy ? 1 : 0.4)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canBuy)
-
-                    Button {
-                        vm.shopSpellForDetail = nil
-                        onClose()
-                    } label: {
-                        Image("cancelButton")
-                            .renderingMode(.original)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 44)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .frame(maxWidth: .infinity)
-
-            } else {
-                // ★ 従来どおりの通常モード
-                HStack(spacing: 10) {
-                    Button {
-                        primaryAction.action?()
-                    } label: {
-                        Image("okButton")
-                            .renderingMode(.original)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 44)
-                            .opacity(primaryAction.enabled ? 1 : 0.4)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!primaryAction.enabled)
-
-                    Button {
-                        onClose()
-                    } label: {
-                        Image("cancelButton")
-                            .renderingMode(.original)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 44)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .frame(maxWidth: .infinity)
             }
-        }
-        .padding(.horizontal, 20)
-        .opacity(appearOpacity)
-        .offset(y: appearOffsetY)
-        .onAppear {
-            appearOpacity = 0
-            appearOffsetY = 50
-
-            withAnimation(.easeOut(duration: 0.6)) {
-                appearOpacity = 1
-                appearOffsetY = 0
+            .padding(.horizontal, 20)
+            .opacity(appearOpacity)
+            .offset(y: appearOffsetY)
+            .onAppear {
+                appearOpacity = 0
+                appearOffsetY = 50
+                
+                withAnimation(.easeOut(duration: 0.6)) {
+                    appearOpacity = 1
+                    appearOffsetY = 0
+                }
+                
+                spinAngle = 0
+                withAnimation(.linear(duration: 0.7)) {
+                    spinAngle = 360
+                }
+                isDiscardingCard = false
+                discardCompletionHandled = false
             }
-
-            spinAngle = 0
-            withAnimation(.linear(duration: 0.7)) {
-                spinAngle = 360
+            .onDisappear {
+                appearOpacity = 0
+                appearOffsetY = 50
+                spinAngle = 0
+                isDiscardingCard = false
+                discardCompletionHandled = false
             }
-            isDiscardingCard = false
-            discardCompletionHandled = false
-        }
-        .onDisappear {
-            appearOpacity = 0
-            appearOffsetY = 50
-            spinAngle = 0
-            isDiscardingCard = false
-            discardCompletionHandled = false
         }
     }
 
     private var flipCardAngle: some View {
-        FlipAngle(angle: spinAngle) {
-            FrontCardFace(
-                card: card,
-                vm: vm,
-                frameImageName: frameImageName,
-                isDissolving: $isDiscardingCard,
-                onDissolveCompleted: completeDiscardIfNeeded
-            )
-        } back: {
-            BackCardFace(frameImageName: backImageName)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.linear(duration: 0.75)) {
-                spinAngle += 360
-            }
-        }
+        CardFlipDisplay(
+            vm: vm,
+            card: card,
+            angle: $spinAngle,
+            frameImageName: frameImageName,
+            backImageName: backImageName,
+            dissolving: $isDiscardingCard,
+            onDissolveCompleted: completeDiscardIfNeeded
+        )
     }
 
     private func startDiscardSequence() {
@@ -1714,24 +1712,39 @@ struct NPCSpellPreviewOverlay: View {
             Color.black.opacity(0.45)
                 .ignoresSafeArea()
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 Text("NPCがスペルを使用")
-                    .font(.bestTenHeadline)
+                    .font(.bestTen(size: 22))
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
 
-                FlipAngle(angle: spinAngle) {
-                    FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
-                } back: {
-                    BackCardFace(frameImageName: backImageName)
-                }
-                .frame(maxWidth: 430)
-                .onTapGesture {
-                    withAnimation(.linear(duration: 0.75)) {
-                        spinAngle += 360
+                CardFlipDisplay(
+                    vm: vm,
+                    card: card,
+                    angle: $spinAngle,
+                    frameImageName: frameImageName,
+                    backImageName: backImageName
+                )
+                .frame(maxWidth: 300)
+
+                HStack(spacing: 16) {
+                    Button {
+                        withAnimation {
+                            vm.npcSpellPreviewCard = nil
+                        }
+                    } label: {
+                        Image("cancelButton")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
             .offset(y: offsetY)
             .opacity(opacity)
             .onAppear {
@@ -1768,31 +1781,42 @@ struct DrawCardOverlay: View {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
 
-            VStack(spacing: 12) {
-                Text(" ")
-                    .font(.bestTenHeadline)
+            VStack(spacing: 8) {
+                Text(card.name)
+                    .font(.bestTen(size: 22))
+                    .fontWeight(.semibold)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
                     .foregroundColor(.white)
+                    .frame(maxWidth: 300)
+                    .padding(.bottom, 4)
 
                 // 既存の Flip 表現を再利用
-                FlipAngle(angle: spinAngle) {
-                    FrontCardFace(card: card, vm: vm, frameImageName: frameImageName)
-                } back: {
-                    BackCardFace(frameImageName: backImageName)
-                }
-                .frame(maxWidth: 430)
-                .onTapGesture {
-                    // カードタップでクルッと回転だけさせる
-                    withAnimation(.linear(duration: 0.75)) {
-                        spinAngle += 360
-                    }
-                }
+                CardFlipDisplay(
+                    vm: vm,
+                    card: card,
+                    angle: $spinAngle,
+                    frameImageName: frameImageName,
+                    backImageName: backImageName
+                )
+                .frame(maxWidth: 300)
 
-                Button("OK") {
-                    dismissWithFlyToHand()
+                HStack(spacing: 10) {
+                    Button {
+                        dismissWithFlyToHand()
+                    } label: {
+                        Image("okButton")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.borderedProminent)
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .offset(y: offsetY)
             .opacity(opacity)
             .onAppear {
@@ -1822,6 +1846,38 @@ struct DrawCardOverlay: View {
         // アニメーション終了後に手札へ追加＆オーバーレイ終了
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             onFinished()
+        }
+    }
+}
+
+struct CardFlipDisplay: View {
+    @ObservedObject var vm: GameVM
+    let card: Card
+    @Binding var angle: Double
+    var frameImageName: String = "cardL"
+    var backImageName: String = "cardLreverse"
+    var dissolving: Binding<Bool>? = nil
+    var onDissolveCompleted: (() -> Void)?
+    var tapToSpin: Bool = true
+
+    var body: some View {
+        FlipAngle(angle: angle) {
+            FrontCardFace(
+                card: card,
+                vm: vm,
+                frameImageName: frameImageName,
+                isDissolving: dissolving ?? .constant(false),
+                onDissolveCompleted: onDissolveCompleted
+            )
+        } back: {
+            BackCardFace(frameImageName: backImageName)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard tapToSpin else { return }
+            withAnimation(.linear(duration: 0.75)) {
+                angle += 360
+            }
         }
     }
 }

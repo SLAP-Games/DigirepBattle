@@ -165,6 +165,7 @@ struct FrontCardFace: View {
             GeometryReader { geo in
                 let w = geo.size.width
                 let h = geo.size.height
+                let frameHeight = min(h, w * (4.0 / 3.0))
                 let sidePad = w * 0.12
                 let topPad  = h * 0.1
                 let topSpacing = card.kind == .spell ? topPad * 1.5 : topPad
@@ -224,7 +225,7 @@ struct FrontCardFace: View {
                         }
                     }
                 }
-                .frame(width: w, height: h, alignment: .top)
+                .frame(width: w, height: frameHeight, alignment: .top)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
@@ -352,15 +353,15 @@ struct BackCardFace: View {
             GeometryReader { geo in
                 let w = geo.size.width
                 let h = geo.size.height
+                let frameHeight = min(h, w * (4.0 / 3.0))
                 let topPad  = h * 0.04
                 VStack(spacing: 0) {
                     Spacer().frame(height: topPad)
                     Spacer()
                 }
-                .frame(width: w, height: h, alignment: .top)
+                .frame(width: w, height: frameHeight, alignment: .top)
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 8)
         }
     }
 }
