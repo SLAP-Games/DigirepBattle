@@ -175,42 +175,42 @@ enum CardDatabase {
             name: "ダイス1",
             symbol: "dice1",
             effect: .fixNextRoll(1),
-            cost: 20
+            cost: 5
         ),
         "sp-dice2": .spell(
             id: "sp-dice2",
             name: "ダイス2",
             symbol: "dice2",
             effect: .fixNextRoll(2),
-            cost: 20
+            cost: 5
         ),
         "sp-dice3": .spell(
             id: "sp-dice3",
             name: "ダイス3",
             symbol: "dice3",
             effect: .fixNextRoll(3),
-            cost: 20
+            cost: 5
         ),
         "sp-dice4": .spell(
             id: "sp-dice4",
             name: "ダイス4",
             symbol: "dice4",
             effect: .fixNextRoll(4),
-            cost: 20
+            cost: 5
         ),
         "sp-dice5": .spell(
             id: "sp-dice5",
             name: "ダイス5",
             symbol: "dice5",
             effect: .fixNextRoll(5),
-            cost: 20
+            cost: 5
         ),
         "sp-dice6": .spell(
             id: "sp-dice6",
             name: "ダイス6",
             symbol: "dice6",
             effect: .fixNextRoll(6),
-            cost: 20
+            cost: 5
         ),
 
         // --- ダブルダイス / 先制 ---
@@ -219,7 +219,7 @@ enum CardDatabase {
             name: "ダブルダイス",
             symbol: "doubleDice",
             effect: .doubleDice,
-            cost: 30
+            cost: 20
         ),
         "sp-firstStrike": .spell(
             id: "sp-firstStrike",
@@ -235,14 +235,14 @@ enum CardDatabase {
             name: "硬牙",
             symbol: "hardFang",
             effect: .buffPower(10),
-            cost: 20
+            cost: 10
         ),
         "sp-sharpFang": .spell(
             id: "sp-sharpFang",
             name: "鋭牙",
             symbol: "sharpFang",
             effect: .buffPower(20),
-            cost: 50
+            cost: 40
         ),
         "sp-poisonFang": .spell(
             id: "sp-poisonFang",
@@ -258,14 +258,14 @@ enum CardDatabase {
             name: "大鱗",
             symbol: "bigScale",
             effect: .buffDefense(10),
-            cost: 20
+            cost: 10
         ),
         "sp-hardScale": .spell(
             id: "sp-hardScale",
             name: "硬鱗",
             symbol: "hardScale",
             effect: .buffDefense(20),
-            cost: 50
+            cost: 40
         ),
         "sp-reflectScale": .spell(
             id: "sp-reflectScale",
@@ -281,14 +281,14 @@ enum CardDatabase {
             name: "ドロー2",
             symbol: "draw2",
             effect: .drawCards(2),
-            cost: 30
+            cost: 5
         ),
         "sp-deleteHand": .spell(
             id: "sp-deleteHand",
             name: "削除",
             symbol: "deleteHand",
             effect: .discardOpponentCards(1),
-            cost: 30
+            cost: 10
         ),
 
         // --- クリーチャー / 土地操作 ---
@@ -297,14 +297,14 @@ enum CardDatabase {
             name: "秘薬",
             symbol: "elixir",
             effect: .fullHealAnyCreature,
-            cost: 50
+            cost: 30
         ),
         "sp-decay": .spell(
             id: "sp-decay",
             name: "腐敗",
             symbol: "decay",
             effect: .changeLandLevel(delta: -1),
-            cost: 40
+            cost: 30
         ),
         "sp-devastation": .spell(
             id: "sp-devastation",
@@ -355,7 +355,7 @@ enum CardDatabase {
             name: "財宝",
             symbol: "treasure",
             effect: .gainGold(500),
-            cost: 100
+            cost: 200
         ),
         "sp-plunder": .spell(
             id: "sp-plunder",
@@ -371,7 +371,7 @@ enum CardDatabase {
             name: "透視",
             symbol: "clairvoyance",
             effect: .inspectCreature,
-            cost: 50
+            cost: 30
         ),
 
         // --- 耐性条件つき全体攻撃 ---
@@ -426,28 +426,28 @@ enum CardDatabase {
             name: "雪山",
             symbol: "snowMountain",
             effect: .changeTileAttribute(.cold),
-            cost: 30
+            cost: 10
         ),
         "sp-desert": .spell(
             id: "sp-desert",
             name: "砂漠",
             symbol: "desert",
             effect: .changeTileAttribute(.dry),
-            cost: 30
+            cost: 10
         ),
         "sp-volcano": .spell(
             id: "sp-volcano",
             name: "火山",
             symbol: "volcano",
             effect: .changeTileAttribute(.heat),
-            cost: 30
+            cost: 10
         ),
         "sp-jungle": .spell(
             id: "sp-jungle",
             name: "雨林",
             symbol: "jungle",
             effect: .changeTileAttribute(.water),
-            cost: 30
+            cost: 10
         ),
 
         // --- バグ ---

@@ -222,7 +222,7 @@ final class GameVM: ObservableObject {
     private let CROSS_NODE = 4
     private let CROSS_CHOICES = [3, 5, 27, 28]
     private let CHECKPOINTS: Set<Int> = [0, 4, 20]
-    private let creatureTransferCost = 50
+    private let creatureTransferCost = 30
     private let diceGlitchCornerAnimationDuration: TimeInterval = 0.35
     private let nextCW: [Int] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
@@ -663,8 +663,16 @@ final class GameVM: ObservableObject {
 //　　　　　　　　　　　　　　　　　　山札・手札
 // MARK: ---------------------------------------------------------------------------
     
+    /// 山札が空なら元のデッキリストから復活させる
+    private func refillDeckIfNeeded(for pid: Int) {
+        guard decks[pid].isEmpty else { return }
+        let rebuilt = cardStates[pid].deckList.buildDeckCards()
+        decks[pid] = rebuilt
+    }
+
     /// 山札から1枚ランダムに抜き取って返す（手札にはまだ追加しない）
     private func drawOneFromDeck(for pid: Int) -> Card? {
+        refillDeckIfNeeded(for: pid)
         guard !decks[pid].isEmpty else { return nil }
         let idx = Int.random(in: 0..<decks[pid].count)
         return decks[pid].remove(at: idx)
