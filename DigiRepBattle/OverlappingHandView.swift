@@ -17,7 +17,9 @@ struct OverlappingHandView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let spacing = spacingForHand(width: geo.size.width)
+            let horizontalPadding: CGFloat = 16
+            let availableWidth = max(geo.size.width - horizontalPadding * 2, 0)
+            let spacing = spacingForHand(availableWidth: availableWidth)
             let totalWidth = cardSize.width + spacing * CGFloat(max(cards.count - 1, 0))
             let startX = (geo.size.width - totalWidth) / 2
 
@@ -108,10 +110,14 @@ struct OverlappingHandView: View {
             )
     }
 
-    private func spacingForHand(width: CGFloat) -> CGFloat {
+    private func spacingForHand(availableWidth: CGFloat) -> CGFloat {
         guard cards.count > 1 else { return 0 }
-        let raw = (width - cardSize.width) / CGFloat(cards.count - 1)
-        return max(16, min(42, raw))
+        let raw = (availableWidth - cardSize.width) / CGFloat(cards.count - 1)
+        let maxSpacing = cardSize.width + 8
+        if raw >= maxSpacing {
+            return maxSpacing
+        }
+        return raw
     }
 
     private func clampIndex(_ value: Int) -> Int {

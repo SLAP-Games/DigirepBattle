@@ -15,7 +15,7 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let controlRatio: CGFloat = 0.25
+            let controlRatio: CGFloat = 0.22
             let controlsW = geo.size.width
             let controlsH = geo.size.height * controlRatio
             let boardH = geo.size.height - controlsH
@@ -71,58 +71,78 @@ struct ContentView: View {
                             .ignoresSafeArea()
                     }
                     .overlay(
-                        VStack(alignment: .trailing, spacing: 2) {
-                            HStack(spacing: 2) {
-                                let cp1CPU = vm.passedCP1.indices.contains(1) && vm.passedCP1[1]
-                                let cp2CPU = vm.passedCP2.indices.contains(1) && vm.passedCP2[1]
+                        HStack(alignment: .bottom, spacing: 16) {
+                            Group {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    HStack(spacing: 2) {
+                                        let cp1Player = vm.passedCP1.indices.contains(0) && vm.passedCP1[0]
+                                        let cp2Player = vm.passedCP2.indices.contains(0) && vm.passedCP2[0]
 
-                                Image(cp1CPU ? "checkMark" : "checkMark2")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
-                                Image(cp2CPU ? "checkMark" : "checkMark2")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
+                                        Image(cp1Player ? "checkMark" : "checkMark2")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 20, height: 20)
+                                        Image(cp2Player ? "checkMark" : "checkMark2")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 20, height: 20)
+                                    }
+
+                                    Badge(player: vm.players[0],
+                                          active: vm.turn == 0,
+                                          tint: .blue,
+                                          total: vm.totalAssets(for: 0)
+                                    )
+                                }
                             }
+                            .allowsHitTesting(false)
 
-                            Badge(player: vm.players[1],
-                                  active: vm.turn == 1,
-                                  tint: .red,
-                                  total: vm.totalAssets(for: 1)
-                            )
-                        }
-                        .padding(.bottom, 10)
-                        .padding(.trailing, 12)
-                        .allowsHitTesting(false),
-                        alignment: .bottomTrailing
-                    )
-                    .overlay(
-                        VStack(alignment: .trailing, spacing: 2) {
-                            HStack(spacing: 2) {
-                                let cp1Player = vm.passedCP1.indices.contains(0) && vm.passedCP1[0]
-                                let cp2Player = vm.passedCP2.indices.contains(0) && vm.passedCP2[0]
-
-                                Image(cp1Player ? "checkMark" : "checkMark2")
+                            let canRoll = vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil
+                            let canEnd = vm.turn == 0 && vm.phase == .moved && vm.canEndTurn
+                            Button {
+                                if canRoll {
+                                    vm.rollDice()
+                                } else if canEnd {
+                                    vm.endTurn()
+                                }
+                            } label: {
+                                Image(canRoll ? "goButton" : (canEnd ? "endButton" : "goButton2"))
+                                    .renderingMode(.original)
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(width: 20, height: 20)
-                                Image(cp2Player ? "checkMark" : "checkMark2")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
                             }
-                            
-                            Badge(player: vm.players[0],
-                                  active: vm.turn == 0,
-                                  tint: .blue,
-                                  total: vm.totalAssets(for: 0)
-                            )
+                            .buttonStyle(.plain)
+                            .disabled(!(canRoll || canEnd))
+                            .frame(width: controlsW * 0.2)
+
+                            Group {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    HStack(spacing: 2) {
+                                        let cp1CPU = vm.passedCP1.indices.contains(1) && vm.passedCP1[1]
+                                        let cp2CPU = vm.passedCP2.indices.contains(1) && vm.passedCP2[1]
+
+                                        Image(cp1CPU ? "checkMark" : "checkMark2")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 20, height: 20)
+                                        Image(cp2CPU ? "checkMark" : "checkMark2")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 20, height: 20)
+                                    }
+
+                                    Badge(player: vm.players[1],
+                                          active: vm.turn == 1,
+                                          tint: .red,
+                                          total: vm.totalAssets(for: 1)
+                                    )
+                                }
+                            }
+                            .allowsHitTesting(false)
                         }
-                        .padding(.bottom, 10)
-                        .padding(.leading, 12)
-                        .allowsHitTesting(false),
-                        alignment: .bottomLeading
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12),
+                        alignment: .bottom
                     )
                     .overlay(alignment: .center) {
                         if let card = vm.presentingCard {
@@ -854,66 +874,26 @@ struct ContentView: View {
 // -------------------------------------------------------------------------------
 
                 ZStack(alignment: .center) {
-                    HStack(alignment: .top, spacing: 8) {
-                        ZStack {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Spacer()
-                                let canRoll = vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil
-                                Button {
-                                    vm.rollDice()
-                                } label: {
-                                    Image(canRoll ? "goButton" : "goButton2")
-                                        .renderingMode(.original)
-                                        .resizable()
-                                        .scaledToFit()
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(!canRoll)
-                                .frame(maxWidth: .infinity)
 
-                                let canEnd = vm.turn == 0 && vm.phase == .moved && vm.canEndTurn
-                                Button {
-                                    vm.endTurn()
-                                } label: {
-                                    Image(canEnd ? "endButton" : "endButton2")
-                                        .renderingMode(.original)
-                                        .resizable()
-                                        .scaledToFit()
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(!canEnd)
-                                .frame(maxWidth: .infinity)
-                                
-                                Spacer()
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .frame(width: controlsW * 0.25)
-
-                        Divider().frame(height: controlsH)
-
-                        OverlappingHandView(cards: vm.hands[0],
-                                            focusedIndex: $vm.focusedHandIndex,
-                                            dragOffset: $vm.handDragOffset,
-                                            onTap: { index in
-                            let card = vm.hands[0][index]
-                            if vm.isSelectingSwapCreature,
-                               card.kind == .creature {
-                                vm.selectSwapHandIndex(index)
-                            } else {
-                                vm.openCard(card)
-                            }
-                        }, onTapUp: { index in
-                            let card = vm.hands[0][index]
+                    OverlappingHandView(cards: vm.hands[0],
+                                        focusedIndex: $vm.focusedHandIndex,
+                                        dragOffset: $vm.handDragOffset,
+                                        onTap: { index in
+                        let card = vm.hands[0][index]
+                        if vm.isSelectingSwapCreature,
+                           card.kind == .creature {
+                            vm.selectSwapHandIndex(index)
+                        } else {
                             vm.openCard(card)
-                        },
-                        highlightCreatureCards: vm.highlightSummonableCreatures)
-                        .frame(height: controlsH * 0.95)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                    }
-                    .padding(.horizontal)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }, onTapUp: { index in
+                        let card = vm.hands[0][index]
+                        vm.openCard(card)
+                    },
+                    highlightCreatureCards: vm.highlightSummonableCreatures)
+                    .frame(height: controlsH * 0.95)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
                     
                     if let card = vm.presentingCard,
                        card.kind == .creature,
@@ -960,6 +940,7 @@ struct ContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                             }
+                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         // 2) 自分のデジレプが設置済み
@@ -1007,6 +988,7 @@ struct ContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                             }
+                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         else {
@@ -1028,6 +1010,7 @@ struct ContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                             }
+                            .clipped()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
@@ -1064,6 +1047,8 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
+                        .clipped()
+                        .clipped()
                     }
                     
                     if vm.showSpecialMenu {
@@ -1086,6 +1071,8 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
+                        .clipped()
+                        .clipped()
                     }
 
                     if let text = vm.battleResult {
@@ -1113,6 +1100,7 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
+                        .clipped()
                     }
                     
                     // ★★★ 自軍マスに止まったとき用の CreatureMenuView 表示 ★★★
@@ -1142,6 +1130,7 @@ struct ContentView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         }
+                        .clipped()
                     }
                     
                     if let card = vm.presentingCard,
@@ -1218,6 +1207,7 @@ struct ContentView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 }
+                .clipped()
                 .overlay(Divider(), alignment: .top)
             }
             if vm.showVictoryBanner, let status = vm.victoryStatus {
