@@ -35,7 +35,7 @@ struct ContentView: View {
                         toll: vm.toll,
                         hp: vm.hp,
                         hpMax: vm.hpMax,
-                        highlightTargets: vm.branchLandingTargets,
+                        highlightTargets: vm.branchLandingTargets.union(vm.forcedSaleHighlightTiles),
                         terrains: vm.terrain,
                         branchSource: vm.branchSource,
                         branchCandidates: vm.branchCandidates,
@@ -98,7 +98,11 @@ struct ContentView: View {
                             .allowsHitTesting(false)
 
                             let canRoll = vm.turn == 0 && vm.phase == .ready && vm.mustDiscardFor == nil
-                            let canEnd = vm.turn == 0 && vm.phase == .moved && vm.canEndTurn
+                            let isOpponentLandPromptShown = vm.landedOnOpponentTileIndex != nil &&
+                                vm.turn == 0 &&
+                                vm.phase == .moved &&
+                                !vm.expectBattleCardSelection
+                            let canEnd = vm.turn == 0 && vm.phase == .moved && vm.canEndTurn && !isOpponentLandPromptShown
                             Button {
                                 if canRoll {
                                     vm.rollDice()
@@ -935,6 +939,7 @@ struct ContentView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity)
+                            .frame(height: controlsH)
                             .background {
                                 Image("underMenuBackgroundRed")
                                     .resizable()
@@ -955,12 +960,13 @@ struct ContentView: View {
                                         }
                                         .buttonStyle(.borderedProminent)
                                     }
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 12)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .background {
-                                    Image("underMenuBackgroundRed")
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: controlsH)
+                            .background {
+                                Image("underMenuBackgroundRed")
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
                                 }
@@ -983,6 +989,7 @@ struct ContentView: View {
                                 .padding(.horizontal, 12)
                             }
                             .frame(maxWidth: .infinity)
+                            .frame(height: controlsH)
                             .background {
                                 Image("underMenuBackgroundRed")
                                     .resizable()
@@ -1005,6 +1012,7 @@ struct ContentView: View {
                                 .padding(.horizontal, 12)
                             }
                             .frame(maxWidth: .infinity)
+                            .frame(height: controlsH)
                             .background {
                                 Image("underMenuBackgroundRed")
                                     .resizable()
@@ -1042,6 +1050,7 @@ struct ContentView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: controlsH)
                         .background {
                             Image("underMenuBackgroundRed")
                                 .resizable()
@@ -1066,6 +1075,7 @@ struct ContentView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: controlsH)
                         .background {
                             Image("underMenuBackgroundRed")
                                 .resizable()
@@ -1095,6 +1105,7 @@ struct ContentView: View {
                             .shadow(radius: 10)
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: controlsH)
                         .background {
                             Image("underMenuBackgroundRed")
                                 .resizable()
@@ -1125,6 +1136,7 @@ struct ContentView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: controlsH)
                         .background {
                             Image("underMenuBackgroundRed")
                                 .resizable()
@@ -1133,15 +1145,16 @@ struct ContentView: View {
                         .clipped()
                     }
                     
-                    if let card = vm.presentingCard,
-                       card.kind == .spell,
-                       vm.turn == 0,
-                       vm.mustDiscardFor == nil,
-                       isTargetedDiceSpell(card),
-                       vm.shopSpellForDetail == nil {
-                        ZStack {
-                            VStack {
-                                Text("スペル使用先を選択")
+        if let card = vm.presentingCard,
+           card.kind == .spell,
+           vm.turn == 0,
+           vm.mustDiscardFor == nil,
+           isTargetedDiceSpell(card),
+           vm.shopSpellForDetail == nil,
+           !vm.showBattleOverlay {
+            ZStack {
+                VStack {
+                    Text("スペル使用先を選択")
                                     .font(.bestTenSubheadline).bold()
 
                                 HStack(spacing: 12) {
@@ -1167,6 +1180,7 @@ struct ContentView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: controlsH)
                         .background {
                             Image("underMenuBackgroundRed")
                                 .resizable()
@@ -1183,6 +1197,7 @@ struct ContentView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: controlsH)
                         .background {
                             Image("underMenuBackgroundRed")
                                 .resizable()
@@ -1433,7 +1448,12 @@ struct CardDetailOverlay: View {
         
         // ① バトル中の装備アイテム使用
         if vm.isBattleItemSelectionPhase {
-            let cost = card.stats?.cost ?? spellCostForUI(card)
+            let isBattleSpell = card.kind == .spell && vm.isBattleOnlySpell(card)
+            guard isBattleSpell else {
+                return ("装備不可", nil, false)
+            }
+
+            let cost = spellCostForUI(card)
             let hasEnoughGold = gold >= cost
             let title = hasEnoughGold ? "装備使用" : "G不足"
 

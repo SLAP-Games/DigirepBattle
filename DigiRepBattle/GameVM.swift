@@ -100,6 +100,7 @@ final class GameVM: ObservableObject {
     @Published var sellConfirmTile: Int? = nil
     @Published var sellPreviewAfterGold: Int = 0
     @Published var branchLandingTargets: Set<Int> = []
+    @Published var forcedSaleHighlightTiles: Set<Int> = []
     @Published var pendingSwapHandIndex: Int? = nil
     @Published var isTurnTransition = false
     @Published var showBattleOverlay = false
@@ -1260,9 +1261,11 @@ final class GameVM: ObservableObject {
         players[turn].pos = next
         stepsLeft -= 1
         updateDiceGlitchCountdown()
+
+        let shouldClampAtHome = (next == HOME_NODE && hasCompletedCheckpoints(pid: turn))
         awardCheckpointIfNeeded(entering: next, pid: turn)
 
-        if next == HOME_NODE {
+        if shouldClampAtHome {
             stepsLeft = 0
             updateDiceGlitchCountdown()
             return
@@ -1462,6 +1465,12 @@ final class GameVM: ObservableObject {
     }
 
     // タイルに「入った」タイミングで呼ぶ
+    private func hasCompletedCheckpoints(pid: Int) -> Bool {
+        guard passedCP1.indices.contains(pid),
+              passedCP2.indices.contains(pid) else { return false }
+        return passedCP1[pid] && passedCP2[pid]
+    }
+
     private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
         // 1) CP通過フラグの更新（CP1/CP2それぞれ）
         if index == CP1_NODE {
@@ -1484,11 +1493,12 @@ final class GameVM: ObservableObject {
 
         // 2) ホーム通過時：両方trueならGOLD付与してフラグをリセット
         if index == HOME_NODE {
-            if pid == 0 {
+            let completed = hasCompletedCheckpoints(pid: pid)
+            if pid == 0, completed {
                 triggerHomeArrivalEffect(at: index)
                 SoundManager.shared.playHomeSound()
             }
-            if passedCP1[pid] && passedCP2[pid] {
+            if completed {
                 let gain = checkpointReward(for: pid)
                 addGold(gain, to: pid)
                 passedCP1[pid] = false
@@ -2520,6 +2530,12 @@ final class GameVM: ObservableObject {
     
     @discardableResult
     func applyBattleEquipment(_ card: Card, by user: Int) -> Bool {
+        guard isEquipSkillCard(card) else {
+            if user == 0 {
+                battleResult = "戦闘では専用スペルのみ使用できます"
+            }
+            return false
+        }
 
         // ② 戦闘データが揃っているか
         guard var left = battleLeft,
@@ -3737,6 +3753,7 @@ final class GameVM: ObservableObject {
             isForcedSaleMode = false
             debtAmount = 0
         }
+        refreshForcedSaleHighlightTiles()
     }
 
     func cancelSellTile() {
@@ -4169,8 +4186,9 @@ final class GameVM: ObservableObject {
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
         }
         if willPoisonDefender {
-            // 防御側がまだ生きている場合だけ毒を付与
-            if hp.indices.contains(t), hp[t] > 0 {
+            let currentOwner = owner.indices.contains(t) ? owner[t] : nil
+            if currentOwner == defenderId,
+               hp.indices.contains(t), hp[t] > 0 {
                 poisonedTiles[t] = true
 
                 // ★ バトル終了直後に毒エフェクトを1回再生
@@ -4232,10 +4250,24 @@ final class GameVM: ObservableObject {
             // プレイヤー手動
             isForcedSaleMode = true
             debtAmount = deficit
+            refreshForcedSaleHighlightTiles()
         } else {
             // CPU 自動（最小合計で赤字解消）
             autoLiquidateCPU(target: deficit)
         }
+    }
+
+    private func refreshForcedSaleHighlightTiles() {
+        guard isForcedSaleMode else {
+            forcedSaleHighlightTiles = []
+            return
+        }
+
+        var sellable: Set<Int> = []
+        for (idx, own) in owner.enumerated() where own == 0 {
+            sellable.insert(idx)
+        }
+        forcedSaleHighlightTiles = sellable
     }
 
     // ▼ プレイヤー売却フロー：自軍タイルをタップ → 確認ポップ
