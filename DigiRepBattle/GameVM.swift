@@ -211,6 +211,7 @@ final class GameVM: ObservableObject {
     private var goldRef: WritableKeyPath<Player, Int> { \.gold }
     private var forceRollToOneFor: [Bool] = [false, false]
     private var pendingBattleAttacker: Int? = nil
+    private var pendingBattleSummonCost: Int = 0
     private var pendingBattleDefender: Int? = nil
     private var pendingSpellCard: Card? = nil
     private var pendingSpellOwner: Int? = nil
@@ -4098,6 +4099,7 @@ final class GameVM: ObservableObject {
 
     func startBattle(with card: Card) {
         defenderHasFirstStrike = false      // ★ 先制フラグをリセット
+        pendingBattleSummonCost = 0
 
         guard let t = landedOnOpponentTileIndex,
               let defOwner = owner[t], defOwner != turn,
@@ -4107,9 +4109,11 @@ final class GameVM: ObservableObject {
         willPoisonDefender = false
         
         let pid = turn
+        let summonPrice = summonCost(of: card)
         guard paySummonCostIfNeeded(for: card, by: pid) else {
             return
         }
+        pendingBattleSummonCost = summonPrice
 
         // 戦闘中は End を押せない
         canEndTurn = false
@@ -4187,6 +4191,13 @@ final class GameVM: ObservableObject {
             transferToll(from: attackerId, to: defenderId, tile: t)
             battleResult = attackerIsCPU ? "通行料を奪った" : "通行料を奪われた"
         }
+
+        let attackerSurvivedButFailed = finalR.hp > 0 && finalL.hp > 0
+        if attackerSurvivedButFailed, pendingBattleSummonCost > 0 {
+            addGold(pendingBattleSummonCost, to: attackerId)
+        }
+        pendingBattleSummonCost = 0
+
         if willPoisonDefender {
             let currentOwner = owner.indices.contains(t) ? owner[t] : nil
             if currentOwner == defenderId,
