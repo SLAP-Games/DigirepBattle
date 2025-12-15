@@ -917,6 +917,7 @@ final class GameVM: ObservableObject {
 
         // 手札に追加：ShopSpell.id を CardID として扱う
         addSpellCardToHand(spellID: spell.id, displayName: spell.name)
+        SoundManager.shared.playBuySound()
 
         pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
         handleHandOverflowIfNeeded()  // 6枚超の処理があるなら実装済み関数を呼ぶ
@@ -1341,6 +1342,7 @@ final class GameVM: ObservableObject {
         if isYou, let kind = specialNodeKind(for: index) {
             currentSpecialKind = kind
             showSpecialMenu = true
+            availableShopSpells = ShopSpell.randomCatalog(count: 5)
         } else {
             currentSpecialKind = nil
             showSpecialMenu = false

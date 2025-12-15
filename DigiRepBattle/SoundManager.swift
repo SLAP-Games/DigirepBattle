@@ -121,6 +121,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     func playLevelSound() {
         playSE(named: "levelSound")
     }
+
+    func playBuySound() {
+        playSE(named: "buySound")
+    }
     
     func playStartSound() {
         playSE(named: "startSound")

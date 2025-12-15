@@ -26,15 +26,15 @@ extension DeckList {
         var deck = DeckList()
 
         deck.creatureSlots = [
-//            "cre-defaultLizard":        5,
-//            "cre-defaultCrocodile":     5,
-//            "cre-defaultTurtle":        5,
-//            "cre-defaultBeardedDragon": 5,
-//            "cre-defaultHornedFrog":    5,
-//            "cre-defaultGreenIguana":   5,
-//            "cre-defaultBallPython":    5
+            "cre-defaultLizard":        5,
+            "cre-defaultCrocodile":     5,
+            "cre-defaultTurtle":        5,
+            "cre-defaultBeardedDragon": 5,
+            "cre-defaultHornedFrog":    5,
+            "cre-defaultGreenIguana":   5,
+            "cre-defaultBallPython":    5
             
-            "cre-defaultGreenIguana":        25
+//            "cre-defaultGreenIguana":        25
         ]
 
         deck.spellSlots = [
@@ -46,7 +46,7 @@ extension DeckList {
 //            "sp-doubleDice": 1,
 //            "sp-firstStrike": 1,
 //            "sp-hardFang": 3,
-            "sp-poisonFang": 25,
+//            "sp-poisonFang": 25,
 //            "sp-hardScale": 1,
 //            "sp-draw2": 1,
 //            "sp-deleteHand": 1,
@@ -71,24 +71,24 @@ extension DeckList {
 //            "sp-jungle": 3
             
 //以下本番テスト用
-//            "sp-dice1": 1,
-//            "sp-dice2": 1,
-//            "sp-dice3": 1,
-//            "sp-dice4": 1,
-//            "sp-dice5": 1,
-//            "sp-dice6": 1,
-//            "sp-firstStrike": 2,
-//            "sp-hardFang": 2,
-//            "sp-poisonFang": 1,
-//            "sp-hardScale": 2,
-//            "sp-draw2": 2,
-//            "sp-elixir": 2,
-//            "sp-harvest": 2,
-//            "sp-greatStorm": 2,
-//            "sp-snowMountain": 1,
-//            "sp-desert": 1,
-//            "sp-volcano": 1,
-//            "sp-jungle": 1
+            "sp-dice1": 1,
+            "sp-dice2": 1,
+            "sp-dice3": 1,
+            "sp-dice4": 1,
+            "sp-dice5": 1,
+            "sp-dice6": 1,
+            "sp-firstStrike": 2,
+            "sp-hardFang": 2,
+            "sp-poisonFang": 1,
+            "sp-hardScale": 2,
+            "sp-draw2": 2,
+            "sp-elixir": 2,
+            "sp-harvest": 2,
+            "sp-greatStorm": 2,
+            "sp-snowMountain": 1,
+            "sp-desert": 1,
+            "sp-volcano": 1,
+            "sp-jungle": 1
         ]
 
         return deck

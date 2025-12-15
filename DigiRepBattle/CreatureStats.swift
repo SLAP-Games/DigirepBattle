@@ -23,60 +23,60 @@ struct CreatureStats: Equatable {
     }
 
     static let defaultLizard = CreatureStats(
-        hpMax: 20, affection: 2, power: 8, durability: 7,
-        resistDry: 3, resistWater: 2, resistHeat: 2, resistCold: 1, cost: 30
+        hpMax: 25, affection: 3, power: 7, durability: 7,
+        resistDry: 8, resistWater: 1, resistHeat: 1, resistCold: 1, cost: 30
     )
     static let defaultGecko = CreatureStats(
-        hpMax: 18, affection: 4, power: 7, durability: 6,
-        resistDry: 3, resistWater: 3, resistHeat: 3, resistCold: 2, cost: 30
+        hpMax: 25, affection: 3, power: 7, durability: 7,
+        resistDry: 1, resistWater: 1, resistHeat: 1, resistCold: 8, cost: 30
     )
     static let defaultCrocodile = CreatureStats(
-        hpMax: 25, affection: 0, power: 11, durability: 4,
-        resistDry: 1, resistWater: 4, resistHeat: 2, resistCold: 1, cost: 40
+        hpMax: 30, affection: 0, power: 12, durability: 1,
+        resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40
     )
     static let defaultSnake = CreatureStats(
-        hpMax: 21, affection: 1, power: 6, durability: 6,
-        resistDry: 3, resistWater: 3, resistHeat: 3, resistCold: 4, cost: 30
+        hpMax: 30, affection: 1, power: 5, durability: 5,
+        resistDry: 6, resistWater: 6, resistHeat: 6, resistCold: 6, cost: 30
     )
     static let defaultIguana = CreatureStats(
-        hpMax: 23, affection: 2, power: 9, durability: 8,
-        resistDry: 2, resistWater: 3, resistHeat: 4, resistCold: 1, cost: 30
+        hpMax: 30, affection: 2, power: 10, durability: 2,
+        resistDry: 1, resistWater: 1, resistHeat: 8, resistCold: 1, cost: 30
     )
     static let defaultTurtle = CreatureStats(
-        hpMax: 33, affection: 4, power: 4, durability: 11,
-        resistDry: 4, resistWater: 5, resistHeat: 4, resistCold: 4, cost: 30
+        hpMax: 35, affection: 4, power: 1, durability: 12,
+        resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 30
     )
     static let defaultFrog = CreatureStats(
-        hpMax: 10, affection: 4, power: 4, durability: 4,
-        resistDry: 1, resistWater: 6, resistHeat: 1, resistCold: 4, cost: 15
+        hpMax: 20, affection: 4, power: 4, durability: 4,
+        resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 8, cost: 20
     )
     static let defaultBeardedDragon = CreatureStats(
-        hpMax: 53, affection: 5, power: 12, durability: 10,
-        resistDry: 10, resistWater: 2, resistHeat: 7, resistCold: 2, cost: 60
+        hpMax: 50, affection: 5, power: 12, durability: 8,
+        resistDry: 10, resistWater: 2, resistHeat: 2, resistCold: 2, cost: 50
     )
     static let defaultLeopardGecko = CreatureStats(
-        hpMax: 45, affection: 6, power: 10, durability: 12,
-        resistDry: 10, resistWater: 4, resistHeat: 5, resistCold: 4, cost: 60
+        hpMax: 50, affection: 6, power: 8, durability: 12,
+        resistDry: 10, resistWater: 2, resistHeat: 2, resistCold: 2, cost: 50
     )
     static let defaultNileCrocodile = CreatureStats(
-        hpMax: 60, affection: 0, power: 18, durability: 8,
-        resistDry: 1, resistWater: 10, resistHeat: 4, resistCold: 1, cost: 80
+        hpMax: 50, affection: 0, power: 18, durability: 4,
+        resistDry: 2, resistWater: 12, resistHeat: 2, resistCold: 2, cost: 70
     )
     static let defaultBallPython = CreatureStats(
-        hpMax: 47, affection: 3, power: 10, durability: 10,
-        resistDry: 8, resistWater: 8, resistHeat: 8, resistCold: 8, cost: 60
+        hpMax: 50, affection: 3, power: 10, durability: 10,
+        resistDry: 9, resistWater: 9, resistHeat: 9, resistCold: 9, cost: 50
     )
     static let defaultGreenIguana = CreatureStats(
-        hpMax: 55, affection: 2, power: 15, durability: 12,
-        resistDry: 3, resistWater: 5, resistHeat: 10, resistCold: 3, cost: 60
+        hpMax: 50, affection: 2, power: 14, durability: 10,
+        resistDry: 2, resistWater: 2, resistHeat: 12, resistCold: 2, cost: 50
     )
     static let defaultStarTurtle = CreatureStats(
-        hpMax: 75, affection: 5, power: 7, durability: 20,
-        resistDry:  10, resistWater: 10, resistHeat: 6, resistCold: 6, cost: 70
+        hpMax: 50, affection: 5, power: 4, durability: 20,
+        resistDry:  10, resistWater: 2, resistHeat: 2, resistCold: 2, cost: 70
     )
     static let defaultHornedFrog = CreatureStats(
-        hpMax: 35, affection: 6, power: 8, durability: 8,
-        resistDry: 4, resistWater: 10, resistHeat: 4, resistCold: 6, cost: 35
+        hpMax: 40, affection: 6, power: 8, durability: 8,
+        resistDry: 2, resistWater: 12, resistHeat: 2, resistCold: 6, cost: 30
     )
     
 }
