@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct CreatureInfoPanel: View {
     let iv: CreatureInspectView
@@ -13,6 +14,14 @@ struct CreatureInfoPanel: View {
 
     var ownerLabel: String {
         iv.owner == 0 ? "You" : "CPU"
+    }
+    
+    private var creatureImageName: String {
+        let primary = "\(iv.imageName)1"
+        if UIImage(named: primary) != nil { return primary }
+        let secondary = "\(iv.imageName)2"
+        if UIImage(named: secondary) != nil { return secondary }
+        return iv.imageName
     }
 
     var body: some View {
@@ -28,8 +37,9 @@ struct CreatureInfoPanel: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.4)))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("土地 \(iv.tileIndex)")
-                            .font(.bestTenSubheadline).fontWeight(.semibold)
+                        Text("土地情報")
+                            .font(.bestTenSubheadline)
+                            .fontWeight(.semibold)
                         Text("属性: \(iv.mapAttribute)")
                             .font(.bestTenCaption).foregroundStyle(.secondary)
                         Text("レベル: Lv\(iv.tileLevel)")
@@ -40,8 +50,10 @@ struct CreatureInfoPanel: View {
                 }
                 Spacer()
                 Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.bestTenTitle3)
+                    Image("cancelButton")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
             }
@@ -50,7 +62,7 @@ struct CreatureInfoPanel: View {
 
             // クリーチャー行
             HStack(alignment: .top, spacing: 12) {
-                Image(iv.imageName)
+                Image(creatureImageName)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 64, height: 64)
@@ -67,17 +79,19 @@ struct CreatureInfoPanel: View {
                     }
 
                     // ステータス（敵は"不明"）
-                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
-                        GridRow { Text("なつき度"); Text(iv.affection) }
-                        GridRow { Text("戦闘力");   Text(iv.power) }
-                        GridRow { Text("耐久力");   Text(iv.durability) }
-                        GridRow { Text("乾耐性");   Text(iv.dryRes) }
-                        GridRow { Text("水耐性");   Text(iv.waterRes) }
-                        GridRow { Text("熱耐性");   Text(iv.heatRes) }
-                        GridRow { Text("冷耐性");   Text(iv.coldRes) }
+                    HStack(alignment: .top, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            StatRow(label: "なつき度", value: iv.affection)
+                            StatRow(label: "戦闘力",   value: iv.power)
+                            StatRow(label: "耐久力",   value: iv.durability)
+                            StatRow(label: "乾耐性",   value: iv.dryRes)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            StatRow(label: "水耐性", value: iv.waterRes)
+                            StatRow(label: "熱耐性", value: iv.heatRes)
+                            StatRow(label: "冷耐性", value: iv.coldRes)
+                        }
                     }
-                    .font(.bestTenCaption)
-                    .foregroundStyle(.primary)
                 }
             }
         }
@@ -88,5 +102,21 @@ struct CreatureInfoPanel: View {
                 .shadow(radius: 8, y: 4)
         )
         .frame(maxWidth: 460, alignment: .topLeading)
+    }
+}
+
+private struct StatRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.bestTenCaption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.bestTenCaption)
+                .foregroundStyle(.primary)
+        }
     }
 }

@@ -126,6 +126,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: "buySound")
     }
     
+    func playSellTileSound() {
+        playSE(named: "sellTile")
+    }
+    
     func playStartSound() {
         playSE(named: "startSound")
     }

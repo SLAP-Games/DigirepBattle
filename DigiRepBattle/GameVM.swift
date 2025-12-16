@@ -219,6 +219,7 @@ final class GameVM: ObservableObject {
     private var pendingSpellCost: Int = 0
     private var willPoisonDefender: Bool = false
     private var plunderAnimationTask: Task<Void, Never>? = nil
+    private var saleFocusTask: Task<Void, Never>? = nil
     private var diceGlitchContinuation: CheckedContinuation<Void, Never>? = nil
     private var diceGlitchShouldPinAfterReveal: Bool = false
     private let CROSS_NODE = 4
@@ -3776,6 +3777,7 @@ final class GameVM: ObservableObject {
             return
         }
         inspectTarget = index
+        SoundManager.shared.playHandViewSound()
     }
 
     func closeInspect() { inspectTarget = nil }
@@ -3830,11 +3832,37 @@ final class GameVM: ObservableObject {
 
     // ▼ 売却の実処理（共通）: 所有解除・レベル/通行料/シンボル初期化
     private func performSell(tile idx: Int, for player: Int) {
+        enqueueSaleFocus(for: idx)
         let v = saleValue(for: idx)
         addGold(v, to: player)
         clearCreatureInfo(at: idx,
                           clearOwnerAndLevel: true,
                           resetToll: true)
+    }
+
+    private func enqueueSaleFocus(for tile: Int) {
+        let previousTask = saleFocusTask
+        let task = Task { [weak self] in
+            if let previousTask {
+                await previousTask.value
+            }
+            await self?.runSaleFocusSequence(on: tile)
+        }
+        saleFocusTask = task
+    }
+
+    @MainActor
+    private func runSaleFocusSequence(on tile: Int) async {
+        let previousForce = forceCameraFocus
+        let previousFocusTile = focusTile
+        forceCameraFocus = true
+        focusTile = tile
+
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        SoundManager.shared.playSellTileSound()
+
+        forceCameraFocus = previousForce
+        focusTile = previousFocusTile
     }
     
     /// レベルアップ確定
