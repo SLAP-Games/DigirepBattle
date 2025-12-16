@@ -954,6 +954,32 @@ final class GameVM: ObservableObject {
         }
     }
 
+    func sellableShopCards(for player: Int) -> [(card: Card, price: Int)] {
+        guard hands.indices.contains(player) else { return [] }
+        return hands[player].compactMap { card in
+            guard let price = shopSellPrice(for: card) else { return nil }
+            return (card, price)
+        }
+    }
+
+    func sellShopCard(_ card: Card) {
+        let pid = turn
+        guard hands.indices.contains(pid),
+              let index = hands[pid].firstIndex(of: card),
+              let price = shopSellPrice(for: card) else { return }
+
+        hands[pid].remove(at: index)
+        addGold(price, to: pid)
+        pushCenterMessage("\(card.name) を売却 +\(price)G")
+    }
+
+    private func shopSellPrice(for card: Card) -> Int? {
+        guard card.kind == .spell else { return nil }
+        guard let base = ShopSpell.catalog.first(where: { $0.id == card.id })?.price else { return nil }
+        let half = max(1, base / 2)
+        return half
+    }
+
     private func presentNPCSpellPreview(for card: Card) async {
         await MainActor.run {
             withAnimation(.easeInOut(duration: 0.4)) {

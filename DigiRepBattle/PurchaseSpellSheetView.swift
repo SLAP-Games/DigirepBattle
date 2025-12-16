@@ -12,6 +12,7 @@ struct PurchaseSpellSheetView: View {
     @ObservedObject var vm: GameVM
 
     var body: some View {
+        let sellable = vm.sellableShopCards(for: vm.turn)
         VStack(spacing: 12) {
             Text("スペルショップ")
                 .font(.bestTenHeadline)
@@ -50,6 +51,51 @@ struct PurchaseSpellSheetView: View {
             }
             // ★ 高さ制限：必要に応じて値を調整してください
             .frame(maxHeight: 260)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("売却できるカード")
+                    .font(.bestTenSubheadline)
+                if sellable.isEmpty {
+                    Text("売却可能なカードがありません")
+                        .font(.bestTenCaption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            ForEach(Array(sellable.enumerated()), id: \.offset) { _, entry in
+                                HStack {
+                                    Image(entry.card.symbol)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 32, height: 32)
+                                        .padding(.trailing, 4)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(entry.card.name)
+                                            .font(.bestTenSubheadline)
+                                        Text("売却 \(entry.price)G (購入価格の50%)")
+                                            .font(.bestTenCaption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Button("売却 (+\(entry.price)G)") {
+                                        vm.sellShopCard(entry.card)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .frame(maxHeight: 200)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Divider()
 
