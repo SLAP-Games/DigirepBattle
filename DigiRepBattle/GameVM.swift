@@ -530,6 +530,9 @@ final class GameVM: ObservableObject {
 
         if !poisonMap.isEmpty {
             isHealingAnimating = true
+            let previousForce = forceCameraFocus
+            let previousFocusTile = focusTile
+            forceCameraFocus = true
 
             let sequence = poisonMap.keys.sorted()
             for tile in sequence {
@@ -575,6 +578,10 @@ final class GameVM: ObservableObject {
             }
 
             isHealingAnimating = false
+            forceCameraFocus = previousForce
+            if let previousFocusTile {
+                focusTile = previousFocusTile
+            }
         }
         
         // --------------------------------------------------
@@ -2658,6 +2665,17 @@ final class GameVM: ObservableObject {
         pendingSpellCost = 0
     }
 
+    private func cancelAllTargetSelections() {
+        if isSelectingFullHealTarget { cancelFullHealSelection() }
+        if isSelectingLandLevelChangeTarget { cancelLandLevelChangeSelection() }
+        if isSelectingLandTollZeroTarget { cancelLandTollZeroSelection() }
+        if isSelectingLandTollDoubleTarget { cancelLandTollDoubleSelection() }
+        if isSelectingPoisonTarget { cancelPoisonSelection() }
+        if isSelectingCleanseTarget { cancelCleanseSelection() }
+        if isSelectingDamageTarget { cancelDamageSelection() }
+        if isSelectingTileAttributeTarget { cancelTileAttributeSelection() }
+    }
+
     @discardableResult
     private func finalizePendingSpellUsage() -> Bool {
         guard let owner = pendingSpellOwner else { return true }
@@ -3628,41 +3646,62 @@ final class GameVM: ObservableObject {
             return
         }
         if isSelectingTileAttributeTarget {
-            guard tileAttributeCandidateTiles.contains(index) else { return }
+            guard tileAttributeCandidateTiles.contains(index) else {
+                cancelTileAttributeSelection()
+                return
+            }
             pendingTileAttributeTarget = index
             return
         }
         // === sp-decay のターゲット選択 ===
         if isSelectingLandLevelChangeTarget {
             // レベルダウン候補外のマスは無視
-            guard landLevelChangeCandidateTiles.contains(index) else { return }
+            guard landLevelChangeCandidateTiles.contains(index) else {
+                cancelLandLevelChangeSelection()
+                return
+            }
             pendingLandLevelChangeTile = index   // レベルダウン確認ウインドウ表示用
             return
         }
         // === sp-devastation のターゲット選択 ===
         if isSelectingLandTollZeroTarget {
-            guard landTollZeroCandidateTiles.contains(index) else { return }
+            guard landTollZeroCandidateTiles.contains(index) else {
+                cancelLandTollZeroSelection()
+                return
+            }
             pendingLandTollZeroTile = index   // 通行量0確認ウインドウ表示用
             return
         }
         // === sp-harvest のターゲット選択（通行量2倍） ===
         if isSelectingLandTollDoubleTarget {
-            guard landTollDoubleCandidateTiles.contains(index) else { return }
+            guard landTollDoubleCandidateTiles.contains(index) else {
+                cancelLandTollDoubleSelection()
+                return
+            }
             pendingLandTollDoubleTile = index   // 通行量2倍確認ウインドウ表示用
             return
         }
         if isSelectingPoisonTarget {
-            guard poisonCandidateTiles.contains(index) else { return }
+            guard poisonCandidateTiles.contains(index) else {
+                cancelPoisonSelection()
+                return
+            }
             pendingPoisonTile = index
             return
         }
         if isSelectingCleanseTarget {
-            guard cleanseCandidateTiles.contains(index) else { return }
+            guard cleanseCandidateTiles.contains(index) else {
+                cancelCleanseSelection()
+                return
+            }
             pendingCleanseTile = index
             return
         }
         if isSelectingDamageTarget {
-            guard damageCandidateTiles.contains(index) else { return }
+            guard damageCandidateTiles.contains(index) else {
+                cancelDamageSelection()
+                return
+            }
             pendingDamageTile = index
             return
         }

@@ -1096,6 +1096,9 @@ struct ContentView: View {
                                 Button("閉じる") {
                                     vm.battleResult = nil
                                     vm.cancelFullHealSelection()
+                                    vm.cancelDamageSelection()
+                                    vm.cancelTileAttributeSelection()
+                                    vm.cancelLandTollDoubleSelection()
                                 }
                                 .buttonStyle(.borderedProminent)
                             }
