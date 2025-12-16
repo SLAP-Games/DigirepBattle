@@ -93,6 +93,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     func playAttackSound() {
         playSE(named: "attackSound")
     }
+    
+    func playAttackSound2() {
+        playSE(named: "attackSound2")
+    }
 
     func playBattleSpellSound() {
         playSE(named: "battleSpellSound")
@@ -120,6 +124,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     
     func playLevelSound() {
         playSE(named: "levelSound")
+    }
+    
+    func playCriticalSound() {
+        playSE(named: "criticalSound")
     }
 
     func playBuySound() {

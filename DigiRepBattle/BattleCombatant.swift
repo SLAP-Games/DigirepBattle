@@ -320,6 +320,9 @@ public struct BattleOverlayView: View {
     @State private var currentEnergyDirection: AttackDirection?
     @State private var containerWidth: CGFloat = 0
     @State private var skipIntroDelay = false
+    @State private var currentCriticalAttack = false
+    @State private var currentCriticalAttackerIsLeft = true
+    @State private var criticalFlashOpacity: Double = 0
 
     public init(
         left: BattleCombatant,
@@ -519,6 +522,12 @@ public struct BattleOverlayView: View {
                 )
                 .overlay(
                     Color.white
+                        .opacity(criticalFlashOpacity)
+                        .blendMode(.screen)
+                        .ignoresSafeArea()
+                )
+                .overlay(
+                    Color.white
                         .opacity(isShowingBattleSpellEffect ? 0.45 : 0)
                         .blendMode(.screen)
                         .ignoresSafeArea()
@@ -637,12 +646,31 @@ public struct BattleOverlayView: View {
 
     private func performAttackSequence(attackerIsLeft: Bool, completion: @escaping () -> Void) {
         guard !isFinished else { return }
+        rollCriticalChance(forLeftAttacker: attackerIsLeft)
         startBattleEffect(attackerIsLeft: attackerIsLeft) { [self] in
             guard !isFinished else { return }
             focusOnDefender(attackerIsLeft: attackerIsLeft) {
                 guard !isFinished else { return }
                 completion()
             }
+        }
+    }
+
+    private func rollCriticalChance(forLeftAttacker: Bool) {
+        currentCriticalAttackerIsLeft = forLeftAttacker
+        currentCriticalAttack = Int.random(in: 0..<100) < 10
+    }
+
+    private func isCriticalHit(attackerIsLeft: Bool) -> Bool {
+        currentCriticalAttack && currentCriticalAttackerIsLeft == attackerIsLeft
+    }
+
+    private func triggerCriticalCueIfNeeded(forLeft isLeft: Bool) {
+        guard isCriticalHit(attackerIsLeft: isLeft) else { return }
+        SoundManager.shared.playCriticalSound()
+        criticalFlashOpacity = 0.9
+        withAnimation(.easeOut(duration: 0.45)) {
+            criticalFlashOpacity = 0
         }
     }
 
@@ -678,6 +706,7 @@ public struct BattleOverlayView: View {
                 leftBattleBGOffset = 0
                 leftBattleBGOpacity = 1
             }
+            triggerCriticalCueIfNeeded(forLeft: true)
         } else {
             rightBattleBGOffset = travel
             rightBattleBGOpacity = 0
@@ -686,6 +715,7 @@ public struct BattleOverlayView: View {
                 rightBattleBGOffset = 0
                 rightBattleBGOpacity = 1
             }
+            triggerCriticalCueIfNeeded(forLeft: false)
         }
     }
 
@@ -741,7 +771,11 @@ public struct BattleOverlayView: View {
         guard !isFinished else { return }
 
         if attackerIsLeft {
-            let atk = atkValue(of: L)
+            var atk = atkValue(of: L)
+            if isCriticalHit(attackerIsLeft: true) {
+                let boosted = Int((Double(atk) * 1.5).rounded())
+                atk = max(atk + 1, boosted)
+            }
             let def = defValue(of: R)
             let dmg = max(0, atk - def)
             dmgRight = dmg
@@ -751,7 +785,11 @@ public struct BattleOverlayView: View {
 
             if R.hp <= 0 { finishNow() }
         } else {
-            let atk = atkValue(of: R)
+            var atk = atkValue(of: R)
+            if isCriticalHit(attackerIsLeft: false) {
+                let boosted = Int((Double(atk) * 1.5).rounded())
+                atk = max(atk + 1, boosted)
+            }
             let def = defValue(of: L)
             let dmg = max(0, atk - def)
             dmgLeft = dmg
@@ -761,10 +799,11 @@ public struct BattleOverlayView: View {
 
             if L.hp <= 0 { finishNow() }
         }
+        currentCriticalAttack = false
     }
 
     private func showHit(onRight: Bool) {
-        SoundManager.shared.playAttackSound()
+        SoundManager.shared.playAttackSound2()
         triggerImpactEffect()
         if onRight {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { showDmgRight = true }

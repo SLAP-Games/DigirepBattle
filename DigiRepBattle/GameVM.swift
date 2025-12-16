@@ -3001,10 +3001,11 @@ final class GameVM: ObservableObject {
         }
 
         if owner[t] == nil,
-           canPlaceCreature(at: t),
-           let creature = cpuPickCreatureForTile(t) {
-
-            if paySummonCostIfNeeded(for: creature, by: 1),
+           canPlaceCreature(at: t) {
+            let npcGold = players.indices.contains(1) ? players[1].gold : 0
+            if npcGold >= 100,
+               let creature = cpuPickCreatureForTile(t),
+               paySummonCostIfNeeded(for: creature, by: 1),
                placeCreature(from: creature, at: t, by: 1) {
                 consumeFromHand(creature, for: 1)
             }
