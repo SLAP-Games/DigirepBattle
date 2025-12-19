@@ -21,6 +21,11 @@ public struct BattleCombatant: Identifiable, Equatable {
     public var itemPower: Int
     public var itemDurability: Int
     public let resist: Int
+    public let skills: [CreatureSkill]
+
+    public var skillAttackBonus: Int {
+        skills.totalBattleAttackBonus
+    }
 
     public init(
         name: String,
@@ -28,7 +33,8 @@ public struct BattleCombatant: Identifiable, Equatable {
         hp: Int, hpMax: Int,
         power: Int, durability: Int,
         itemPower: Int, itemDurability: Int,
-        resist: Int
+        resist: Int,
+        skills: [CreatureSkill] = []
     ) {
         self.name = name
         self.imageName = imageName
@@ -39,6 +45,7 @@ public struct BattleCombatant: Identifiable, Equatable {
         self.itemPower = itemPower
         self.itemDurability = itemDurability
         self.resist = resist
+        self.skills = skills.cappedForBattle
     }
 }
 
@@ -244,16 +251,18 @@ fileprivate struct FighterHUD: View {
             let atkWhite = CGFloat(who.power * 2)
             let atkRes   = CGFloat(who.resist * 4)
             let atkItem  = CGFloat(who.itemPower)
-            let atkSum   = min(150, atkWhite + atkRes + atkItem)
+            let atkSkill = CGFloat(who.skillAttackBonus)
+            let atkSum   = min(150, atkWhite + atkRes + atkItem + atkSkill)
             StatRow(
                 title: "戦闘力",
-                displayedValue: Text("\(Int(atkWhite)) + \(Int(atkRes)) + \(Int(atkItem))"),
+                displayedValue: Text("\(Int(atkWhite)) + \(Int(atkRes)) + \(Int(atkItem)) + \(Int(atkSkill))"),
                 bar: SegmentedBar(
                     maxValue: 150, height: 10, cornerRadius: 6,
                     segments: [
                         .init(value: atkWhite, color: .white),
                         .init(value: atkRes, color: resistColor(for: attr)),
                         .init(value: atkItem, color: .purple),
+                        .init(value: atkSkill, color: .red),
                         .init(value: max(0, 150 - atkSum), color: .black)
                     ]
                 )
@@ -765,7 +774,7 @@ public struct BattleOverlayView: View {
 
     // MARK: - Damage + HP animation
     private func resolveAttack(attackerIsLeft: Bool) {
-        func atkValue(of c: BattleCombatant) -> Int { c.power * 2 + c.resist * 4 + c.itemPower }
+        func atkValue(of c: BattleCombatant) -> Int { c.power * 2 + c.resist * 4 + c.itemPower + c.skillAttackBonus }
         func defValue(of c: BattleCombatant) -> Int { c.durability + c.resist + c.itemDurability }
 
         guard !isFinished else { return }

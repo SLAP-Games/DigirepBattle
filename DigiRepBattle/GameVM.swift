@@ -25,6 +25,7 @@ struct CreatureInspectView {
     let waterRes: String
     let heatRes: String
     let coldRes: String
+    let skills: [CreatureSkill]
 }
 
 @MainActor
@@ -289,36 +290,14 @@ final class GameVM: ObservableObject {
         let initialPlayerDeck = selectedDeck ?? DeckList.defaultBattleDeck
         cardStates[0].deckList = initialPlayerDeck
         
-        //NPCテスト
-        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-        cardStates[1].collection.add("sp-dice2", count: 20)
-//        cardStates[1].deckList.creatureSlots = [
-//            "cre-defaultLizard": 35
-//        ]
-//        cardStates[1].deckList.spellSlots = [
-//            "sp-dice1": 25
-//        ]
-        
-        //NPCデッキ
-//        cardStates[1].collection.add("cre-defaultLizard", count: 30)
-//        cardStates[0].collection.add("cre-defaultCrocodile", count: 30)
-//        cardStates[1].collection.add("cre-defaultTurtle", count: 30)
-//        cardStates[1].collection.add("cre-defaultBeardedDragon", count: 30)
-//        cardStates[1].collection.add("cre-defaultHornedFrog", count: 30)
-//        cardStates[1].collection.add("cre-defaultGreenIguana", count: 30)
-//        cardStates[1].collection.add("cre-defaultBallPython", count: 30)
-//        cardStates[1].collection.add("sp-hardFang", count: 5)
-//        cardStates[1].collection.add("sp-bigScale", count: 5)
-//        cardStates[1].collection.add("sp-deleteHand", count: 5)
-//        cardStates[1].collection.add("sp-doubleDice", count: 5)
-//        cardStates[1].collection.add("sp-firstStrike", count: 5)
-//        
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultLizard": 7,
-            "cre-defaultCrocodile": 7,
-            "cre-defaultBeardedDragon": 7,
-            "cre-defaultGreenIguana": 7,
-            "cre-defaultBallPython": 7
+            "cre-defaultCrocodile": 25
+            
+//            "cre-defaultLizard": 7,
+//            "cre-defaultCrocodile": 7,
+//            "cre-defaultBeardedDragon": 7,
+//            "cre-defaultGreenIguana": 7,
+//            "cre-defaultBallPython": 7
         ]
         cardStates[1].deckList.spellSlots = [
             "sp-hardFang": 5,
@@ -1202,8 +1181,8 @@ final class GameVM: ObservableObject {
         return pool.max { lhs, rhs in
             let ls = lhs.stats ?? .defaultLizard
             let rs = rhs.stats ?? .defaultLizard
-            let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4
-            let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4
+            let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4 + ls.skillAttackBonus
+            let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4 + rs.skillAttackBonus
             return lScore < rScore
         }
     }
@@ -3220,8 +3199,8 @@ final class GameVM: ObservableObject {
             .max(by: { (lhs, rhs) in
                 let ls = lhs.stats ?? .defaultLizard
                 let rs = rhs.stats ?? .defaultLizard
-                let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4
-                let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4
+                let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4 + ls.skillAttackBonus
+                let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4 + rs.skillAttackBonus
                 return lScore < rScore
             })
     }
@@ -3618,7 +3597,8 @@ final class GameVM: ObservableObject {
             dryRes:    mask(c.stats.resistDry),
             waterRes:  mask(c.stats.resistWater),
             heatRes:   mask(c.stats.resistHeat),
-            coldRes:   mask(c.stats.resistCold)
+            coldRes:   mask(c.stats.resistCold),
+            skills:    c.stats.cappedSkills
         )
     }
     
@@ -4028,7 +4008,8 @@ final class GameVM: ObservableObject {
                 resistWater: rWat[t],
                 resistHeat: rHot[t],
                 resistCold: rCold[t],
-                cost: cost[t]
+                cost: cost[t],
+                skills: creatureOnTile[t]?.stats.skills ?? []
             )
 
             let reconstructedName = creatureName(forSymbol: oldSym) ?? oldSym
@@ -4227,8 +4208,16 @@ final class GameVM: ObservableObject {
             hp: atkStats.hpMax, hpMax: atkStats.hpMax,
             power: atkStats.power, durability: atkStats.durability,
             itemPower: 0, itemDurability: 0,
-            resist: resistValue(of: atkStats, for: attr)
+            resist: resistValue(of: atkStats, for: attr),
+            skills: atkStats.cappedSkills
         )
+
+        let defenderSkills: [CreatureSkill]
+        if let creature = creatureOnTile[t] {
+            defenderSkills = creature.stats.cappedSkills
+        } else {
+            defenderSkills = []
+        }
 
         let defender = BattleCombatant(
             name: (defOwner == 0 ? "あなた" : "NPC"),
@@ -4238,7 +4227,8 @@ final class GameVM: ObservableObject {
             power: pow.indices.contains(t) ? pow[t] : 0,
             durability: dur.indices.contains(t) ? dur[t] : 0,
             itemPower: 0, itemDurability: 0,
-            resist: defenderResistAt(tile: t, for: attr)
+            resist: defenderResistAt(tile: t, for: attr),
+            skills: defenderSkills
         )
 
         battleLeft = attacker

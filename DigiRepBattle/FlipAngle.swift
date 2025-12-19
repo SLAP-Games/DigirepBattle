@@ -177,11 +177,21 @@ struct FrontCardFace: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: topSpacing)
 
-                    Image(card.imageName(firstVariant: useFirstImage))
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: imgH)
-                        .padding(.horizontal, sidePad)
+                    ZStack(alignment: .topLeading) {
+                        Image(card.imageName(firstVariant: useFirstImage))
+                            .resizable()
+                            .scaledToFit()
+
+                        if card.kind == .creature {
+                            SkillIconRow(
+                                skills: card.stats?.cappedSkills ?? [],
+                                iconSize: max(24, imgH * 0.22)
+                            )
+                            .padding(8)
+                        }
+                    }
+                    .frame(height: imgH)
+                    .padding(.horizontal, sidePad)
 
                     if let s = card.stats {
                         HeartRow(count: max(0, min(s.affection, 10)))

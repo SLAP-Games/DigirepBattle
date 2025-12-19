@@ -73,9 +73,12 @@ struct CreatureInfoPanel: View {
                     HStack {
                         Text(ownerLabel).font(.bestTenHeadline)
                         Spacer()
-                        Text("HP \(iv.hpText)")
-                            .font(.bestTenSubheadline)
-                            .monospacedDigit()
+                        VStack(alignment: .trailing, spacing: 6) {
+                            Text("HP \(iv.hpText)")
+                                .font(.bestTenSubheadline)
+                                .monospacedDigit()
+                            SkillIconRow(skills: iv.skills, iconSize: 30)
+                        }
                     }
 
                     // ステータス（敵は"不明"）
