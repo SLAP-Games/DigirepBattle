@@ -497,6 +497,7 @@ final class GameVM: ObservableObject {
                   owner[i] == turn,                         // ★ 持ち主のターンのみ
                   poisonedTiles.indices.contains(i),
                   poisonedTiles[i] == true,
+                  !tileHasCancelSkill(i),
                   hpMax.indices.contains(i), hpMax[i] > 0,
                   hp.indices.contains(i), hp[i] > 0
             else { continue }
@@ -1717,7 +1718,8 @@ final class GameVM: ObservableObject {
             var candidates: Set<Int> = []
             for i in 0..<tileCount {
                 guard level.indices.contains(i),
-                      level[i] >= 2
+                      level[i] >= 2,
+                      !tileHasCancelSkill(i)
                 else { continue }
                 candidates.insert(i)
             }
@@ -1740,7 +1742,8 @@ final class GameVM: ObservableObject {
 
             for i in 0..<tileCount {
                 guard toll.indices.contains(i),
-                      toll[i] > 0
+                      toll[i] > 0,
+                      !tileHasCancelSkill(i)
                 else { continue }
                 candidates.insert(i)
             }
@@ -1763,7 +1766,8 @@ final class GameVM: ObservableObject {
                 guard toll.indices.contains(i),
                       toll[i] > 0,
                       !devastatedTiles.contains(i),   // すでに 0 のマスは除外
-                      !harvestedTiles.contains(i)     // 既に 2倍済みのマスも除外
+                      !harvestedTiles.contains(i),    // 既に 2倍済みのマスも除外
+                      !tileHasCancelSkill(i)
                 else { continue }
                 candidates.insert(i)
             }
@@ -1782,7 +1786,7 @@ final class GameVM: ObservableObject {
         case .changeTileAttribute(let tileKind):
             var candidates: Set<Int> = []
             if tileCount > 0 {
-                for i in 0..<tileCount where !tileAttributeRestrictedTiles.contains(i) {
+                for i in 0..<tileCount where !tileAttributeRestrictedTiles.contains(i) && !tileHasCancelSkill(i) {
                     candidates.insert(i)
                 }
             }
@@ -2103,7 +2107,8 @@ final class GameVM: ObservableObject {
             guard creatureSymbol.indices.contains(i),
                   creatureSymbol[i] != nil,
                   hp.indices.contains(i),
-                  hp[i] > 0 else { continue }
+                  hp[i] > 0,
+                  !tileHasCancelSkill(i) else { continue }
             candidates.insert(i)
         }
 
@@ -3322,6 +3327,23 @@ final class GameVM: ObservableObject {
         return arr
     }
 
+    private func tileHasCancelSkill(_ tile: Int) -> Bool {
+        guard let creature = creatureOnTile[tile] else { return false }
+        return creature.stats.skills.contains(.cancelSkill)
+    }
+
+    private func enforceCancelSkillProtection(on tile: Int) {
+        guard tileHasCancelSkill(tile) else { return }
+        if poisonedTiles.indices.contains(tile) {
+            poisonedTiles[tile] = false
+        }
+        devastatedTiles.remove(tile)
+        harvestedTiles.remove(tile)
+        if toll.indices.contains(tile) {
+            toll[tile] = toll(at: tile)
+        }
+    }
+
     // 料金計算（レベル基礎 × セットボーナス）
     func toll(at tile: Int) -> Int {
         if devastatedTiles.contains(tile) {
@@ -3365,6 +3387,7 @@ final class GameVM: ObservableObject {
     
     // 属性取得（未設定は .normal 扱い）
     private func attribute(of index: Int) -> TileAttribute {
+        if tileHasCancelSkill(index) { return .normal }
         guard terrain.indices.contains(index) else { return .normal }
         return terrain[index].attribute
     }
@@ -3425,6 +3448,7 @@ final class GameVM: ObservableObject {
             stats: s,
             hp: s.hpMax
         )
+        enforceCancelSkillProtection(on: tile)
         toll[tile] = toll(at: tile)
         checkVictoryCondition()
         return true
@@ -3448,6 +3472,7 @@ final class GameVM: ObservableObject {
     }
 
     private func tileStatusDescription(for tile: Int) -> String {
+        if tileHasCancelSkill(tile) { return "なし" }
         var statuses: [String] = []
         if poisonedTiles.indices.contains(tile), poisonedTiles[tile] {
             statuses.append("毒")
@@ -3465,6 +3490,7 @@ final class GameVM: ObservableObject {
     }
 
     private func tileHasCleanseStatus(_ tile: Int) -> Bool {
+        if tileHasCancelSkill(tile) { return false }
         if poisonedTiles.indices.contains(tile), poisonedTiles[tile] { return true }
         if devastatedTiles.contains(tile) { return true }
         if harvestedTiles.contains(tile) { return true }
@@ -4042,6 +4068,7 @@ final class GameVM: ObservableObject {
         cost[t] = s.cost
         toll[t] = toll(at: t)
         creatureOnTile[t] = Creature(id: UUID().uuidString, owner: turn, imageName: newCard.symbol, stats: s, hp: s.hpMax)
+        enforceCancelSkillProtection(on: t)
 
         triggerPlaceEffect(at: t)
 
@@ -4516,6 +4543,11 @@ final class GameVM: ObservableObject {
             cancelLandLevelChangeSelection()
             return
         }
+        if tileHasCancelSkill(tile) {
+            pushCenterMessage("キャンセルスキルにより無効化")
+            cancelLandLevelChangeSelection()
+            return
+        }
 
         guard finalizePendingSpellUsage() else {
             cancelLandLevelChangeSelection()
@@ -4559,6 +4591,11 @@ final class GameVM: ObservableObject {
 
     func confirmLandTollZero() {
         guard let tile = pendingLandTollZeroTile else {
+            cancelLandTollZeroSelection()
+            return
+        }
+        if tileHasCancelSkill(tile) {
+            pushCenterMessage("キャンセルスキルにより無効化")
             cancelLandTollZeroSelection()
             return
         }
@@ -4619,6 +4656,11 @@ final class GameVM: ObservableObject {
 
     func confirmLandTollDouble() {
         guard let tile = pendingLandTollDoubleTile else {
+            cancelLandTollDoubleSelection()
+            return
+        }
+        if tileHasCancelSkill(tile) {
+            pushCenterMessage("キャンセルスキルにより無効化")
             cancelLandTollDoubleSelection()
             return
         }
@@ -4907,6 +4949,11 @@ final class GameVM: ObservableObject {
             return
         }
 
+        if tileHasCancelSkill(tile) {
+            pushCenterMessage("キャンセルスキルにより無効化")
+            return
+        }
+
         if poisonedTiles[tile] {
             pushCenterMessage("すでに毒状態です")
             return
@@ -4978,6 +5025,10 @@ final class GameVM: ObservableObject {
                                           spellName: String?) async {
         guard (0..<tileCount).contains(tile) else {
             pushCenterMessage("対象の土地が存在しません")
+            return
+        }
+        if tileHasCancelSkill(tile) {
+            pushCenterMessage("キャンセルスキルにより無効化")
             return
         }
         guard canChangeTileAttribute(at: tile) else {
