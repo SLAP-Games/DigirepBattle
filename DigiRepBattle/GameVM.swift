@@ -1182,8 +1182,9 @@ final class GameVM: ObservableObject {
         return pool.max { lhs, rhs in
             let ls = lhs.stats ?? .defaultLizard
             let rs = rhs.stats ?? .defaultLizard
-            let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4 + ls.skillAttackBonus
-            let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4 + rs.skillAttackBonus
+            let bAttr = battleAttribute(from: attr)
+            let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4 + ls.skillAttackBonus(for: bAttr)
+            let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4 + rs.skillAttackBonus(for: bAttr)
             return lScore < rScore
         }
     }
@@ -3204,8 +3205,9 @@ final class GameVM: ObservableObject {
             .max(by: { (lhs, rhs) in
                 let ls = lhs.stats ?? .defaultLizard
                 let rs = rhs.stats ?? .defaultLizard
-                let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4 + ls.skillAttackBonus
-                let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4 + rs.skillAttackBonus
+                let bAttr = battleAttribute(from: attr)
+                let lScore = ls.power * 2 + resistValue(of: ls, for: attr) * 4 + ls.skillAttackBonus(for: bAttr)
+                let rScore = rs.power * 2 + resistValue(of: rs, for: attr) * 4 + rs.skillAttackBonus(for: bAttr)
                 return lScore < rScore
             })
     }
@@ -3217,8 +3219,9 @@ final class GameVM: ObservableObject {
             .max(by: { (lhs, rhs) in
                 let ls = lhs.stats ?? .defaultLizard
                 let rs = rhs.stats ?? .defaultLizard
-                let lScore = ls.durability + resistValue(of: ls, for: attr) + ls.skillDefenseBonus
-                let rScore = rs.durability + resistValue(of: rs, for: attr) + rs.skillDefenseBonus
+                let bAttr = battleAttribute(from: attr)
+                let lScore = ls.durability + resistValue(of: ls, for: attr) + ls.skillDefenseBonus(for: bAttr)
+                let rScore = rs.durability + resistValue(of: rs, for: attr) + rs.skillDefenseBonus(for: bAttr)
                 return lScore < rScore
             })
     }
@@ -3390,6 +3393,10 @@ final class GameVM: ObservableObject {
         if tileHasCancelSkill(index) { return .normal }
         guard terrain.indices.contains(index) else { return .normal }
         return terrain[index].attribute
+    }
+
+    private func battleAttribute(from attr: TileAttribute) -> BattleAttribute {
+        BattleAttribute(rawValue: attr.rawValue) ?? .normal
     }
 
     // 指定プレイヤーが所有する「同じ属性」の土地数

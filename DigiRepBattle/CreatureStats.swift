@@ -40,29 +40,38 @@ public enum CreatureSkill: String, Equatable, Hashable {
 
     var imageName: String { rawValue }
 
-    var battleAttackBonus: Int {
-        switch self {
-        case .attackPlus:
-            return 10
-        case .attackPlus2:
-            return 20
-        case .gatherSkill:
-            return 0 // future: +3 per same tribe
-        default:
-            return 0
+    private func resistBonus(for attr: BattleAttribute) -> Int {
+        switch (self, attr) {
+        case (.coldPlus, .cold):   return 5
+        case (.coldPlus2, .cold):  return 10
+        case (.dryPlus, .dry):     return 5
+        case (.dryPlus2, .dry):    return 10
+        case (.heatPlus, .heat):   return 5
+        case (.heatPlus2, .heat):  return 10
+        case (.waterPlus, .water): return 5
+        case (.waterPlus2, .water):return 10
+        default: return 0
         }
     }
 
-    var battleDefenseBonus: Int {
+    func battleAttackBonus(for attr: BattleAttribute) -> Int {
         switch self {
-        case .blockPlus:
-            return 10
-        case .blockPlus2:
-            return 20
-        case .gatherSkill:
-            return 0 // future: +3 per same tribe
+        case .attackPlus:  return 10
+        case .attackPlus2: return 20
+        case .gatherSkill: return 0 // future expansion
         default:
-            return 0
+            let extraRes = resistBonus(for: attr)
+            return extraRes * 2
+        }
+    }
+
+    func battleDefenseBonus(for attr: BattleAttribute) -> Int {
+        switch self {
+        case .blockPlus:   return 10
+        case .blockPlus2:  return 20
+        case .gatherSkill: return 0 // future expansion
+        default:
+            return resistBonus(for: attr)
         }
     }
 }
@@ -87,12 +96,12 @@ struct CreatureStats: Equatable {
         skills.cappedForBattle
     }
 
-    var skillAttackBonus: Int {
-        skills.totalBattleAttackBonus
+    func skillAttackBonus(for attr: BattleAttribute) -> Int {
+        skills.totalBattleAttackBonus(for: attr)
     }
     
-    var skillDefenseBonus: Int {
-        skills.totalBattleDefenseBonus
+    func skillDefenseBonus(for attr: BattleAttribute) -> Int {
+        skills.totalBattleDefenseBonus(for: attr)
     }
 
     static let defaultLizard = CreatureStats(
@@ -108,7 +117,7 @@ struct CreatureStats: Equatable {
     static let defaultCrocodile = CreatureStats(
         hpMax: 30, affection: 0, power: 12, durability: 1,
         resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40,
-        skills: [.cancelSkill]
+        skills: [.waterPlus]
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 5, durability: 5,
@@ -185,12 +194,12 @@ extension Collection where Element == CreatureSkill {
         Array(prefix(2))
     }
 
-    public var totalBattleAttackBonus: Int {
-        cappedForBattle.reduce(0) { $0 + $1.battleAttackBonus }
+    public func totalBattleAttackBonus(for attr: BattleAttribute) -> Int {
+        cappedForBattle.reduce(0) { $0 + $1.battleAttackBonus(for: attr) }
     }
 
-    public var totalBattleDefenseBonus: Int {
-        cappedForBattle.reduce(0) { $0 + $1.battleDefenseBonus }
+    public func totalBattleDefenseBonus(for attr: BattleAttribute) -> Int {
+        cappedForBattle.reduce(0) { $0 + $1.battleDefenseBonus(for: attr) }
     }
 
     public func paddedSkillImageNames(maxCount: Int = 2) -> [String] {
