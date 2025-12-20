@@ -3212,8 +3212,8 @@ final class GameVM: ObservableObject {
             .max(by: { (lhs, rhs) in
                 let ls = lhs.stats ?? .defaultLizard
                 let rs = rhs.stats ?? .defaultLizard
-                let lScore = ls.durability + resistValue(of: ls, for: attr)
-                let rScore = rs.durability + resistValue(of: rs, for: attr)
+                let lScore = ls.durability + resistValue(of: ls, for: attr) + ls.skillDefenseBonus
+                let rScore = rs.durability + resistValue(of: rs, for: attr) + rs.skillDefenseBonus
                 return lScore < rScore
             })
     }
@@ -4255,12 +4255,27 @@ final class GameVM: ObservableObject {
 
         let attackerIsCPU = (attackerId == 1)
         let defenderId = defOwner
+        let attackerHadBomb = finalL.skills.contains(.bombSkill)
+        let defenderHadBomb = finalR.skills.contains(.bombSkill)
+        var attackerDead = finalL.hp <= 0
+        var defenderDead = finalR.hp <= 0
 
-        if finalR.hp <= 0 {
+        if attackerHadBomb && attackerDead {
+            defenderDead = true
+        }
+        if defenderHadBomb && defenderDead {
+            attackerDead = true
+        }
+
+        if defenderDead && attackerDead {
+            clearCreatureInfo(at: t, clearOwnerAndLevel: true, resetToll: true)
+            consumeFromHand(usedCard, for: attackerId)
+            battleResult = "相討ち：双方消滅"
+        } else if defenderDead {
             placeCreature(from: usedCard, at: t, by: attackerId)
             consumeFromHand(usedCard, for: attackerId)
             battleResult = attackerIsCPU ? "土地を奪われた" : "土地を奪い取った"
-        } else if finalL.hp <= 0 {
+        } else if attackerDead {
             if hp.indices.contains(t) { hp[t] = finalR.hp; hp = hp }
             if var c = creatureOnTile[t] {
                 c.hp = finalR.hp

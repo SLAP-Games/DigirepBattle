@@ -26,6 +26,9 @@ public struct BattleCombatant: Identifiable, Equatable {
     public var skillAttackBonus: Int {
         skills.totalBattleAttackBonus
     }
+    public var skillDefenseBonus: Int {
+        skills.totalBattleDefenseBonus
+    }
 
     public init(
         name: String,
@@ -272,16 +275,18 @@ fileprivate struct FighterHUD: View {
             let defWhite = CGFloat(who.durability)
             let defRes   = CGFloat(who.resist)
             let defItem  = CGFloat(who.itemDurability)
-            let defSum   = min(100, defWhite + defRes + defItem)
+            let defSkill = CGFloat(who.skillDefenseBonus)
+            let defSum   = min(100, defWhite + defRes + defItem + defSkill)
             StatRow(
                 title: "耐久力",
-                displayedValue: Text("\(Int(defWhite)) + \(Int(defRes)) + \(Int(defItem))"),
+                displayedValue: Text("\(Int(defWhite)) + \(Int(defRes)) + \(Int(defItem)) + \(Int(defSkill))"),
                 bar: SegmentedBar(
                     maxValue: 100, height: 10, cornerRadius: 6,
                     segments: [
                         .init(value: defWhite, color: .white),
                         .init(value: defRes, color: resistColor(for: attr)),
                         .init(value: defItem, color: .purple),
+                        .init(value: defSkill, color: .red),
                         .init(value: max(0, 100 - defSum), color: .black)
                     ]
                 )
@@ -775,34 +780,36 @@ public struct BattleOverlayView: View {
     // MARK: - Damage + HP animation
     private func resolveAttack(attackerIsLeft: Bool) {
         func atkValue(of c: BattleCombatant) -> Int { c.power * 2 + c.resist * 4 + c.itemPower + c.skillAttackBonus }
-        func defValue(of c: BattleCombatant) -> Int { c.durability + c.resist + c.itemDurability }
+        func defValue(of c: BattleCombatant) -> Int { c.durability + c.resist + c.itemDurability + c.skillDefenseBonus }
 
         guard !isFinished else { return }
 
         if attackerIsLeft {
+            let isCritical = isCriticalHit(attackerIsLeft: true)
             var atk = atkValue(of: L)
-            if isCriticalHit(attackerIsLeft: true) {
+            if isCritical {
                 let boosted = Int((Double(atk) * 1.5).rounded())
                 atk = max(atk + 1, boosted)
             }
             let def = defValue(of: R)
             let dmg = max(0, atk - def)
             dmgRight = dmg
-            showHit(onRight: true)
+            showHit(onRight: true, isCritical: isCritical)
             R.hp = max(0, R.hp - dmg)
             withAnimation(.easeOut(duration: 0.6)) { rightHPAnim = CGFloat(R.hp) }
 
             if R.hp <= 0 { finishNow() }
         } else {
+            let isCritical = isCriticalHit(attackerIsLeft: false)
             var atk = atkValue(of: R)
-            if isCriticalHit(attackerIsLeft: false) {
+            if isCritical {
                 let boosted = Int((Double(atk) * 1.5).rounded())
                 atk = max(atk + 1, boosted)
             }
             let def = defValue(of: L)
             let dmg = max(0, atk - def)
             dmgLeft = dmg
-            showHit(onRight: false)
+            showHit(onRight: false, isCritical: isCritical)
             L.hp = max(0, L.hp - dmg)
             withAnimation(.easeOut(duration: 0.6)) { leftHPAnim = CGFloat(L.hp) }
 
@@ -811,8 +818,12 @@ public struct BattleOverlayView: View {
         currentCriticalAttack = false
     }
 
-    private func showHit(onRight: Bool) {
-        SoundManager.shared.playAttackSound2()
+    private func showHit(onRight: Bool, isCritical: Bool) {
+        if isCritical {
+            SoundManager.shared.playAttackSound2()
+        } else {
+            SoundManager.shared.playAttackSound()
+        }
         triggerImpactEffect()
         if onRight {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { showDmgRight = true }

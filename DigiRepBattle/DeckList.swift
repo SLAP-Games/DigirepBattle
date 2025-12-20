@@ -34,7 +34,7 @@ extension DeckList {
 //            "cre-defaultGreenIguana":   5,
 //            "cre-defaultBallPython":    5
             
-            "cre-defaultCrocodile":        25
+            "cre-defaultBeardedDragon":        25
         ]
 
         deck.spellSlots = [

@@ -52,6 +52,19 @@ public enum CreatureSkill: String, Equatable, Hashable {
             return 0
         }
     }
+
+    var battleDefenseBonus: Int {
+        switch self {
+        case .blockPlus:
+            return 10
+        case .blockPlus2:
+            return 20
+        case .gatherSkill:
+            return 0 // future: +3 per same tribe
+        default:
+            return 0
+        }
+    }
 }
 
 struct CreatureStats: Equatable {
@@ -77,6 +90,10 @@ struct CreatureStats: Equatable {
     var skillAttackBonus: Int {
         skills.totalBattleAttackBonus
     }
+    
+    var skillDefenseBonus: Int {
+        skills.totalBattleDefenseBonus
+    }
 
     static let defaultLizard = CreatureStats(
         hpMax: 25, affection: 3, power: 7, durability: 7,
@@ -91,7 +108,7 @@ struct CreatureStats: Equatable {
     static let defaultCrocodile = CreatureStats(
         hpMax: 30, affection: 0, power: 12, durability: 1,
         resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40,
-        skills: [.attackPlus]
+        skills: [.bombSkill]
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 5, durability: 5,
@@ -170,6 +187,10 @@ extension Collection where Element == CreatureSkill {
 
     public var totalBattleAttackBonus: Int {
         cappedForBattle.reduce(0) { $0 + $1.battleAttackBonus }
+    }
+
+    public var totalBattleDefenseBonus: Int {
+        cappedForBattle.reduce(0) { $0 + $1.battleDefenseBonus }
     }
 
     public func paddedSkillImageNames(maxCount: Int = 2) -> [String] {
