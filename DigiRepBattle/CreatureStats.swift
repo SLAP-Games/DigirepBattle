@@ -114,9 +114,9 @@ struct CreatureStats: Equatable {
         skills: [.waterPlus]
     )
     static let defaultCrocodile = CreatureStats(
-        hpMax: 30, affection: 0, power: 12, durability: 1,
+        hpMax: 60, affection: 0, power: 12, durability: 1,
         resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40,
-        skills: [.harvestSkill]
+        skills: [.healSkill]
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 5, durability: 5,

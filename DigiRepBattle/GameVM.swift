@@ -510,6 +510,7 @@ final class GameVM: ObservableObject {
         await runGoldSkillIncome()
         await advanceDeleteBugTimersForTurnStart()
         await advanceDoubleTimersForTurnStart()
+        await runHealSkillRecovery()
 
         // --------------------------------------------------
         // ① 毒ダメージ（そのクリーチャーの持ち主のターンだけ）
@@ -4445,6 +4446,59 @@ final class GameVM: ObservableObject {
     private func gatherSkillBonusDefense(for symbol: String, owner: Int, excluding: Int?, hasSkill: Bool) -> Int {
         guard hasSkill else { return 0 }
         return gatherSkillCount(for: symbol, ownerId: owner, excluding: excluding) * 3
+    }
+
+    private func runHealSkillRecovery() async {
+        var events: [(tile: Int, heal: Int)] = []
+
+        for i in 0..<tileCount {
+            guard owner.indices.contains(i),
+                  owner[i] == turn,
+                  let creature = creatureOnTile[i],
+                  creature.stats.skills.contains(.healSkill),
+                  hp.indices.contains(i), hpMax.indices.contains(i),
+                  hp[i] < hpMax[i] else { continue }
+            let missing = hpMax[i] - hp[i]
+            guard missing > 0 else { continue }
+            events.append((i, missing))
+        }
+
+        guard !events.isEmpty else { return }
+
+        let previousFocus = focusTile
+        let previousForce = forceCameraFocus
+        forceCameraFocus = true
+        isHealingAnimating = true
+
+        for e in events {
+            let beforeHP = hp[e.tile]
+            let newHP = hpMax[e.tile]
+            if newHP != beforeHP {
+                hp[e.tile] = newHP
+                if var c = creatureOnTile[e.tile] {
+                    c.hp = newHP
+                    creatureOnTile[e.tile] = c
+                }
+                hp = hp
+            }
+
+            focusTile = e.tile
+            spellEffectTile = e.tile
+            spellEffectKind = .heal
+            healingAmounts = [e.tile: e.heal]
+            SoundManager.shared.playEffect(for: .heal)
+
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            healingAmounts.removeAll()
+            if spellEffectTile == e.tile && spellEffectKind == .heal {
+                spellEffectTile = nil
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+
+        isHealingAnimating = false
+        forceCameraFocus = previousForce
+        focusTile = previousFocus
     }
 
     private func runGoldSkillIncome() async {
