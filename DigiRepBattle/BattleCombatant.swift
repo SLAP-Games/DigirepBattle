@@ -22,6 +22,8 @@ public struct BattleCombatant: Identifiable, Equatable {
     public var itemDurability: Int
     public let resist: Int
     public let skills: [CreatureSkill]
+    public let gatherAttackBonus: Int
+    public let gatherDefenseBonus: Int
 
     public func attackSkillBonus(for attr: BattleAttribute) -> Int {
         skills.totalBattleAttackBonus(for: attr)
@@ -37,7 +39,9 @@ public struct BattleCombatant: Identifiable, Equatable {
         power: Int, durability: Int,
         itemPower: Int, itemDurability: Int,
         resist: Int,
-        skills: [CreatureSkill] = []
+        skills: [CreatureSkill] = [],
+        gatherAttackBonus: Int = 0,
+        gatherDefenseBonus: Int = 0
     ) {
         self.name = name
         self.imageName = imageName
@@ -49,6 +53,8 @@ public struct BattleCombatant: Identifiable, Equatable {
         self.itemDurability = itemDurability
         self.resist = resist
         self.skills = skills.cappedForBattle
+        self.gatherAttackBonus = gatherAttackBonus
+        self.gatherDefenseBonus = gatherDefenseBonus
     }
 }
 
@@ -254,7 +260,7 @@ fileprivate struct FighterHUD: View {
             let atkWhite = CGFloat(who.power * 2)
             let atkRes   = CGFloat(who.resist * 4)
             let atkItem  = CGFloat(who.itemPower)
-            let atkSkill = CGFloat(who.attackSkillBonus(for: attr))
+            let atkSkill = CGFloat(who.attackSkillBonus(for: attr) + who.gatherAttackBonus)
             let atkSum   = min(150, atkWhite + atkRes + atkItem + atkSkill)
             StatRow(
                 title: "戦闘力",
@@ -275,7 +281,7 @@ fileprivate struct FighterHUD: View {
             let defWhite = CGFloat(who.durability)
             let defRes   = CGFloat(who.resist)
             let defItem  = CGFloat(who.itemDurability)
-            let defSkill = CGFloat(who.defenseSkillBonus(for: attr))
+            let defSkill = CGFloat(who.defenseSkillBonus(for: attr) + who.gatherDefenseBonus)
             let defSum   = min(100, defWhite + defRes + defItem + defSkill)
             StatRow(
                 title: "耐久力",
@@ -781,8 +787,12 @@ public struct BattleOverlayView: View {
 
     // MARK: - Damage + HP animation
     private func resolveAttack(attackerIsLeft: Bool) {
-        func atkValue(of c: BattleCombatant) -> Int { c.power * 2 + c.resist * 4 + c.itemPower + c.attackSkillBonus(for: attribute) }
-        func defValue(of c: BattleCombatant) -> Int { c.durability + c.resist + c.itemDurability + c.defenseSkillBonus(for: attribute) }
+        func atkValue(of c: BattleCombatant) -> Int {
+            c.power * 2 + c.resist * 4 + c.itemPower + c.attackSkillBonus(for: attribute) + c.gatherAttackBonus
+        }
+        func defValue(of c: BattleCombatant) -> Int {
+            c.durability + c.resist + c.itemDurability + c.defenseSkillBonus(for: attribute) + c.gatherDefenseBonus
+        }
 
         guard !isFinished else { return }
 

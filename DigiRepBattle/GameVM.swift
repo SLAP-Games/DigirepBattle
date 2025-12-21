@@ -4411,6 +4411,29 @@ final class GameVM: ObservableObject {
         }
     }
 
+    private func gatherSkillCount(for symbol: String, ownerId: Int, excluding: Int?) -> Int {
+        var count = 0
+        for i in 0..<tileCount {
+            if let ex = excluding, ex == i { continue }
+            guard self.owner.indices.contains(i),
+                  self.owner[i] == ownerId,
+                  creatureSymbol.indices.contains(i),
+                  creatureSymbol[i] == symbol else { continue }
+            count += 1
+        }
+        return count
+    }
+
+    private func gatherSkillBonusAttack(for symbol: String, owner: Int, excluding: Int?, hasSkill: Bool) -> Int {
+        guard hasSkill else { return 0 }
+        return gatherSkillCount(for: symbol, ownerId: owner, excluding: excluding) * 3
+    }
+
+    private func gatherSkillBonusDefense(for symbol: String, owner: Int, excluding: Int?, hasSkill: Bool) -> Int {
+        guard hasSkill else { return 0 }
+        return gatherSkillCount(for: symbol, ownerId: owner, excluding: excluding) * 3
+    }
+
     func startBattle(with card: Card) {
         defenderHasFirstStrike = false      // ★ 先制フラグをリセット
         pendingBattleSummonCost = 0
@@ -4448,7 +4471,9 @@ final class GameVM: ObservableObject {
             power: atkStats.power, durability: atkStats.durability,
             itemPower: 0, itemDurability: 0,
             resist: resistValue(of: atkStats, for: attr),
-            skills: atkStats.cappedSkills
+            skills: atkStats.cappedSkills,
+            gatherAttackBonus: gatherSkillBonusAttack(for: card.symbol, owner: pid, excluding: nil, hasSkill: atkStats.skills.contains(.gatherSkill)),
+            gatherDefenseBonus: gatherSkillBonusDefense(for: card.symbol, owner: pid, excluding: nil, hasSkill: atkStats.skills.contains(.gatherSkill))
         )
 
         let defenderSkills: [CreatureSkill]
@@ -4467,7 +4492,9 @@ final class GameVM: ObservableObject {
             durability: dur.indices.contains(t) ? dur[t] : 0,
             itemPower: 0, itemDurability: 0,
             resist: defenderResistAt(tile: t, for: attr),
-            skills: defenderSkills
+            skills: defenderSkills,
+            gatherAttackBonus: gatherSkillBonusAttack(for: creatureOnTile[t]?.imageName ?? "", owner: defOwner, excluding: t, hasSkill: creatureOnTile[t]?.stats.skills.contains(.gatherSkill) ?? false),
+            gatherDefenseBonus: gatherSkillBonusDefense(for: creatureOnTile[t]?.imageName ?? "", owner: defOwner, excluding: t, hasSkill: creatureOnTile[t]?.stats.skills.contains(.gatherSkill) ?? false)
         )
 
         battleLeft = attacker
