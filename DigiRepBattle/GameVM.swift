@@ -4632,6 +4632,8 @@ final class GameVM: ObservableObject {
         let defenderId = defOwner
         let attackerHadBomb = finalL.skills.contains(.bombSkill)
         let defenderHadBomb = finalR.skills.contains(.bombSkill)
+        let attackerHasPoisonSkill = finalL.skills.contains(.poisonSkill)
+        let defenderHasPoisonSkill = finalR.skills.contains(.poisonSkill)
         var attackerDead = finalL.hp <= 0
         var defenderDead = finalR.hp <= 0
 
@@ -4671,29 +4673,24 @@ final class GameVM: ObservableObject {
             addGold(pendingBattleSummonCost, to: attackerId)
         }
         pendingBattleSummonCost = 0
+        let currentOwnerAfterBattle = owner.indices.contains(t) ? owner[t] : nil
 
-        if willPoisonDefender {
-            let currentOwner = owner.indices.contains(t) ? owner[t] : nil
-            if currentOwner == defenderId,
-               hp.indices.contains(t), hp[t] > 0 {
-                poisonedTiles[t] = true
-
-                // ★ バトル終了直後に毒エフェクトを1回再生
-                let tileForPoison = t
-                Task { @MainActor in
-                    self.spellEffectTile = tileForPoison
-                    self.spellEffectKind = .poison
-                    // エフェクトの長さに合わせて 1 秒ほど表示
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    if self.spellEffectTile == tileForPoison &&
-                        self.spellEffectKind == .poison {
-                        self.spellEffectTile = nil
-                    }
-                }
-            }
-            // 一度使ったらフラグをリセット
-            willPoisonDefender = false
+        // 攻撃側が毒スキル／毒牙を持っていて、防御側が生存しているときに毒付与
+        if (attackerHasPoisonSkill || willPoisonDefender),
+           currentOwnerAfterBattle == defenderId,
+           hp.indices.contains(t), hp[t] > 0 {
+            triggerPoisonEffectOnTile(t)
         }
+
+        // 防御側が毒スキルを持っていて、攻撃側がマスを保持しているときに毒付与
+        if defenderHasPoisonSkill,
+           currentOwnerAfterBattle == attackerId,
+           hp.indices.contains(t), hp[t] > 0 {
+            triggerPoisonEffectOnTile(t)
+        }
+
+        // 装備で立てた一時フラグをリセット
+        willPoisonDefender = false
 
         landedOnOpponentTileIndex = nil
         currentBattleTile = nil
@@ -5284,6 +5281,39 @@ final class GameVM: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 200_000_000)
         isHealingAnimating = false
+    }
+
+    @MainActor
+    private func triggerPoisonEffectOnTile(_ tile: Int) {
+        guard creatureSymbol.indices.contains(tile),
+              creatureSymbol[tile] != nil,
+              hp.indices.contains(tile),
+              hp[tile] > 0,
+              poisonedTiles.indices.contains(tile),
+              poisonedTiles[tile] == false,
+              !tileHasCancelSkill(tile) else { return }
+
+        poisonedTiles[tile] = true
+
+        let previousFocus = focusTile
+        let previousForce = forceCameraFocus
+        focusTile = tile
+        forceCameraFocus = true
+        spellEffectTile = tile
+        spellEffectKind = .poison
+        isHealingAnimating = true
+        SoundManager.shared.playEffect(for: .poison)
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if self.spellEffectTile == tile &&
+                self.spellEffectKind == .poison {
+                self.spellEffectTile = nil
+            }
+            self.isHealingAnimating = false
+            self.forceCameraFocus = previousForce
+            self.focusTile = previousFocus
+        }
     }
 
     @MainActor

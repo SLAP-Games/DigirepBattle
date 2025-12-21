@@ -39,7 +39,7 @@ extension DeckList {
 
         deck.spellSlots = [
 //以下テスト用
-//            "sp-dice1": 25,
+            "sp-dice1": 25,
 //            "sp-dice3": 1,
 //            "sp-dice4": 25,
 //            "sp-dice6": 25,
@@ -54,7 +54,7 @@ extension DeckList {
 //            "sp-decay": 2,
 //            "sp-devastation": 2,
 //            "sp-harvest": 25,
-            "sp-greatStorm": 25,
+//            "sp-greatStorm": 25,
 //            "sp-disaster": 2,
 //            "sp-poisonSmoke": 25,
 //            "sp-cure": 3,
