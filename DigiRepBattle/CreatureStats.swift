@@ -17,7 +17,6 @@ public enum CreatureSkill: String, Equatable, Hashable {
     case coldPlus
     case coldPlus2
     case deleteBug
-    case deleteSkill
     case dryPlus
     case dryPlus2
     case heatPlus
@@ -25,7 +24,6 @@ public enum CreatureSkill: String, Equatable, Hashable {
     case waterPlus
     case waterPlus2
     case criticalSkill
-    case delete
     case double
     case gatherSkill
     case goldSkill
@@ -118,7 +116,7 @@ struct CreatureStats: Equatable {
     static let defaultCrocodile = CreatureStats(
         hpMax: 30, affection: 0, power: 12, durability: 1,
         resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40,
-        skills: [.deleteBug]
+        skills: [.criticalSkill]
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 5, durability: 5,

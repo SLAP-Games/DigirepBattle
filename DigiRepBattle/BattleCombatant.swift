@@ -672,7 +672,9 @@ public struct BattleOverlayView: View {
 
     private func rollCriticalChance(forLeftAttacker: Bool) {
         currentCriticalAttackerIsLeft = forLeftAttacker
-        currentCriticalAttack = Int.random(in: 0..<100) < 10
+        let attacker = forLeftAttacker ? L : R
+        let chance = attacker.skills.contains(.criticalSkill) ? 30 : 10
+        currentCriticalAttack = Int.random(in: 0..<100) < chance
     }
 
     private func isCriticalHit(attackerIsLeft: Bool) -> Bool {
