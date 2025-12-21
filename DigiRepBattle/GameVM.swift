@@ -311,13 +311,13 @@ final class GameVM: ObservableObject {
         cardStates[0].deckList = initialPlayerDeck
         
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultLizard": 25
+//            "cre-defaultLizard": 25
             
-//            "cre-defaultLizard": 7,
-//            "cre-defaultCrocodile": 7,
-//            "cre-defaultBeardedDragon": 7,
-//            "cre-defaultGreenIguana": 7,
-//            "cre-defaultBallPython": 7
+            "cre-defaultLizard": 7,
+            "cre-defaultCrocodile": 7,
+            "cre-defaultBeardedDragon": 7,
+            "cre-defaultGreenIguana": 7,
+            "cre-defaultBallPython": 7
         ]
         cardStates[1].deckList.spellSlots = [
             "sp-hardFang": 5,
@@ -1125,6 +1125,14 @@ final class GameVM: ObservableObject {
     }
     
     private func handleAfterMove() {
+        // 罠で出目0となったターンはバトルもトラップ再発も発生させない
+        if lastRoll == 0 {
+            landedOnOpponentTileIndex = nil
+            expectBattleCardSelection = false
+            canEndTurn = true
+            return
+        }
+
         let t = players[turn].pos
         guard let own = owner[t], own != turn else {
             // 空き地 or 自分マス
@@ -1136,6 +1144,13 @@ final class GameVM: ObservableObject {
 
         // 敵マスに止まった
         landedOnOpponentTileIndex = t
+
+        // ★ トラップ：着地した時点で次ターンの出目を0に固定
+        if let creature = creatureOnTile[t],
+           creature.stats.skills.contains(.trapSkill) {
+            nextForcedRoll[turn] = 0
+            pushCenterMessage("罠発動：次のターンの出目が0になります")
+        }
 
         // 攻撃側（= 今動いた側）が召喚可能なクリーチャーカードを持っているか
         let canSummonForBattle = hasSummonableCreature(for: turn)
