@@ -54,6 +54,22 @@ extension CoinBurstConfig {
         verticalDriftRange: 0.03...0.08,
         opacityPower: 1.35
     )
+
+    static let goldSkill = CoinBurstConfig(
+        count: 10,
+        startPoint: UnitPoint(x: 0.5, y: 0.2),
+        horizontalDistanceRange: 0.12...0.3,
+        peakHeightRange: 0.25...0.4,
+        durationRange: 0.8...1.0,
+        delayRange: 0...0.1,
+        baseSizeRange: 0.12...0.18,
+        spinSpeedRange: 1.2...2.0,
+        axisXRange: -0.3...0.3,
+        axisYRange: 0.2...0.8,
+        zRotationSpeedRange: -0.8...0.8,
+        verticalDriftRange: 0.02...0.06,
+        opacityPower: 1.3
+    )
 }
 
 struct CoinBurstField: View {

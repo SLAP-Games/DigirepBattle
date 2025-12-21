@@ -216,6 +216,10 @@ final class GameVM: ObservableObject {
     @Published var doubleFlashTrigger: UUID = UUID()
     @Published var doubleSmokeTile: Int? = nil
     @Published var doubleSmokeTrigger: UUID = UUID()
+    // goldSkill 用
+    @Published var goldSkillTile: Int? = nil
+    @Published var goldSkillTrigger: UUID = UUID()
+    @Published var goldSkillAmount: Int? = nil
     @Published var focusedHandIndex: Int = 0
     @Published var handDragOffset: CGFloat = 0
     
@@ -503,6 +507,7 @@ final class GameVM: ObservableObject {
         try? await Task.sleep(nanoseconds: 300_000_000)
         refreshSummonReminderState()
 
+        await runGoldSkillIncome()
         await advanceDeleteBugTimersForTurnStart()
         await advanceDoubleTimersForTurnStart()
 
@@ -4432,6 +4437,48 @@ final class GameVM: ObservableObject {
     private func gatherSkillBonusDefense(for symbol: String, owner: Int, excluding: Int?, hasSkill: Bool) -> Int {
         guard hasSkill else { return 0 }
         return gatherSkillCount(for: symbol, ownerId: owner, excluding: excluding) * 3
+    }
+
+    private func runGoldSkillIncome() async {
+        let previousFocus = focusTile
+        let previousForce = forceCameraFocus
+        var events: [(tile: Int, gain: Int)] = []
+
+        for i in 0..<tileCount {
+            guard owner.indices.contains(i),
+                  owner[i] == turn,
+                  creatureSymbol.indices.contains(i),
+                  creatureSymbol[i] != nil,
+                  hp.indices.contains(i), hp[i] > 0 else { continue }
+            guard let creature = creatureOnTile[i] else { continue }
+            let hasGold1 = creature.stats.skills.contains(.goldSkill)
+            let hasGold2 = creature.stats.skills.contains(.goldSkill2)
+            guard hasGold1 || hasGold2 else { continue }
+            let rate = hasGold2 ? 0.20 : 0.10
+            let gain = Int(Double(toll(at: i)) * rate)
+            guard gain > 0 else { continue }
+            events.append((i, gain))
+        }
+
+        guard !events.isEmpty else { return }
+        forceCameraFocus = true
+
+        for e in events {
+            focusTile = e.tile
+            goldSkillTile = e.tile
+            goldSkillAmount = e.gain
+            goldSkillTrigger = UUID()
+            try? await Task.sleep(nanoseconds: 300_000_000) // カメラ移動待ち
+            SoundManager.shared.playBoardWideEffectSound(.treasure)
+            addGold(e.gain, to: turn)
+            try? await Task.sleep(nanoseconds: 800_000_000) // エフェクト表示
+        }
+
+        goldSkillTile = nil
+        goldSkillAmount = nil
+        goldSkillTrigger = UUID()
+        forceCameraFocus = previousForce
+        focusTile = previousFocus
     }
 
     func startBattle(with card: Card) {

@@ -71,7 +71,10 @@ struct ContentView: View {
                         doubleFlashLevel: vm.doubleFlashLevel,
                         doubleFlashTrigger: vm.doubleFlashTrigger,
                         doubleSmokeTile: vm.doubleSmokeTile,
-                        doubleSmokeTrigger: vm.doubleSmokeTrigger
+                        doubleSmokeTrigger: vm.doubleSmokeTrigger,
+                        goldSkillTile: vm.goldSkillTile,
+                        goldSkillTrigger: vm.goldSkillTrigger,
+                        goldSkillAmount: vm.goldSkillAmount
                     )
                     .frame(height: boardH)
                     .background {

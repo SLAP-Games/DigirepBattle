@@ -83,6 +83,9 @@ struct RingBoardView: View {
     var doubleFlashTrigger: UUID = UUID()
     var doubleSmokeTile: Int? = nil
     var doubleSmokeTrigger: UUID = UUID()
+    var goldSkillTile: Int? = nil
+    var goldSkillTrigger: UUID = UUID()
+    var goldSkillAmount: Int? = nil
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -245,6 +248,16 @@ struct RingBoardView: View {
                                             minX: minX, minY: minY,
                                             step: step, tileSize: tileSize)
                     DeleteBugSmokeOverlay(size: tileSize * 1.1, trigger: doubleSmokeTrigger)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let goldTile = goldSkillTile,
+                   let node = nodeMap[goldTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    GoldSkillOverlay(amount: goldSkillAmount ?? 0, trigger: goldSkillTrigger, size: tileSize * 1.4)
                         .position(pos)
                         .allowsHitTesting(false)
                 }
