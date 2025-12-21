@@ -3359,6 +3359,11 @@ final class GameVM: ObservableObject {
         return creature.stats.skills.contains(.cancelSkill)
     }
 
+    private func tileHasHarvestSkill(_ tile: Int) -> Bool {
+        guard let creature = creatureOnTile[tile] else { return false }
+        return creature.stats.skills.contains(.harvestSkill)
+    }
+
     private func enforceCancelSkillProtection(on tile: Int) {
         guard tileHasCancelSkill(tile) else { return }
         if poisonedTiles.indices.contains(tile) {
@@ -3405,6 +3410,9 @@ final class GameVM: ObservableObject {
         var value = Int((Double(base) * mult).rounded())
         
         if harvestedTiles.contains(tile) {
+            value *= 2
+        }
+        if tileHasHarvestSkill(tile) {
             value *= 2
         }
         
