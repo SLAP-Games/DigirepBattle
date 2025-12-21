@@ -3675,6 +3675,12 @@ final class GameVM: ObservableObject {
         return terrain[tile].attribute
     }
 
+    /// ランダムスキル用に戦闘属性をランダム選択（normalは除外）
+    private func randomBattleAttribute() -> TileAttribute {
+        let attrs: [TileAttribute] = [.dry, .water, .heat, .cold]
+        return attrs.randomElement() ?? .normal
+    }
+
     private func tileStatusDescription(for tile: Int) -> String {
         if tileHasCancelSkill(tile) { return "なし" }
         var statuses: [String] = []
@@ -4570,7 +4576,19 @@ final class GameVM: ObservableObject {
         isAwaitingBattleResult = true
 
         let atkStats = card.stats ?? CreatureStats.defaultLizard
-        let attr = attributeAt(tile: t)
+        let defenderSkills: [CreatureSkill]
+        if let creature = creatureOnTile[t] {
+            defenderSkills = creature.stats.cappedSkills
+        } else {
+            defenderSkills = []
+        }
+
+        var battleTileAttr = attributeAt(tile: t)
+        let attackerHasRandom = atkStats.skills.contains(.randomSkill)
+        let defenderHasRandom = defenderSkills.contains(.randomSkill)
+        if attackerHasRandom || defenderHasRandom {
+            battleTileAttr = randomBattleAttribute()
+        }
 
         // 左=攻撃者（あなた or CPU）、右=防御者（盤面クリーチャー）
         let attacker = BattleCombatant(
@@ -4579,18 +4597,11 @@ final class GameVM: ObservableObject {
             hp: atkStats.hpMax, hpMax: atkStats.hpMax,
             power: atkStats.power, durability: atkStats.durability,
             itemPower: 0, itemDurability: 0,
-            resist: resistValue(of: atkStats, for: attr),
+            resist: resistValue(of: atkStats, for: battleTileAttr),
             skills: atkStats.cappedSkills,
             gatherAttackBonus: gatherSkillBonusAttack(for: card.symbol, owner: pid, excluding: nil, hasSkill: atkStats.skills.contains(.gatherSkill)),
             gatherDefenseBonus: gatherSkillBonusDefense(for: card.symbol, owner: pid, excluding: nil, hasSkill: atkStats.skills.contains(.gatherSkill))
         )
-
-        let defenderSkills: [CreatureSkill]
-        if let creature = creatureOnTile[t] {
-            defenderSkills = creature.stats.cappedSkills
-        } else {
-            defenderSkills = []
-        }
 
         let defender = BattleCombatant(
             name: (defOwner == 0 ? "あなた" : "NPC"),
@@ -4600,7 +4611,7 @@ final class GameVM: ObservableObject {
             power: pow.indices.contains(t) ? pow[t] : 0,
             durability: dur.indices.contains(t) ? dur[t] : 0,
             itemPower: 0, itemDurability: 0,
-            resist: defenderResistAt(tile: t, for: attr),
+            resist: defenderResistAt(tile: t, for: battleTileAttr),
             skills: defenderSkills,
             gatherAttackBonus: gatherSkillBonusAttack(for: creatureOnTile[t]?.imageName ?? "", owner: defOwner, excluding: t, hasSkill: creatureOnTile[t]?.stats.skills.contains(.gatherSkill) ?? false),
             gatherDefenseBonus: gatherSkillBonusDefense(for: creatureOnTile[t]?.imageName ?? "", owner: defOwner, excluding: t, hasSkill: creatureOnTile[t]?.stats.skills.contains(.gatherSkill) ?? false)
@@ -4608,7 +4619,7 @@ final class GameVM: ObservableObject {
 
         battleLeft = attacker
         battleRight = defender
-        battleAttr = BattleAttribute(rawValue: attr.rawValue) ?? .normal
+        battleAttr = BattleAttribute(rawValue: battleTileAttr.rawValue) ?? .normal
         if turn == 1 {
             cpuUseEquipSkillIfAvailable()
         }
