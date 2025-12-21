@@ -116,7 +116,7 @@ struct CreatureStats: Equatable {
     static let defaultCrocodile = CreatureStats(
         hpMax: 30, affection: 0, power: 12, durability: 1,
         resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40,
-        skills: [.criticalSkill]
+        skills: [.double]
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 5, durability: 5,
@@ -183,6 +183,7 @@ struct Creature: Identifiable, Equatable {
     var stats: CreatureStats  // 基礎能力（種のテンプレを束ねる）
     var hp: Int               // 現在HP（最大は stats.hpMax）
     var deleteBugTurns: Int? = nil
+    var doubleTurns: Int? = nil
 
     // 将来の拡張余地（鑑定や装備、バフ/デバフ）
     var revealed: RevealLevel = .hpOnly

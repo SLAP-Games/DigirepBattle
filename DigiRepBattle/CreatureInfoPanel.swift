@@ -80,7 +80,7 @@ struct CreatureInfoPanel: View {
                             SkillIconRow(
                                 skills: iv.skills,
                                 iconSize: 30,
-                                overrideNames: deleteBugOverrideIcons
+                                overrideNames: overrideSkillIcons
                             )
                         }
                     }
@@ -113,13 +113,23 @@ struct CreatureInfoPanel: View {
 }
 
 private extension CreatureInfoPanel {
-    var deleteBugOverrideIcons: [String]? {
-        guard let turns = iv.deleteBugTurns, (1...3).contains(turns) else { return nil }
-        let base = iv.skills.paddedSkillImageNames(maxCount: 2)
-        guard let idx = base.firstIndex(of: CreatureSkill.deleteBug.imageName) else { return nil }
-        var names = base
-        names[idx] = "deleteBug\(turns)"
-        return names
+    var overrideSkillIcons: [String]? {
+        var base = iv.skills.paddedSkillImageNames(maxCount: 2)
+        var changed = false
+
+        if let turns = iv.deleteBugTurns, (1...3).contains(turns),
+           let idx = base.firstIndex(of: CreatureSkill.deleteBug.imageName) {
+            base[idx] = "deleteBug\(turns)"
+            changed = true
+        }
+
+        if let turns = iv.doubleTurns, (1...3).contains(turns),
+           let idx = base.firstIndex(of: CreatureSkill.double.imageName) {
+            base[idx] = "double\(turns)"
+            changed = true
+        }
+
+        return changed ? base : nil
     }
 }
 

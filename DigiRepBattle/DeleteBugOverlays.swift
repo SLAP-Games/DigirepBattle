@@ -5,13 +5,14 @@ struct DeleteBugCountdownOverlay: View {
     let size: CGFloat
     let level: Int
     let trigger: UUID
+    var prefix: String = "deleteBug"
 
     @State private var isVisible = false
     @State private var scale: CGFloat = 0.4
     @State private var opacity: Double = 0.0
 
     var body: some View {
-        Image("deleteBug\(level)")
+        Image("\(prefix)\(level)")
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)

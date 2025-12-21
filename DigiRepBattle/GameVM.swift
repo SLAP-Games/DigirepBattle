@@ -27,6 +27,7 @@ struct CreatureInspectView {
     let coldRes: String
     let skills: [CreatureSkill]
     let deleteBugTurns: Int?
+    let doubleTurns: Int?
 }
 
 @MainActor
@@ -208,6 +209,13 @@ final class GameVM: ObservableObject {
     @Published var deleteBugFlashTrigger: UUID = UUID()
     @Published var deleteBugSmokeTile: Int? = nil
     @Published var deleteBugSmokeTrigger: UUID = UUID()
+    // double カウント用
+    @Published var doubleCounters: [Int: Int] = [:]
+    @Published var doubleFlashTile: Int? = nil
+    @Published var doubleFlashLevel: Int? = nil
+    @Published var doubleFlashTrigger: UUID = UUID()
+    @Published var doubleSmokeTile: Int? = nil
+    @Published var doubleSmokeTrigger: UUID = UUID()
     @Published var focusedHandIndex: Int = 0
     @Published var handDragOffset: CGFloat = 0
     
@@ -496,6 +504,7 @@ final class GameVM: ObservableObject {
         refreshSummonReminderState()
 
         await advanceDeleteBugTimersForTurnStart()
+        await advanceDoubleTimersForTurnStart()
 
         // --------------------------------------------------
         // ① 毒ダメージ（そのクリーチャーの持ち主のターンだけ）
@@ -3441,6 +3450,14 @@ final class GameVM: ObservableObject {
         }
     }
 
+    private func setDoubleCounter(for tile: Int, skills: [CreatureSkill]) {
+        if skills.contains(.double) {
+            doubleCounters[tile] = 3
+        } else {
+            doubleCounters.removeValue(forKey: tile)
+        }
+    }
+
     private func triggerDeleteBugFlash(tile: Int, level: Int) {
         deleteBugFlashTile = tile
         deleteBugFlashLevel = level
@@ -3450,6 +3467,17 @@ final class GameVM: ObservableObject {
     private func triggerDeleteBugSmoke(at tile: Int) {
         deleteBugSmokeTile = tile
         deleteBugSmokeTrigger = UUID()
+    }
+
+    private func triggerDoubleFlash(tile: Int, level: Int) {
+        doubleFlashTile = tile
+        doubleFlashLevel = level
+        doubleFlashTrigger = UUID()
+    }
+
+    private func triggerDoubleSmoke(at tile: Int) {
+        doubleSmokeTile = tile
+        doubleSmokeTrigger = UUID()
     }
 
     private func advanceDeleteBugTimersForTurnStart() async {
@@ -3490,6 +3518,89 @@ final class GameVM: ObservableObject {
         focusTile = previousFocus
         deleteBugSmokeTile = nil
     }
+
+    private func advanceDoubleTimersForTurnStart() async {
+        let previousFocus = focusTile
+        let previousForce = forceCameraFocus
+        var tilesToDuplicate: [Int] = []
+
+        for (tile, count) in doubleCounters {
+            guard owner.indices.contains(tile),
+                  owner[tile] == turn,
+                  creatureOnTile[tile] != nil else { continue }
+            let next = count - 1
+            if next <= 0 {
+                tilesToDuplicate.append(tile)
+            } else {
+                doubleCounters[tile] = next
+                if var c = creatureOnTile[tile] {
+                    c.doubleTurns = next
+                    creatureOnTile[tile] = c
+                }
+                triggerDoubleFlash(tile: tile, level: next)
+            }
+        }
+
+        for tile in tilesToDuplicate {
+            doubleCounters.removeValue(forKey: tile)
+            focusTile = tile
+            forceCameraFocus = true
+            try? await Task.sleep(nanoseconds: 500_000_000) // カメラ移動
+            triggerDoubleSmoke(at: tile)
+            SoundManager.shared.playDoubleSound()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            duplicateCreature(from: tile)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+
+        forceCameraFocus = previousForce
+        focusTile = previousFocus
+        doubleSmokeTile = nil
+    }
+
+    private func duplicateCreature(from tile: Int) {
+        guard let original = creatureOnTile[tile] else { return }
+
+        // 探索順：CW→CCW
+        let cw = (tile + 1) % tileCount
+        let ccw = (tile - 1 + tileCount) % tileCount
+        let candidates = [cw, ccw]
+        guard let target = candidates.first(where: {
+            canPlaceCreature(at: $0)
+            && creatureSymbol.indices.contains($0) && creatureSymbol[$0] == nil
+            && (!owner.indices.contains($0) || owner[$0] == nil)
+        }) else {
+            // 複製失敗：元のdoubleだけ消す
+            removeDoubleSkill(at: tile)
+            return
+        }
+
+        var cloneStats = original.stats
+        cloneStats.skills.removeAll { $0 == .double }
+        removeDoubleSkill(at: tile)
+
+        let name = creatureName(forSymbol: original.imageName) ?? original.imageName
+        let cloneCard = Card(
+            id: UUID().uuidString,
+            kind: .creature,
+            name: name,
+            symbol: original.imageName,
+            cost: cloneStats.cost,
+            stats: cloneStats,
+            spell: nil
+        )
+        _ = placeCreature(from: cloneCard, at: target, by: original.owner)
+    }
+
+    private func removeDoubleSkill(at tile: Int) {
+        doubleCounters.removeValue(forKey: tile)
+        if var c = creatureOnTile[tile] {
+            c.doubleTurns = nil
+            c.stats.skills.removeAll { $0 == .double }
+            creatureOnTile[tile] = c
+            setDoubleCounter(for: tile, skills: c.stats.skills) // ensure cleared
+        }
+    }
     
     @discardableResult
     func placeCreature(from card: Card, at tile: Int, by pid: Int) -> Bool {
@@ -3516,6 +3627,7 @@ final class GameVM: ObservableObject {
             poisonedTiles[tile] = false
         }
         setDeleteBugCounter(for: tile, skills: s.skills)
+        setDoubleCounter(for: tile, skills: s.skills)
         hp = hp
         creatureOnTile[tile] = Creature(
             id: UUID().uuidString,
@@ -3523,7 +3635,8 @@ final class GameVM: ObservableObject {
             imageName: card.symbol,
             stats: s,
             hp: s.hpMax,
-            deleteBugTurns: deleteBugCounters[tile]
+            deleteBugTurns: deleteBugCounters[tile],
+            doubleTurns: doubleCounters[tile]
         )
         enforceCancelSkillProtection(on: tile)
         toll[tile] = toll(at: tile)
@@ -3655,7 +3768,15 @@ final class GameVM: ObservableObject {
                     cost: (cost.indices.contains(tile) ? cost[tile] : 1)
                 )
                 let img = creatureSymbol.indices.contains(tile) ? (creatureSymbol[tile] ?? "lizard.fill") : "lizard.fill"
-                creature = Creature(id: "legacy-\(tile)", owner: own, imageName: img, stats: stats, hp: hp[tile], deleteBugTurns: deleteBugCounters[tile])
+                creature = Creature(
+                    id: "legacy-\(tile)",
+                    owner: own,
+                    imageName: img,
+                    stats: stats,
+                    hp: hp[tile],
+                    deleteBugTurns: deleteBugCounters[tile],
+                    doubleTurns: doubleCounters[tile]
+                )
             }
         }
         guard let c = creature else { return nil }
@@ -3702,7 +3823,8 @@ final class GameVM: ObservableObject {
             heatRes:   mask(c.stats.resistHeat),
             coldRes:   mask(c.stats.resistCold),
             skills:    c.stats.cappedSkills,
-            deleteBugTurns: deleteBugCounters[tile]
+            deleteBugTurns: deleteBugCounters[tile],
+            doubleTurns: doubleCounters[tile]
         )
     }
     
@@ -3728,6 +3850,7 @@ final class GameVM: ObservableObject {
             poisonedTiles[tile] = false
         }
         deleteBugCounters.removeValue(forKey: tile)
+        doubleCounters.removeValue(forKey: tile)
 
         // Creature辞書からも削除
         creatureOnTile.removeValue(forKey: tile)
@@ -4147,13 +4270,15 @@ final class GameVM: ObservableObject {
         cost[t] = s.cost
         toll[t] = toll(at: t)
         setDeleteBugCounter(for: t, skills: s.skills)
+        setDoubleCounter(for: t, skills: s.skills)
         creatureOnTile[t] = Creature(
             id: UUID().uuidString,
             owner: turn,
             imageName: newCard.symbol,
             stats: s,
             hp: s.hpMax,
-            deleteBugTurns: deleteBugCounters[t]
+            deleteBugTurns: deleteBugCounters[t],
+            doubleTurns: doubleCounters[t]
         )
         enforceCancelSkillProtection(on: t)
 

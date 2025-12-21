@@ -78,6 +78,11 @@ struct RingBoardView: View {
     var deleteBugFlashTrigger: UUID = UUID()
     var deleteBugSmokeTile: Int? = nil
     var deleteBugSmokeTrigger: UUID = UUID()
+    var doubleFlashTile: Int? = nil
+    var doubleFlashLevel: Int? = nil
+    var doubleFlashTrigger: UUID = UUID()
+    var doubleSmokeTile: Int? = nil
+    var doubleSmokeTrigger: UUID = UUID()
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -208,7 +213,18 @@ struct RingBoardView: View {
                     let pos = pointNoOrigin(for: node.grid,
                                             minX: minX, minY: minY,
                                             step: step, tileSize: tileSize)
-                    DeleteBugCountdownOverlay(size: tileSize * 0.8, level: level, trigger: deleteBugFlashTrigger)
+                    DeleteBugCountdownOverlay(size: tileSize * 0.8, level: level, trigger: deleteBugFlashTrigger, prefix: "deleteBug")
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let flashTile = doubleFlashTile,
+                   let level = doubleFlashLevel,
+                   let node = nodeMap[flashTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    DeleteBugCountdownOverlay(size: tileSize * 0.8, level: level, trigger: doubleFlashTrigger, prefix: "double")
                         .position(pos)
                         .allowsHitTesting(false)
                 }
@@ -219,6 +235,16 @@ struct RingBoardView: View {
                                             minX: minX, minY: minY,
                                             step: step, tileSize: tileSize)
                     DeleteBugSmokeOverlay(size: tileSize * 1.1, trigger: deleteBugSmokeTrigger)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let smokeTile = doubleSmokeTile,
+                   let node = nodeMap[smokeTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    DeleteBugSmokeOverlay(size: tileSize * 1.1, trigger: doubleSmokeTrigger)
                         .position(pos)
                         .allowsHitTesting(false)
                 }

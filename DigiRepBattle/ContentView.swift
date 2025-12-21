@@ -66,7 +66,12 @@ struct ContentView: View {
                         deleteBugFlashLevel: vm.deleteBugFlashLevel,
                         deleteBugFlashTrigger: vm.deleteBugFlashTrigger,
                         deleteBugSmokeTile: vm.deleteBugSmokeTile,
-                        deleteBugSmokeTrigger: vm.deleteBugSmokeTrigger
+                        deleteBugSmokeTrigger: vm.deleteBugSmokeTrigger,
+                        doubleFlashTile: vm.doubleFlashTile,
+                        doubleFlashLevel: vm.doubleFlashLevel,
+                        doubleFlashTrigger: vm.doubleFlashTrigger,
+                        doubleSmokeTile: vm.doubleSmokeTile,
+                        doubleSmokeTrigger: vm.doubleSmokeTrigger
                     )
                     .frame(height: boardH)
                     .background {

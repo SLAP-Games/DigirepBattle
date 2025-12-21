@@ -134,6 +134,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
         playSE(named: "deleteBug")
     }
 
+    func playDoubleSound() {
+        playSE(named: "double")
+    }
+
     func playBuySound() {
         playSE(named: "buySound")
     }
