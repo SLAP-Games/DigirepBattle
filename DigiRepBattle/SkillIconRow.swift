@@ -3,9 +3,11 @@ import SwiftUI
 struct SkillIconRow: View {
     let skills: [CreatureSkill]
     let iconSize: CGFloat
+    var overrideNames: [String]? = nil
 
     var body: some View {
-        let names = skills.paddedSkillImageNames(maxCount: 2).map { assetName in
+        let baseNames = overrideNames ?? skills.paddedSkillImageNames(maxCount: 2)
+        let names = baseNames.map { assetName in
             UIImage(named: assetName) == nil ? CreatureSkill.placeholderImageName : assetName
         }
 

@@ -26,6 +26,7 @@ struct CreatureInspectView {
     let heatRes: String
     let coldRes: String
     let skills: [CreatureSkill]
+    let deleteBugTurns: Int?
 }
 
 @MainActor
@@ -200,6 +201,13 @@ final class GameVM: ObservableObject {
     @Published var pendingLandTollDoubleTile: Int? = nil
     /// sp-harvest で「収穫済み（通行量2倍）」になっているマス
     @Published var harvestedTiles: Set<Int> = []
+    // === deleteBug カウント用 ===
+    @Published var deleteBugCounters: [Int: Int] = [:]       // tile -> remaining turns
+    @Published var deleteBugFlashTile: Int? = nil
+    @Published var deleteBugFlashLevel: Int? = nil
+    @Published var deleteBugFlashTrigger: UUID = UUID()
+    @Published var deleteBugSmokeTile: Int? = nil
+    @Published var deleteBugSmokeTrigger: UUID = UUID()
     @Published var focusedHandIndex: Int = 0
     @Published var handDragOffset: CGFloat = 0
     
@@ -486,6 +494,8 @@ final class GameVM: ObservableObject {
         isTurnTransition = false
         try? await Task.sleep(nanoseconds: 300_000_000)
         refreshSummonReminderState()
+
+        await advanceDeleteBugTimersForTurnStart()
 
         // --------------------------------------------------
         // ① 毒ダメージ（そのクリーチャーの持ち主のターンだけ）
@@ -3422,6 +3432,64 @@ final class GameVM: ObservableObject {
         default:     return 1.0
         }
     }
+
+    private func setDeleteBugCounter(for tile: Int, skills: [CreatureSkill]) {
+        if skills.contains(.deleteBug) {
+            deleteBugCounters[tile] = 3
+        } else {
+            deleteBugCounters.removeValue(forKey: tile)
+        }
+    }
+
+    private func triggerDeleteBugFlash(tile: Int, level: Int) {
+        deleteBugFlashTile = tile
+        deleteBugFlashLevel = level
+        deleteBugFlashTrigger = UUID()
+    }
+
+    private func triggerDeleteBugSmoke(at tile: Int) {
+        deleteBugSmokeTile = tile
+        deleteBugSmokeTrigger = UUID()
+    }
+
+    private func advanceDeleteBugTimersForTurnStart() async {
+        let previousFocus = focusTile
+        let previousForce = forceCameraFocus
+        var tilesToRemove: [Int] = []
+
+        for (tile, count) in deleteBugCounters {
+            guard owner.indices.contains(tile),
+                  owner[tile] == turn,
+                  creatureOnTile[tile] != nil else { continue }
+            let next = count - 1
+            if next <= 0 {
+                tilesToRemove.append(tile)
+            } else {
+                deleteBugCounters[tile] = next
+                if var c = creatureOnTile[tile] {
+                    c.deleteBugTurns = next
+                    creatureOnTile[tile] = c
+                }
+                triggerDeleteBugFlash(tile: tile, level: next)
+            }
+        }
+
+        for tile in tilesToRemove {
+            deleteBugCounters.removeValue(forKey: tile)
+            focusTile = tile
+            forceCameraFocus = true
+            try? await Task.sleep(nanoseconds: 500_000_000) // カメラ移動の時間
+            triggerDeleteBugSmoke(at: tile)
+            SoundManager.shared.playDeleteBugSound()
+            try? await Task.sleep(nanoseconds: 500_000_000) // エフェクト表示
+            clearCreatureInfo(at: tile, clearOwnerAndLevel: true, resetToll: true)
+            try? await Task.sleep(nanoseconds: 500_000_000) // 余韻
+        }
+
+        forceCameraFocus = previousForce
+        focusTile = previousFocus
+        deleteBugSmokeTile = nil
+    }
     
     @discardableResult
     func placeCreature(from card: Card, at tile: Int, by pid: Int) -> Bool {
@@ -3447,13 +3515,15 @@ final class GameVM: ObservableObject {
         if poisonedTiles.indices.contains(tile) {
             poisonedTiles[tile] = false
         }
+        setDeleteBugCounter(for: tile, skills: s.skills)
         hp = hp
         creatureOnTile[tile] = Creature(
             id: UUID().uuidString,
             owner: pid,
             imageName: card.symbol,
             stats: s,
-            hp: s.hpMax
+            hp: s.hpMax,
+            deleteBugTurns: deleteBugCounters[tile]
         )
         enforceCancelSkillProtection(on: tile)
         toll[tile] = toll(at: tile)
@@ -3585,7 +3655,7 @@ final class GameVM: ObservableObject {
                     cost: (cost.indices.contains(tile) ? cost[tile] : 1)
                 )
                 let img = creatureSymbol.indices.contains(tile) ? (creatureSymbol[tile] ?? "lizard.fill") : "lizard.fill"
-                creature = Creature(id: "legacy-\(tile)", owner: own, imageName: img, stats: stats, hp: hp[tile])
+                creature = Creature(id: "legacy-\(tile)", owner: own, imageName: img, stats: stats, hp: hp[tile], deleteBugTurns: deleteBugCounters[tile])
             }
         }
         guard let c = creature else { return nil }
@@ -3631,7 +3701,8 @@ final class GameVM: ObservableObject {
             waterRes:  mask(c.stats.resistWater),
             heatRes:   mask(c.stats.resistHeat),
             coldRes:   mask(c.stats.resistCold),
-            skills:    c.stats.cappedSkills
+            skills:    c.stats.cappedSkills,
+            deleteBugTurns: deleteBugCounters[tile]
         )
     }
     
@@ -3656,6 +3727,7 @@ final class GameVM: ObservableObject {
         if poisonedTiles.indices.contains(tile) {
             poisonedTiles[tile] = false
         }
+        deleteBugCounters.removeValue(forKey: tile)
 
         // Creature辞書からも削除
         creatureOnTile.removeValue(forKey: tile)
@@ -4074,7 +4146,15 @@ final class GameVM: ObservableObject {
         rCold[t] = s.resistCold
         cost[t] = s.cost
         toll[t] = toll(at: t)
-        creatureOnTile[t] = Creature(id: UUID().uuidString, owner: turn, imageName: newCard.symbol, stats: s, hp: s.hpMax)
+        setDeleteBugCounter(for: t, skills: s.skills)
+        creatureOnTile[t] = Creature(
+            id: UUID().uuidString,
+            owner: turn,
+            imageName: newCard.symbol,
+            stats: s,
+            hp: s.hpMax,
+            deleteBugTurns: deleteBugCounters[t]
+        )
         enforceCancelSkillProtection(on: t)
 
         triggerPlaceEffect(at: t)

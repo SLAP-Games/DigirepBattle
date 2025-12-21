@@ -61,7 +61,12 @@ struct ContentView: View {
                         levelUpEffectTile: vm.levelUpEffectTile,
                         levelUpEffectTrigger: vm.levelUpEffectTrigger,
                         homeArrivalTile: vm.homeArrivalTile,
-                        homeArrivalTrigger: vm.homeArrivalTrigger
+                        homeArrivalTrigger: vm.homeArrivalTrigger,
+                        deleteBugFlashTile: vm.deleteBugFlashTile,
+                        deleteBugFlashLevel: vm.deleteBugFlashLevel,
+                        deleteBugFlashTrigger: vm.deleteBugFlashTrigger,
+                        deleteBugSmokeTile: vm.deleteBugSmokeTile,
+                        deleteBugSmokeTrigger: vm.deleteBugSmokeTrigger
                     )
                     .frame(height: boardH)
                     .background {

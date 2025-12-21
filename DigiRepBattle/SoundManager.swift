@@ -129,6 +129,10 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     func playCriticalSound() {
         playSE(named: "criticalSound")
     }
+    
+    func playDeleteBugSound() {
+        playSE(named: "deleteBug")
+    }
 
     func playBuySound() {
         playSE(named: "buySound")
@@ -164,13 +168,21 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
             return player
         }
 
-        guard let url = Bundle.main.url(forResource: name, withExtension: "mp3") else {
+        let url: URL?
+        // try Sounds/ subfolder first, then root for backward compatibility
+        if let sub = Bundle.main.url(forResource: name, withExtension: "mp3", subdirectory: "Sounds") {
+            url = sub
+        } else {
+            url = Bundle.main.url(forResource: name, withExtension: "mp3")
+        }
+
+        guard let soundURL = url else {
             print("SE not found: \(name)")
             return nil
         }
 
         do {
-            let player = try AVAudioPlayer(contentsOf: url)
+            let player = try AVAudioPlayer(contentsOf: soundURL)
             player.numberOfLoops = 0
             player.prepareToPlay()
             players[name] = player

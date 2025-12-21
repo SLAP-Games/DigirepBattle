@@ -77,7 +77,11 @@ struct CreatureInfoPanel: View {
                             Text("HP \(iv.hpText)")
                                 .font(.bestTenSubheadline)
                                 .monospacedDigit()
-                            SkillIconRow(skills: iv.skills, iconSize: 30)
+                            SkillIconRow(
+                                skills: iv.skills,
+                                iconSize: 30,
+                                overrideNames: deleteBugOverrideIcons
+                            )
                         }
                     }
 
@@ -105,6 +109,17 @@ struct CreatureInfoPanel: View {
                 .shadow(radius: 8, y: 4)
         )
         .frame(maxWidth: 460, alignment: .topLeading)
+    }
+}
+
+private extension CreatureInfoPanel {
+    var deleteBugOverrideIcons: [String]? {
+        guard let turns = iv.deleteBugTurns, (1...3).contains(turns) else { return nil }
+        let base = iv.skills.paddedSkillImageNames(maxCount: 2)
+        guard let idx = base.firstIndex(of: CreatureSkill.deleteBug.imageName) else { return nil }
+        var names = base
+        names[idx] = "deleteBug\(turns)"
+        return names
     }
 }
 

@@ -73,6 +73,11 @@ struct RingBoardView: View {
     var levelUpEffectTrigger: UUID = UUID()
     var homeArrivalTile: Int? = nil
     var homeArrivalTrigger: UUID = UUID()
+    var deleteBugFlashTile: Int? = nil
+    var deleteBugFlashLevel: Int? = nil
+    var deleteBugFlashTrigger: UUID = UUID()
+    var deleteBugSmokeTile: Int? = nil
+    var deleteBugSmokeTrigger: UUID = UUID()
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -193,6 +198,27 @@ struct RingBoardView: View {
                                             step: step, tileSize: tileSize)
                     TileRemovalOverlay(size: tileSize * 1.3, trigger: tileRemovalEffectTrigger)
                         .frame(width: tileSize * 1.3, height: tileSize * 1.3)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let flashTile = deleteBugFlashTile,
+                   let level = deleteBugFlashLevel,
+                   let node = nodeMap[flashTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    DeleteBugCountdownOverlay(size: tileSize * 0.8, level: level, trigger: deleteBugFlashTrigger)
+                        .position(pos)
+                        .allowsHitTesting(false)
+                }
+
+                if let smokeTile = deleteBugSmokeTile,
+                   let node = nodeMap[smokeTile] {
+                    let pos = pointNoOrigin(for: node.grid,
+                                            minX: minX, minY: minY,
+                                            step: step, tileSize: tileSize)
+                    DeleteBugSmokeOverlay(size: tileSize * 1.1, trigger: deleteBugSmokeTrigger)
                         .position(pos)
                         .allowsHitTesting(false)
                 }
