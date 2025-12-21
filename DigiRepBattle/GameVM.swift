@@ -311,7 +311,7 @@ final class GameVM: ObservableObject {
         cardStates[0].deckList = initialPlayerDeck
         
         cardStates[1].deckList.creatureSlots = [
-            "cre-defaultCrocodile": 25
+            "cre-defaultLizard": 25
             
 //            "cre-defaultLizard": 7,
 //            "cre-defaultCrocodile": 7,
@@ -2601,7 +2601,10 @@ final class GameVM: ObservableObject {
                 }
                 return false
             }
-            defenderHasFirstStrike = true
+            let attackerRapid = battleLeft?.skills.contains(.rapidSkill) ?? false
+            // このカード自身で防御側に先制を付与する
+            let defenderFirstStrike = true
+            defenderHasFirstStrike = defenderFirstStrike && !attackerRapid
         }
         
         // ① コスト計算
@@ -4589,6 +4592,10 @@ final class GameVM: ObservableObject {
         if attackerHasRandom || defenderHasRandom {
             battleTileAttr = randomBattleAttribute()
         }
+
+        let attackerHasRapid = atkStats.skills.contains(.rapidSkill)
+        let defenderHasRapid = defenderSkills.contains(.rapidSkill)
+        defenderHasFirstStrike = defenderHasRapid && !attackerHasRapid
 
         // 左=攻撃者（あなた or CPU）、右=防御者（盤面クリーチャー）
         let attacker = BattleCombatant(
