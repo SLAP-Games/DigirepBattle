@@ -375,6 +375,71 @@ final class GameVM: ObservableObject {
               let currentTotal = totalLevelUpCost(to: currentLevel) else { return nil }
         return targetTotal - currentTotal
     }
+    
+    // 難易度ごとに NPC デッキを切り替える
+    private static func npcDeck(for difficulty: BattleDifficulty) -> DeckList {
+        var deck = DeckList()
+        switch difficulty {
+        case .beginner:
+            deck.creatureSlots = [
+                "cre-defaultLizard": 9,
+                "cre-defaultsnake": 7,
+                "cre-defaultCrocodile": 7,
+                "cre-defaultTurtle": 7,
+                "cre-defaultBeardedDragon": 5
+            ]
+            deck.spellSlots = [
+                "sp-dice2": 3,
+                "sp-dice4": 3,
+                "sp-dice6": 3,
+                "sp-bigScale": 5,
+                "sp-sharpFang": 4,
+                "sp-draw2": 2,
+                "sp-decay": 4
+            ]
+        case .intermediate:
+            deck.creatureSlots = [
+                "cre-defaultLizard": 6,
+                "cre-defaultTurtle": 6,
+                "cre-defaultCrocodile": 6,
+                "cre-defaultBeardedDragon": 5,
+                "cre-defaultGreenIguana": 6,
+                "cre-defaultHornedFrog": 6
+            ]
+            deck.spellSlots = [
+                "sp-dice6": 5,
+                "sp-hardScale": 4,
+                "sp-hardFang": 4,
+                "sp-deleteHand": 4,
+                "sp-greatStorm":2,
+                "sp-harvest": 2,
+                "sp-draw2": 2,
+                "sp-elixir": 2
+            ]
+        case .advanced:
+            deck.creatureSlots = [
+                "cre-defaultTurtle": 5,
+                "cre-defaultNileCrocodile": 5,
+                "cre-defaultStarTurtle": 5,
+                "cre-defaultLeopardGecko": 5,
+                "cre-defaultBallPython": 5,
+                "cre-defaultGreenIguana": 5,
+                "cre-defaultHornedFrog": 5
+            ]
+            deck.spellSlots = [
+                "sp-devastation": 3,
+                "sp-poisonSmoke": 2,
+                "sp-plunder": 3,
+                "sp-doubleDice": 4,
+                "sp-hardScale": 3,
+                "sp-deleteHand": 3,
+                "sp-hardFang": 3,
+                "sp-draw2": 3,
+                "sp-treasure": 1
+            ]
+        }
+        return deck
+    }
 
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
@@ -419,23 +484,7 @@ final class GameVM: ObservableObject {
         
         let initialPlayerDeck = selectedDeck ?? DeckList.defaultBattleDeck
         cardStates[0].deckList = initialPlayerDeck
-        
-        cardStates[1].deckList.creatureSlots = [
-//            "cre-defaultLizard": 25
-            
-            "cre-defaultLizard": 7,
-            "cre-defaultCrocodile": 7,
-            "cre-defaultBeardedDragon": 7,
-            "cre-defaultGreenIguana": 7,
-            "cre-defaultBallPython": 7
-        ]
-        cardStates[1].deckList.spellSlots = [
-            "sp-hardFang": 5,
-            "sp-bigScale": 5,
-            "sp-deleteHand": 5,
-            "sp-doubleDice": 5,
-            "sp-firstStrike": 5
-        ]
+        cardStates[1].deckList = GameVM.npcDeck(for: difficulty)
         
         for pid in 0...1 {
             decks[pid] = cardStates[pid].deckList.buildDeckCards()
