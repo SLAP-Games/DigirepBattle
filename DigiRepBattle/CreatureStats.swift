@@ -114,13 +114,13 @@ struct CreatureStats: Equatable {
         skills: [.waterPlus]
     )
     static let defaultCrocodile = CreatureStats(
-        hpMax: 60, affection: 0, power: 12, durability: 1,
+        hpMax: 30, affection: 0, power: 12, durability: 1,
         resistDry: 1, resistWater: 8, resistHeat: 1, resistCold: 1, cost: 40,
-        skills: [.trapSkill]
+        skills: [.attackPlus]
     )
     static let defaultSnake = CreatureStats(
         hpMax: 30, affection: 1, power: 5, durability: 5,
-        resistDry: 6, resistWater: 6, resistHeat: 6, resistCold: 6, cost: 30,
+        resistDry: 4, resistWater: 4, resistHeat: 4, resistCold: 4, cost: 30,
         skills: [.randomSkill]
     )
     static let defaultIguana = CreatureStats(
@@ -154,8 +154,8 @@ struct CreatureStats: Equatable {
         skills: [.attackPlus2, .deleteBug]
     )
     static let defaultBallPython = CreatureStats(
-        hpMax: 50, affection: 3, power: 10, durability: 10,
-        resistDry: 9, resistWater: 9, resistHeat: 9, resistCold: 9, cost: 50,
+        hpMax: 50, affection: 3, power: 9, durability: 9,
+        resistDry: 7, resistWater: 7, resistHeat: 7, resistCold: 7, cost: 50,
         skills: [.randomSkill, .waterPlus]
     )
     static let defaultGreenIguana = CreatureStats(
@@ -165,7 +165,7 @@ struct CreatureStats: Equatable {
     )
     static let defaultStarTurtle = CreatureStats(
         hpMax: 50, affection: 5, power: 4, durability: 20,
-        resistDry:  10, resistWater: 2, resistHeat: 2, resistCold: 2, cost: 70,
+        resistDry:  10, resistWater: 4, resistHeat: 4, resistCold: 2, cost: 70,
         skills: [.blockPlus, .dryPlus]
     )
     static let defaultHornedFrog = CreatureStats(

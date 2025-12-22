@@ -6,13 +6,13 @@
 //
 import SwiftUI
 
-//#Preview {
-//    DeckBuilderView(collection: CardCollection(), onStartBattle: { _ in })
-//}
+#Preview {
+    DeckBuilderView(collection: CardCollection(), onStartBattle: { _, _ in })
+}
 
 #Preview("メイン") {
     ContentView()
-        .environmentObject(GameVM(selectedDeck: .previewSample))
+        .environmentObject(GameVM(selectedDeck: .previewSample, difficulty: .beginner))
 }
 
 #Preview("Heal") {

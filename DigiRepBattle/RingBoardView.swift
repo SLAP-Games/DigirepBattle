@@ -21,12 +21,12 @@ struct TileTerrain {
 }
 
 // 素朴な整数座標
-private struct I2: Hashable {
+struct I2: Hashable {
     var x: Int
     var y: Int
 }
 
-private struct BoardNode: Identifiable, Hashable {
+struct BoardNode: Identifiable, Hashable {
     let id: Int          // 0..N-1（TileViewの index に相当）
     let grid: I2         // 論理グリッド座標（描画時にスケーリング）
     var neighbors: [Int] // 接続先（分岐あり）
@@ -86,6 +86,7 @@ struct RingBoardView: View {
     var goldSkillTile: Int? = nil
     var goldSkillTrigger: UUID = UUID()
     var goldSkillAmount: Int? = nil
+    var customGraph: [BoardNode]? = nil
     
     // ★ 追加：パン・ズーム状態
     @State private var scale: CGFloat = 1.0
@@ -98,7 +99,7 @@ struct RingBoardView: View {
 
     // 角を重ねた正方形×2 のグラフ
     private var graph: [BoardNode] {
-        makeOverlappedSquareGraph(side: sideCount)
+        customGraph ?? makeOverlappedSquareGraph(side: sideCount)
     }
 
     var body: some View {
@@ -353,6 +354,8 @@ struct RingBoardView: View {
             .scaleEffect(scale * gestureScale, anchor: .center)
             .offset(x: offset.width + gestureOffset.width,
                     y: offset.height + gestureOffset.height)
+            // 初級ボードなどで盤サイズが小さいときも、表示エリア全体をジェスチャー対象にする
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .contentShape(Rectangle()) // ヒット領域
             .gesture(
                 MagnificationGesture()
@@ -500,7 +503,7 @@ struct RingBoardView: View {
 }
 
 // MARK: - グラフ生成：角を重ねた正方リング×2
-private func makeOverlappedSquareGraph(side s: Int) -> [BoardNode] {
+func makeOverlappedSquareGraph(side s: Int) -> [BoardNode] {
     precondition(s >= 2)
     let per = s - 1
 

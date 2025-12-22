@@ -74,7 +74,8 @@ struct ContentView: View {
                         doubleSmokeTrigger: vm.doubleSmokeTrigger,
                         goldSkillTile: vm.goldSkillTile,
                         goldSkillTrigger: vm.goldSkillTrigger,
-                        goldSkillAmount: vm.goldSkillAmount
+                        goldSkillAmount: vm.goldSkillAmount,
+                        customGraph: vm.boardGraph
                     )
                     .frame(height: boardH)
                     .background {

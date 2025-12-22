@@ -9,6 +9,111 @@ import SwiftUI
 import Foundation
 import Combine
 
+enum BattleDifficulty: String, CaseIterable, Identifiable {
+    case beginner
+    case intermediate
+    case advanced
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .beginner: return "初級"
+        case .intermediate: return "中級"
+        case .advanced: return "上級"
+        }
+    }
+}
+
+enum BoardDirection { case cw, ccw }
+
+struct BranchChoice {
+    let destination: Int
+    let direction: BoardDirection
+}
+
+struct BoardLayout {
+    let tileCount: Int
+    let nextCW: [Int]
+    let nextCCW: [Int]
+    let branchNode: Int?
+    let branchChoices: [BranchChoice]
+    let checkpoints: Set<Int>
+    let homeNode: Int
+    let cp1Node: Int?
+    let cp2Node: Int?
+    let nodes: [BoardNode]
+
+    static func make(for difficulty: BattleDifficulty) -> BoardLayout {
+        switch difficulty {
+        case .beginner:
+            let n = 16
+            let nextCW = (0..<n).map { ($0 + 1) % n }
+            let nextCCW = (0..<n).map { ($0 - 1 + n) % n }
+
+            // 5x5 の外周を時計回りに 16 マス並べる
+            let per = 4
+            var coords: [I2] = []
+            for i in 0..<per { coords.append(I2(x: i, y: 0)) }           // 上辺（右上角手前まで）
+            for i in 0..<per { coords.append(I2(x: per, y: i)) }         // 右辺（右上角含む）
+            for i in 0..<per { coords.append(I2(x: per - i, y: per)) }   // 下辺（右下角含む）
+            for i in 0..<per { coords.append(I2(x: 0, y: per - i)) }     // 左辺（左下角含む）
+            var nodes: [BoardNode] = []
+            for (idx, g) in coords.enumerated() {
+                let cw = nextCW[idx]
+                let ccw = nextCCW[idx]
+                nodes.append(BoardNode(id: idx, grid: g, neighbors: [cw, ccw]))
+            }
+
+            let home = 0
+            let cp1 = 8   // マス9（0始まりで8）
+            let checkpoints: Set<Int> = [home, cp1]
+
+            return BoardLayout(
+                tileCount: n,
+                nextCW: nextCW,
+                nextCCW: nextCCW,
+                branchNode: nil,
+                branchChoices: [],
+                checkpoints: checkpoints,
+                homeNode: home,
+                cp1Node: cp1,
+                cp2Node: nil,
+                nodes: nodes
+            )
+        case .intermediate, .advanced:
+            let nextCW: [Int] = [
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
+                17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 4, 29, 30, 16
+            ]
+            let nextCCW: [Int] = [
+                15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+                30, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 4, 28, 29
+            ]
+            let branchNode = 4
+            let branchChoices = [
+                BranchChoice(destination: 3, direction: .ccw),
+                BranchChoice(destination: 5, direction: .cw),
+                BranchChoice(destination: 27, direction: .ccw),
+                BranchChoice(destination: 28, direction: .cw)
+            ]
+            let checkpoints: Set<Int> = [0, 4, 20]
+            return BoardLayout(
+                tileCount: 31,
+                nextCW: nextCW,
+                nextCCW: nextCCW,
+                branchNode: branchNode,
+                branchChoices: branchChoices,
+                checkpoints: checkpoints,
+                homeNode: 0,
+                cp1Node: 4,
+                cp2Node: 20,
+                nodes: makeOverlappedSquareGraph(side: 5)
+            )
+        }
+    }
+}
+
 struct CreatureInspectView {
     let tileIndex: Int
     let mapImageName: String
@@ -243,31 +348,20 @@ final class GameVM: ObservableObject {
     private var saleFocusTask: Task<Void, Never>? = nil
     private var diceGlitchContinuation: CheckedContinuation<Void, Never>? = nil
     private var diceGlitchShouldPinAfterReveal: Bool = false
-    private let CROSS_NODE = 4
-    private let CROSS_CHOICES = [3, 5, 27, 28]
-    private let CHECKPOINTS: Set<Int> = [0, 4, 20]
+    let layout: BoardLayout
     private let creatureTransferCost = 30
     private let diceGlitchCornerAnimationDuration: TimeInterval = 0.35
-    private let nextCW: [Int] = [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
-        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 4, 29, 30, 16
-    ]
-    
-    private let nextCCW: [Int] = [
-        15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-        30, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 4, 28, 29
-    ]
-    
-    // チェックポイントのマスid指定
-    private let HOME_NODE = 0
-    private let CP1_NODE  = 4
-    private let CP2_NODE  = 20
+
+    let difficulty: BattleDifficulty
     private var tileAttributeRestrictedTiles: Set<Int> {
-        [HOME_NODE, CP1_NODE, CP2_NODE]
+        var s: Set<Int> = [layout.homeNode]
+        if let c1 = layout.cp1Node { s.insert(c1) }
+        if let c2 = layout.cp2Node { s.insert(c2) }
+        return s
     }
     
-    let sideCount: Int = 5
     let tileCount: Int
+    var boardGraph: [BoardNode] { layout.nodes }
     var levelUpCost: [Int: Int] { [2: 30, 3: 60, 4: 140, 5: 300] }
 
     private func totalLevelUpCost(to level: Int) -> Int? {
@@ -285,8 +379,24 @@ final class GameVM: ObservableObject {
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
     
-    init(selectedDeck: DeckList? = nil) {
-        self.tileCount = 31  // RingBoardView のグラフと一致させる
+    init(selectedDeck: DeckList? = nil, difficulty: BattleDifficulty = .intermediate) {
+        self.difficulty = difficulty
+        self.layout = BoardLayout.make(for: difficulty)
+        self.tileCount = layout.tileCount
+        // 特別マスの割り当てを難易度に合わせる
+        switch difficulty {
+        case .beginner:
+            SPECIAL_NODES = [
+                layout.homeNode: .castle,
+                8: .tower // マス9（0始まりで8）
+            ]
+        case .intermediate, .advanced:
+            SPECIAL_NODES = [
+                0: .castle,
+                4: .tower,   // マス5
+                20: .tower   // マス21
+            ]
+        }
         self.owner = Array(repeating: nil, count: tileCount)
         self.level = Array(repeating: 0, count: tileCount)
         self.creatureSymbol = Array(repeating: nil, count: tileCount)
@@ -337,7 +447,7 @@ final class GameVM: ObservableObject {
 
         startTurnIfNeeded()
         self.focusTile = players[turn].pos
-        self.terrain = buildFixedTerrain()
+        self.terrain = buildFixedTerrain(for: difficulty)
         self.availableShopSpells = ShopSpell.randomCatalog(count: 5)
         checkVictoryCondition()
         victoryMonitor = Timer.publish(every: 0.5, on: .main, in: .common)
@@ -1086,9 +1196,10 @@ final class GameVM: ObservableObject {
             return
         }
 
-        if players[turn].pos == CROSS_NODE {
-            branchSource = CROSS_NODE
-            branchCandidates = CROSS_CHOICES
+        if let branch = layout.branchNode,
+           players[turn].pos == branch {
+            branchSource = branch
+            branchCandidates = layout.branchChoices.map { $0.destination }
             branchCameFrom = nil
             phase = .branchSelecting
             recomputeBranchLandingHints()
@@ -1238,39 +1349,39 @@ final class GameVM: ObservableObject {
         }
     }
 
+    private func branchChoice(for dest: Int) -> BranchChoice? {
+        layout.branchChoices.first { $0.destination == dest }
+    }
+
     private func applyBranchChoice(_ chosenNext: Int) {
-        // 方向決定
-        if chosenNext == 3 || chosenNext == 27 {
-            moveDir[turn] = .ccw
-        } else if chosenNext == 5 || chosenNext == 28 {
-            moveDir[turn] = .cw
+        if let choice = branchChoice(for: chosenNext) {
+            moveDir[turn] = (choice.direction == .cw) ? .cw : .ccw
         } else {
-            // フォールバック（来ないはず）
             moveDir[turn] = .cw
         }
-
         pendingBranchDestination = chosenNext
     }
     
     // 選択肢ごとの進行方向
     private func dirForCandidate(_ chosenNext: Int) -> Dir {
-        if chosenNext == 3 || chosenNext == 27 { return .ccw }
-        if chosenNext == 5 || chosenNext == 28 { return .cw }
+        if let choice = branchChoice(for: chosenNext) {
+            return choice.direction == .cw ? .cw : .ccw
+        }
         return .cw
     }
     
     private func nextIndex(for pid: Int, from cur: Int) -> Int {
         switch moveDir[pid] {
-        case .cw:  return nextCW[cur]
-        case .ccw: return nextCCW[cur]
+        case .cw:  return layout.nextCW[cur]
+        case .ccw: return layout.nextCCW[cur]
         }
     }
     
     // 方向を明示して「次マス」を返す純関数版（状態を変えない）
     private func nextIndex(for dir: Dir, from cur: Int) -> Int {
         switch dir {
-        case .cw:  return nextCW[cur]
-        case .ccw: return nextCCW[cur]
+        case .cw:  return layout.nextCW[cur]
+        case .ccw: return layout.nextCCW[cur]
         }
     }
     
@@ -1291,7 +1402,9 @@ final class GameVM: ObservableObject {
 
     // 分岐UI表示中に、すべての候補の“着地マス”を算出して公開プロパティに入れる
     private func recomputeBranchLandingHints() {
-        guard let src = branchSource, src == CROSS_NODE, phase == .branchSelecting else {
+        guard let src = branchSource,
+              src == layout.branchNode,
+              phase == .branchSelecting else {
             branchLandingTargets = []
             return
         }
@@ -1309,7 +1422,9 @@ final class GameVM: ObservableObject {
         // まず通常の1歩前進
         let cur = players[turn].pos
         let next: Int
-        if cur == CROSS_NODE, let pending = pendingBranchDestination {
+        if let branch = layout.branchNode,
+           cur == branch,
+           let pending = pendingBranchDestination {
             next = pending
             pendingBranchDestination = nil
         } else {
@@ -1319,7 +1434,7 @@ final class GameVM: ObservableObject {
         stepsLeft -= 1
         updateDiceGlitchCountdown()
 
-        let shouldClampAtHome = (next == HOME_NODE && hasCompletedCheckpoints(pid: turn))
+        let shouldClampAtHome = (next == layout.homeNode && hasCompletedCheckpoints(pid: turn))
         awardCheckpointIfNeeded(entering: next, pid: turn)
 
         if shouldClampAtHome {
@@ -1329,30 +1444,30 @@ final class GameVM: ObservableObject {
         }
 
         // 分岐ノードに入った & まだ動けるなら分岐処理
-        if next == CROSS_NODE, stepsLeft > 0 {
+        if let branch = layout.branchNode,
+           next == branch,
+           stepsLeft > 0 {
             let cameFrom = cur
             // Uターン禁止（来た方向は候補から外す）
-            let filtered = CROSS_CHOICES.filter { $0 != cameFrom }
+            let filtered = layout.branchChoices.map { $0.destination }.filter { $0 != cameFrom }
 
             if turn == 0 {
                 // プレイヤー: UI表示して停止
                 branchCameFrom = cameFrom
-                branchSource = CROSS_NODE
+                branchSource = branch
                 branchCandidates = filtered
                 phase = .branchSelecting
                 recomputeBranchLandingHints()
                 return
             } else {
-                // CPU: passedCP2 の状態に応じて優先方向を絞る
+                // CPU: passedCP2 の状態に応じて優先方向を絞る（31マス盤のみの簡易ロジック）
                 var base = filtered
-                if passedCP2.indices.contains(1) {
+                if layout.tileCount == 31, passedCP2.indices.contains(1) {
                     if passedCP2[1] == false {
-                        // まだCP2未通過 → 28/29 方向を優先（0始まりで 27/28）
                         let prefer: Set<Int> = [27, 28]
                         let narrowed = base.filter { prefer.contains($0) }
                         if !narrowed.isEmpty { base = narrowed }
                     } else {
-                        // CP2通過済み → 3/5 方向を優先
                         let prefer: Set<Int> = [3, 5]
                         let narrowed = base.filter { prefer.contains($0) }
                         if !narrowed.isEmpty { base = narrowed }
@@ -1526,21 +1641,24 @@ final class GameVM: ObservableObject {
     private func hasCompletedCheckpoints(pid: Int) -> Bool {
         guard passedCP1.indices.contains(pid),
               passedCP2.indices.contains(pid) else { return false }
-        return passedCP1[pid] && passedCP2[pid]
+        let needCP1 = layout.cp1Node != nil
+        let needCP2 = layout.cp2Node != nil
+        let ok1 = needCP1 ? passedCP1[pid] : true
+        let ok2 = needCP2 ? passedCP2[pid] : true
+        return ok1 && ok2
     }
 
     private func awardCheckpointIfNeeded(entering index: Int, pid: Int) {
         // 1) CP通過フラグの更新（CP1/CP2それぞれ）
-        if index == CP1_NODE {
+        if let cp1 = layout.cp1Node, index == cp1 {
             passedCP1[pid] = true
             if pid == 0 {
-                // GOLDはまだ付与しないが、通過ポップアップは出す
                 lastCheckpointGain = 0
                 presentCheckpointOverlay(message: "CP1通過", playSound: true, autoCloseAfter: 2.0)
             }
             return
         }
-        if index == CP2_NODE {
+        if let cp2 = layout.cp2Node, index == cp2 {
             passedCP2[pid] = true
             if pid == 0 {
                 lastCheckpointGain = 0
@@ -1549,8 +1667,8 @@ final class GameVM: ObservableObject {
             return
         }
 
-        // 2) ホーム通過時：両方trueならGOLD付与してフラグをリセット
-        if index == HOME_NODE {
+        // 2) ホーム通過時：必要なCP達成ならGOLD付与してフラグをリセット
+        if index == layout.homeNode {
             let completed = hasCompletedCheckpoints(pid: pid)
             if pid == 0, completed {
                 triggerHomeArrivalEffect(at: index)
@@ -1573,8 +1691,6 @@ final class GameVM: ObservableObject {
                     pendingHomeOverlayTask = work
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
                 }
-            } else {
-                // どちらか未達 → 何もしない（ポップアップも出さない）
             }
         }
     }
@@ -2988,14 +3104,20 @@ final class GameVM: ObservableObject {
         stepsLeft = lastRoll
 
         // 分岐の事前選択（必要なら）
-        if players[1].pos == CROSS_NODE, stepsLeft > 0 {
-            let choices: [Int]
-            if passedCP2.indices.contains(1), passedCP2[1] == false {
-                choices = [27, 28]
-            } else if passedCP2.indices.contains(1), passedCP2[1] == true {
-                choices = [3, 5]
-            } else {
-                choices = CROSS_CHOICES
+        if let branch = layout.branchNode,
+           players[1].pos == branch,
+           stepsLeft > 0 {
+            var choices = layout.branchChoices.map { $0.destination }
+            if layout.tileCount == 31 {
+                if passedCP2.indices.contains(1), passedCP2[1] == false {
+                    let pref: Set<Int> = [27, 28]
+                    let narrowed = choices.filter { pref.contains($0) }
+                    if !narrowed.isEmpty { choices = narrowed }
+                } else if passedCP2.indices.contains(1), passedCP2[1] == true {
+                    let pref: Set<Int> = [3, 5]
+                    let narrowed = choices.filter { pref.contains($0) }
+                    if !narrowed.isEmpty { choices = narrowed }
+                }
             }
             if let choice = choices.randomElement() { applyBranchChoice(choice) }
         }
@@ -3342,7 +3464,7 @@ final class GameVM: ObservableObject {
         closeMyTileMenu()
     }
     
-    private func buildFixedTerrain() -> [TileTerrain] {
+    private func buildFixedTerrain(for difficulty: BattleDifficulty) -> [TileTerrain] {
         // 既定は field（ノーマル）
         var arr = Array(
             repeating: TileTerrain(imageName: "field", attribute: .normal),
@@ -3360,14 +3482,41 @@ final class GameVM: ObservableObject {
             }
         }
 
-        // 指定の固定割り当て（タイル番号は 1..31）
-        setRange( 2,  4, image: "field",  attr: .normal) // 2〜4
-        setRange( 6,  9, image: "tileDesert", attr: .dry)    // 6〜9
-        setRange(10, 13, image: "water",  attr: .water)  // 10〜13
-        setRange(14, 16, image: "field",  attr: .normal) // 14〜16
-        setRange(17, 20, image: "fire",   attr: .heat)   // 17〜20
-        setRange(22, 25, image: "snow",   attr: .cold)   // 22〜25
-        setRange(26, 31, image: "field",  attr: .normal) // 26〜31
+        switch difficulty {
+        case .beginner:
+            // 1〜16 を時計回りと想定し、指定の属性を割り当て
+            setRange(2, 5, image: "field", attr: .normal)
+            setRange(13, 16, image: "field", attr: .normal)
+            setRange(6, 8, image: "tileDesert", attr: .dry)
+            setRange(10, 12, image: "water", attr: .water)
+            // 残りは初期値の normal のまま
+        case .intermediate:
+            // 指定の固定割り当て（タイル番号は 1..31）
+            setRange( 2,  4, image: "field",  attr: .normal) // 2〜4
+            setRange( 6,  9, image: "tileDesert", attr: .dry)    // 6〜9
+            setRange(10, 13, image: "water",  attr: .water)  // 10〜13
+            setRange(14, 16, image: "field",  attr: .normal) // 14〜16
+            setRange(17, 20, image: "fire",   attr: .heat)   // 17〜20
+            setRange(22, 25, image: "snow",   attr: .cold)   // 22〜25
+            setRange(26, 31, image: "field",  attr: .normal) // 26〜31
+        case .advanced:
+            // normal: 2,3,4,6,16,20,22,28,29
+            setRange(2, 4, image: "field", attr: .normal)
+            setRange(6, 6, image: "field", attr: .normal)
+            setRange(16, 16, image: "field", attr: .normal)
+            setRange(20, 20, image: "field", attr: .normal)
+            setRange(22, 22, image: "field", attr: .normal)
+            setRange(28, 29, image: "field", attr: .normal)
+            // water: 6〜10
+            setRange(6, 10, image: "water", attr: .water)
+            // cold: 11〜15
+            setRange(11, 15, image: "snow", attr: .cold)
+            // heat: 17,18,19,30,31
+            setRange(17, 19, image: "fire", attr: .heat)
+            setRange(30, 31, image: "fire", attr: .heat)
+            // dry: 23〜27
+            setRange(23, 27, image: "tileDesert", attr: .dry)
+        }
 
         // 指定が無い 1,5,21（＝チェックポイント）は既定の field のまま
         return arr
@@ -4030,7 +4179,9 @@ final class GameVM: ObservableObject {
     func closeInspect() { inspectTarget = nil }
     
     private func isCheckpoint(_ index: Int) -> Bool {
-        return index == CP1_NODE || index == CP2_NODE
+        if let cp1 = layout.cp1Node, index == cp1 { return true }
+        if let cp2 = layout.cp2Node, index == cp2 { return true }
+        return false
     }
     
     private func ownedTileCount(of pid: Int) -> Int {
@@ -5462,7 +5613,7 @@ final class GameVM: ObservableObject {
         } else {
             var updated = terrain
             if updated.count != tileCount {
-                updated = buildFixedTerrain()
+                updated = buildFixedTerrain(for: difficulty)
             }
             if updated.indices.contains(tile) {
                 updated[tile] = TileTerrain(imageName: image, attribute: attr)
@@ -5588,10 +5739,11 @@ final class GameVM: ObservableObject {
 
 enum SpecialNodeKind { case castle, tower }
 
-private let SPECIAL_NODES: [Int: SpecialNodeKind] = [
-    0: .castle,  // マス1
-    4: .tower,   // マス5
-    20: .tower   // マス21
+// レイアウトに応じて GameVM 初期化時に設定される
+private var SPECIAL_NODES: [Int: SpecialNodeKind] = [
+    0: .castle,
+    4: .tower,
+    20: .tower
 ]
 
 func specialNodeKind(for index: Int) -> SpecialNodeKind? {

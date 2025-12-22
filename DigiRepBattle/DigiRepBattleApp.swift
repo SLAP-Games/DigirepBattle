@@ -24,6 +24,7 @@ struct DigiRepBattleApp: App {
 /// デッキ編成 → バトル画面 へのルート
 struct RootDeckBuilderScreen: View {
     @State private var selectedDeck: DeckList? = nil
+    @State private var selectedDifficulty: BattleDifficulty = .intermediate
     @State private var collection: CardCollection = {
         var c = CardCollection()
 
@@ -62,8 +63,9 @@ struct RootDeckBuilderScreen: View {
 
     var body: some View {
         NavigationStack {
-            DeckBuilderView(collection: collection) { selectedDeck in
+            DeckBuilderView(collection: collection) { selectedDeck, difficulty in
                 self.selectedDeck = selectedDeck
+                self.selectedDifficulty = difficulty
             }
             .navigationDestination(isPresented: Binding(
                 get: { selectedDeck != nil },
@@ -77,7 +79,7 @@ struct RootDeckBuilderScreen: View {
                     ContentView(onBattleEnded: {
                         selectedDeck = nil
                     })
-                    .environmentObject(GameVM(selectedDeck: deck))
+                    .environmentObject(GameVM(selectedDeck: deck, difficulty: selectedDifficulty))
                 }
             }
         }

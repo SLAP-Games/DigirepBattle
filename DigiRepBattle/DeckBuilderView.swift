@@ -28,9 +28,11 @@ struct CardEntry: Identifiable {
 struct DeckBuilderView: View {
 
     @State private var collection: CardCollection
-    let onStartBattle: (DeckList) -> Void
+    let onStartBattle: (DeckList, BattleDifficulty) -> Void
     @State private var decks: [DeckList]
     @State private var selectedDeckIndex: Int = 0
+    @State private var selectedDifficulty: BattleDifficulty = .intermediate
+    @State private var showDifficultyDialog: Bool = false
     private var currentDeckBinding: Binding<DeckList> {
         Binding(
             get: { decks[selectedDeckIndex] },
@@ -49,7 +51,7 @@ struct DeckBuilderView: View {
     private let columns: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
     
     init(collection: CardCollection,
-         onStartBattle: @escaping (DeckList) -> Void) {
+         onStartBattle: @escaping (DeckList, BattleDifficulty) -> Void) {
         _collection = State(initialValue: collection)
         self.onStartBattle = onStartBattle
 
@@ -94,6 +96,13 @@ struct DeckBuilderView: View {
         }
         .overlay(detailOverlay)
         .overlay(countPickerOverlay)
+        .confirmationDialog("難易度を選択", isPresented: $showDifficultyDialog, titleVisibility: .visible) {
+            ForEach(BattleDifficulty.allCases) { diff in
+                Button(diff.displayName) {
+                    selectedDifficulty = diff
+                }
+            }
+        }
         .alert(item: Binding(
             get: {
                 alertMessage.map { AlertMessage(text: $0) }
@@ -189,8 +198,8 @@ struct DeckBuilderView: View {
                 Rectangle()
                     .fill(Color.black)
 
-                Button("未実装") {
-                    // TODO: 何か機能を入れる場合はここに
+                Button("難易度") {
+                    showDifficultyDialog = true
                 }
                 .buttonStyle(.plain) // ← 余計な内側パディングを消す
             }
@@ -201,11 +210,11 @@ struct DeckBuilderView: View {
                 Rectangle()
                     .fill(Color.red)
 
-                Button("バトル開始") {
+                Button("バトル開始\n（\(selectedDifficulty.displayName)）") {
                     if deck.totalCreatures == DeckList.creatureLimit &&
                         deck.totalSpells == DeckList.spellLimit {
                         SoundManager.shared.playStartSound()
-                        onStartBattle(deck)
+                        onStartBattle(deck, selectedDifficulty)
                     } else {
                         alertMessage = "デッキ枚数が不足しています。\nク \(deck.totalCreatures)/\(DeckList.creatureLimit)  ス \(deck.totalSpells)/\(DeckList.spellLimit)"
                     }
