@@ -1251,7 +1251,7 @@ struct ContentView: View {
             .opacity(isFadingOut ? 0 : 1)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .overlay(alignment: .top) {
-                VictoryConditionBar()
+                VictoryConditionBar(target: vm.victoryTarget)
             }
         }
         .onChange(of: vm.shouldReturnToDeckBuilder) { oldValue, newValue in
@@ -1381,13 +1381,15 @@ struct ContentView: View {
 }
 
 private struct VictoryConditionBar: View {
+    let target: Int
 
     var body: some View {
         ZStack {
             Color.clear
 
             VStack(spacing: 0) {
-                Text("勝利条件：TOTL 5,000G")
+                let targetText = target.formatted(.number.grouping(.automatic))
+                Text("勝利条件：TOTL \(targetText)G")
                     .font(.bestTenSubheadline)
                     .foregroundColor(.white)
                     .padding(.horizontal, 16)

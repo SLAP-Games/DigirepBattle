@@ -285,7 +285,8 @@ final class GameVM: ObservableObject {
     private var pendingHomeOverlayTask: DispatchWorkItem? = nil
     private var victoryShowWorkItem: DispatchWorkItem? = nil
     private var victoryDismissWorkItem: DispatchWorkItem? = nil
-    private let victoryThreshold: Int = 5000
+    private let victoryThreshold: Int
+    private let checkpointBaseBonus: Int
     private var victoryMonitor: AnyCancellable?
     @Published var isSelectingCleanseTarget: Bool = false
     @Published var cleanseCandidateTiles: Set<Int> = []
@@ -346,6 +347,7 @@ final class GameVM: ObservableObject {
     private var willPoisonDefender: Bool = false
     private var plunderAnimationTask: Task<Void, Never>? = nil
     private var saleFocusTask: Task<Void, Never>? = nil
+    private var saleFocusToken: UUID? = nil
     private var diceGlitchContinuation: CheckedContinuation<Void, Never>? = nil
     private var diceGlitchShouldPinAfterReveal: Bool = false
     let layout: BoardLayout
@@ -369,6 +371,8 @@ final class GameVM: ObservableObject {
         return levelUpCost[level]
     }
 
+    var victoryTarget: Int { victoryThreshold }
+    
     func incrementalLevelUpCost(from currentLevel: Int, to targetLevel: Int) -> Int? {
         guard targetLevel >= 2, targetLevel <= 5, targetLevel > currentLevel else { return nil }
         guard let targetTotal = totalLevelUpCost(to: targetLevel),
@@ -440,6 +444,30 @@ final class GameVM: ObservableObject {
         }
         return deck
     }
+    
+    private static func startingGold(for difficulty: BattleDifficulty) -> Int {
+        switch difficulty {
+        case .beginner: return 300
+        case .intermediate: return 500
+        case .advanced: return 800
+        }
+    }
+    
+    private static func checkpointBonusBase(for difficulty: BattleDifficulty) -> Int {
+        switch difficulty {
+        case .beginner: return 300
+        case .intermediate: return 500
+        case .advanced: return 800
+        }
+    }
+    
+    private static func victoryThreshold(for difficulty: BattleDifficulty) -> Int {
+        switch difficulty {
+        case .beginner: return 3000
+        case .intermediate: return 5000
+        case .advanced: return 8000
+        }
+    }
 
     private var decks: [[Card]] = [[], []]
     @Published var hands: [[Card]] = [[], []]
@@ -448,6 +476,8 @@ final class GameVM: ObservableObject {
         self.difficulty = difficulty
         self.layout = BoardLayout.make(for: difficulty)
         self.tileCount = layout.tileCount
+        self.victoryThreshold = GameVM.victoryThreshold(for: difficulty)
+        self.checkpointBaseBonus = GameVM.checkpointBonusBase(for: difficulty)
         // 特別マスの割り当てを難易度に合わせる
         switch difficulty {
         case .beginner:
@@ -481,6 +511,11 @@ final class GameVM: ObservableObject {
         self.harvestedTiles = []
         self.focusedHandIndex = 0
         self.handDragOffset = 0
+        let startGold = GameVM.startingGold(for: difficulty)
+        self.players = [
+            Player(name: "You", pos: layout.homeNode, gold: startGold),
+            Player(name: "CPU", pos: layout.homeNode, gold: startGold)
+        ]
         
         let initialPlayerDeck = selectedDeck ?? DeckList.defaultBattleDeck
         cardStates[0].deckList = initialPlayerDeck
@@ -4237,10 +4272,10 @@ final class GameVM: ObservableObject {
         owner.reduce(0) { $0 + (($1 == pid) ? 1 : 0) }
     }
 
-    // 300 + (自分の設置マス数 × 45) ※変動分を1.5倍に増量
+    // 難易度別の基礎額 + (自分の設置マス数 × 45)
     private func checkpointReward(for pid: Int) -> Int {
         let perTileBonus = 45
-        return 300 + ownedTileCount(of: pid) * perTileBonus
+        return checkpointBaseBonus + ownedTileCount(of: pid) * perTileBonus
     }
     
     func totalAssets(for pid: Int) -> Int {
@@ -4300,6 +4335,9 @@ final class GameVM: ObservableObject {
 
     @MainActor
     private func runSaleFocusSequence(on tile: Int) async {
+        // フォーカスをトークンで管理し、他のカメラ操作と競合した場合は復元をスキップ
+        let token = UUID()
+        saleFocusToken = token
         let previousForce = forceCameraFocus
         let previousFocusTile = focusTile
         forceCameraFocus = true
@@ -4308,8 +4346,15 @@ final class GameVM: ObservableObject {
         try? await Task.sleep(nanoseconds: 500_000_000)
         SoundManager.shared.playSellTileSound()
 
-        forceCameraFocus = previousForce
-        focusTile = previousFocusTile
+        if saleFocusToken == token {
+            if forceCameraFocus == true {
+                forceCameraFocus = previousForce
+            }
+            if focusTile == tile {
+                focusTile = previousFocusTile
+            }
+            saleFocusToken = nil
+        }
     }
     
     /// レベルアップ確定
