@@ -527,6 +527,7 @@ final class GameVM: ObservableObject {
         // 初期手札3枚
         for pid in 0...1 {
             for _ in 0..<3 { drawOne(for: pid) }
+            handleHandOverflowIfNeeded(for: pid)
         }
 
         startTurnIfNeeded()
@@ -923,6 +924,7 @@ final class GameVM: ObservableObject {
     private func drawOne(for pid: Int) {
         guard let picked = drawOneFromDeck(for: pid) else { return }
         hands[pid].append(picked)
+        handleHandOverflowIfNeeded(for: pid)
     }
     
     /// プレイヤー用：カードをn枚、ターン開始ドローアニメと同じ方式で順番に表示
@@ -930,7 +932,7 @@ final class GameVM: ObservableObject {
         // 現状はプレイヤー(0)専用。CPUなら即ドローでフォールバック
         guard pid == 0 else {
             for _ in 0..<n { drawOne(for: pid) }
-            if pid == turn { handleHandOverflowIfNeeded() }
+            handleHandOverflowIfNeeded(for: pid)
             return
         }
 
@@ -960,7 +962,7 @@ final class GameVM: ObservableObject {
         guard let card = drawPreviewCard else { return }
         drawPreviewCard = nil
         hands[0].append(card)
-        handleHandOverflowIfNeeded()
+        handleHandOverflowIfNeeded(for: 0)
 
         // ★ まだキューが残っていれば、少し待って次のアニメを開始
         if !pendingDrawPreviewQueue.isEmpty {
@@ -984,7 +986,7 @@ final class GameVM: ObservableObject {
         } else {
             // CPUターン：従来通り即手札へ
             hands[turn].append(picked)
-            handleHandOverflowIfNeeded()
+            handleHandOverflowIfNeeded(for: turn)
         }
     }
     
@@ -1019,10 +1021,14 @@ final class GameVM: ObservableObject {
         refreshSummonReminderState()
     }
     
-    /// 手札上限処理（>5 のとき捨てフェーズ等へ）
-    private func handleHandOverflowIfNeeded() {
-        if hands[turn].count > 5 {
-            mustDiscardFor = turn
+    /// 手札上限処理（>6 のとき捨てフェーズ等へ）
+    private func handleHandOverflowIfNeeded(for pid: Int? = nil) {
+        let target = pid ?? turn
+        guard hands.indices.contains(target) else { return }
+        if hands[target].count > 6 {
+            mustDiscardFor = target
+        } else if mustDiscardFor == target {
+            mustDiscardFor = nil
         }
     }
 
@@ -1030,7 +1036,7 @@ final class GameVM: ObservableObject {
         if let idx = hands[pid].firstIndex(of: card) {
             hands[pid].remove(at: idx)
         }
-        mustDiscardFor = nil
+        handleHandOverflowIfNeeded(for: pid)
     }
     
     func openCard(_ card: Card) {
@@ -1160,7 +1166,7 @@ final class GameVM: ObservableObject {
         SoundManager.shared.playBuySound()
 
         pushCenterMessage("\(spell.name) を購入 -\(spell.price)G")
-        handleHandOverflowIfNeeded()  // 6枚超の処理があるなら実装済み関数を呼ぶ
+        handleHandOverflowIfNeeded(for: turn)
         availableShopSpells = availableShopSpells.filter { $0.id != spell.id }
         activeSpecialSheet = nil
         objectWillChange.send()
@@ -2809,9 +2815,7 @@ final class GameVM: ObservableObject {
                 drawOne(for: pid)
             }
             pushCenterMessage("カードを \(n) 枚ドロー")
-            if pid == turn {
-                handleHandOverflowIfNeeded()
-            }
+            handleHandOverflowIfNeeded(for: pid)
 
         // それ以外はあとで個別実装
         default:

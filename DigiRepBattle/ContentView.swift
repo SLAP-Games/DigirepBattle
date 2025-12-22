@@ -429,15 +429,6 @@ struct ContentView: View {
                                     }
                                     .padding()
                                 }
-
-                                Button("閉じる") {
-                                    vm.isSelectingOpponentHandToDelete = false
-                                    vm.pendingDeleteHandIndex = nil
-                                    vm.deletingTargetPlayer = nil
-                                    vm.deletePreviewCard = nil
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .padding(.bottom, 20)
                             }
                             .frame(maxWidth: .infinity)
                             .background(
@@ -1098,8 +1089,8 @@ struct ContentView: View {
                                 levelUp: { vm.actionLevelUpOnSpecialNode() },
                                 moveCreature: { vm.actionMoveCreatureFromSpecialNode() },
                                 buySkill: { vm.actionPurchaseSkillOnSpecialNode() },
-                                endTurn: {
-                                    vm.endTurn()
+                                close: {
+                                    vm.showSpecialMenu = false
                                 }
                             )
                             .frame(height: controlsH)

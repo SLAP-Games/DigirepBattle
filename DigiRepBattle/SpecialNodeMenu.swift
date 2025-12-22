@@ -12,7 +12,7 @@ struct SpecialNodeMenu: View {
     let levelUp: () -> Void
     let moveCreature: () -> Void
     let buySkill: () -> Void
-    let endTurn: () -> Void
+    let close: () -> Void
 
     var title: String {
         switch kind {
@@ -37,7 +37,7 @@ struct SpecialNodeMenu: View {
                 Button("スキル\n購入", action: buySkill)
                     .buttonStyle(.borderedProminent)
 
-                Button("ターン\n終了", action: endTurn)
+                Button("閉じる", action: close)
                     .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal, 12)
