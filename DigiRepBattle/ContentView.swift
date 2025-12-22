@@ -164,34 +164,51 @@ struct ContentView: View {
                     )
                     .overlay(alignment: .center) {
                         if let card = vm.presentingCard {
-                            CardDetailOverlay(
-                                card: card,
-                                vm: vm,
-                                onClose: { vm.closeCardPopup() }
-                            )
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(12)
+                            ZStack {
+                                Color.black.opacity(0.45)
+                                    .ignoresSafeArea()
+                                    .onTapGesture { vm.closeCardPopup() }
+                                CardDetailOverlay(
+                                    card: card,
+                                    vm: vm,
+                                    onClose: { vm.closeCardPopup() }
+                                )
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(12)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .transition(.opacity.combined(with: .scale))
                             .zIndex(900)
                         } else if let drawCard = vm.drawPreviewCard {
-                            DrawCardOverlay(
-                                vm: vm,
-                                card: drawCard,
-                                onFinished: {
-                                    vm.confirmDrawPreview()
-                                }
-                            )
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(12)
+                            ZStack {
+                                Color.black.opacity(0.45)
+                                    .ignoresSafeArea()
+                                DrawCardOverlay(
+                                    vm: vm,
+                                    card: drawCard,
+                                    onFinished: {
+                                        vm.confirmDrawPreview()
+                                    }
+                                )
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(12)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .transition(.opacity)
                             .zIndex(1300)
                         } else if let npcSpellCard = vm.npcSpellPreviewCard {
-                            NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(12)
-                                .transition(.asymmetric(insertion: .opacity,
-                                                        removal: .move(edge: .top).combined(with: .opacity)))
-                                .zIndex(1250)
+                            ZStack {
+                                Color.black.opacity(0.45)
+                                    .ignoresSafeArea()
+                                    .onTapGesture { vm.closeCardPopup() }
+                                NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(12)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .transition(.asymmetric(insertion: .opacity,
+                                                    removal: .move(edge: .top).combined(with: .opacity)))
+                            .zIndex(1250)
                         }
                     }
                     .overlay(alignment: .top) {
@@ -1567,9 +1584,6 @@ struct CardDetailOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-            
             VStack(spacing: 8) {
                 Text(card.name)
                     .font(.bestTen(size: 22))
@@ -1738,9 +1752,6 @@ struct NPCSpellPreviewOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-
             VStack(spacing: 10) {
                 Text("NPCがスペルを使用")
                     .font(.bestTen(size: 22))
@@ -1806,10 +1817,6 @@ struct DrawCardOverlay: View {
 
     var body: some View {
         ZStack {
-            // 背景を暗くして他の操作を封じる
-            Color.black.opacity(0.5)
-                .ignoresSafeArea()
-
             VStack(spacing: 8) {
                 Text(card.name)
                     .font(.bestTen(size: 22))

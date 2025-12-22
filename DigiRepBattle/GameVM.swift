@@ -616,6 +616,38 @@ final class GameVM: ObservableObject {
     }
 
     private func performEndTurnCore() {
+        // 「ターン終了」押下時に前面の一時ビューをまとめて閉じる
+        presentingCard = nil
+        shopSpellForDetail = nil
+        activeSpecialSheet = nil
+        showBattleOverlay = false
+        sellConfirmTile = nil
+        deletePreviewCard = nil
+        isSelectingOpponentHandToDelete = false
+        isSelectingDamageTarget = false
+        cancelDamageSelection()
+        cancelPoisonSelection()
+        cancelCleanseSelection()
+        isSelectingFullHealTarget = false
+        pendingFullHealTile = nil
+        fullHealCandidateTiles = []
+        isSelectingLandLevelChangeTarget = false
+        pendingLandLevelChangeTile = nil
+        landLevelChangeCandidateTiles = []
+        isSelectingLandTollZeroTarget = false
+        pendingLandTollZeroTile = nil
+        landTollZeroCandidateTiles = []
+        isSelectingLandTollDoubleTarget = false
+        pendingLandTollDoubleTile = nil
+        landTollDoubleCandidateTiles = []
+        isSelectingTileAttributeTarget = false
+        pendingTileAttributeTarget = nil
+        pendingTileAttributeKind = nil
+        tileAttributeCandidateTiles = []
+        branchLandingTargets = []
+        pendingMoveSourceTile = nil
+        moveCreatureSourceCandidates = []
+        moveCreatureDestinationCandidates = []
         highlightSummonableCreatures = false
         showEndTurnWithoutSummonConfirm = false
         cancelMoveSelectionIfNeeded()
@@ -1170,6 +1202,7 @@ final class GameVM: ObservableObject {
 
         hands[pid].remove(at: index)
         addGold(price, to: pid)
+        SoundManager.shared.playBuySound()
         pushCenterMessage("\(card.name) を売却 +\(price)G")
     }
 
