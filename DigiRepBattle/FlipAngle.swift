@@ -100,8 +100,8 @@ struct Flip<Front: View, Back: View>: View {
 
 struct FrontCardFace: View {
     let card: Card
-    @ObservedObject var vm: GameVM
     let frameImageName: String
+    let spellDescription: (Card) -> String
     @Binding var isDissolving: Bool
     var onDissolveCompleted: (() -> Void)?
     
@@ -114,13 +114,13 @@ struct FrontCardFace: View {
     private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
 
     init(card: Card,
-         vm: GameVM,
          frameImageName: String,
+         spellDescription: @escaping (Card) -> String,
          isDissolving: Binding<Bool> = .constant(false),
          onDissolveCompleted: (() -> Void)? = nil) {
         self.card = card
-        self.vm = vm
         self.frameImageName = frameImageName
+        self.spellDescription = spellDescription
         self._isDissolving = isDissolving
         self.onDissolveCompleted = onDissolveCompleted
     }
@@ -224,7 +224,7 @@ struct FrontCardFace: View {
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                Text(vm.spellDescription(for: card))
+                                Text(spellDescription(card))
                                     .font(.bestTen(size: detailFontSize))
                                     .foregroundColor(.white)
                                     .multilineTextAlignment(.leading)

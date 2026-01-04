@@ -163,52 +163,38 @@ struct ContentView: View {
                         alignment: .bottom
                     )
                     .overlay(alignment: .center) {
-                        if let card = vm.presentingCard {
-                            ZStack {
-                                Color.black.opacity(0.45)
-                                    .ignoresSafeArea()
-                                    .onTapGesture { vm.closeCardPopup() }
-                                CardDetailOverlay(
-                                    card: card,
-                                    vm: vm,
-                                    onClose: { vm.closeCardPopup() }
-                                )
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(12)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .transition(.opacity.combined(with: .scale))
-                            .zIndex(900)
-                        } else if let drawCard = vm.drawPreviewCard {
-                            ZStack {
-                                Color.black.opacity(0.45)
-                                    .ignoresSafeArea()
-                                DrawCardOverlay(
-                                    vm: vm,
-                                    card: drawCard,
-                                    onFinished: {
-                                        vm.confirmDrawPreview()
-                                    }
-                                )
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(12)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .transition(.opacity)
-                            .zIndex(1300)
-                        } else if let npcSpellCard = vm.npcSpellPreviewCard {
-                            ZStack {
-                                Color.black.opacity(0.45)
-                                    .ignoresSafeArea()
-                                    .onTapGesture { vm.closeCardPopup() }
-                                NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
+                        if vm.presentingCard == nil {
+                            if let drawCard = vm.drawPreviewCard {
+                                ZStack {
+                                    Color.black.opacity(0.45)
+                                        .ignoresSafeArea()
+                                    DrawCardOverlay(
+                                        vm: vm,
+                                        card: drawCard,
+                                        onFinished: {
+                                            vm.confirmDrawPreview()
+                                        }
+                                    )
                                     .fixedSize(horizontal: false, vertical: true)
                                     .padding(12)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .transition(.opacity)
+                                .zIndex(1300)
+                            } else if let npcSpellCard = vm.npcSpellPreviewCard {
+                                ZStack {
+                                    Color.black.opacity(0.45)
+                                        .ignoresSafeArea()
+                                        .onTapGesture { vm.closeCardPopup() }
+                                    NPCSpellPreviewOverlay(vm: vm, card: npcSpellCard)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .padding(12)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .transition(.asymmetric(insertion: .opacity,
+                                                        removal: .move(edge: .top).combined(with: .opacity)))
+                                .zIndex(1250)
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .transition(.asymmetric(insertion: .opacity,
-                                                    removal: .move(edge: .top).combined(with: .opacity)))
-                            .zIndex(1250)
                         }
                     }
                     .overlay(alignment: .top) {
@@ -384,25 +370,6 @@ struct ContentView: View {
                         .zIndex(100)
                     }
                     
-                    if let card = vm.presentingCard {
-                        ZStack {
-                            // 背景を少し暗くする（不要なら消してOK）
-                            Color.black.opacity(0.45)
-                                .ignoresSafeArea()
-                                .onTapGesture { vm.closeCardPopup() }
-
-                            CardDetailOverlay(
-                                card: card,
-                                vm: vm,
-                                onClose: { vm.closeCardPopup() }
-                            )
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(12)
-                        }
-                        .transition(.opacity.combined(with: .scale))
-                        .zIndex(1200)
-                    }
-                    
                     // ★ 相手手札削除用：NPC 手札一覧表示オーバーレイ
                     if vm.isSelectingOpponentHandToDelete,
                        let target = vm.deletingTargetPlayer {
@@ -474,7 +441,7 @@ struct ContentView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
 
-                                    Button("戻る") {
+                                    Button("キャンセル") {
                                         // 一覧画面に戻るだけ（削除モードは継続）
                                         vm.deletePreviewCard = nil
                                         vm.pendingDeleteHandIndex = nil
@@ -548,7 +515,7 @@ struct ContentView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
 
-                                    Button("閉じる") {
+                                    Button("対象変更") {
                                         vm.cancelFullHealConfirm()
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -581,19 +548,14 @@ struct ContentView: View {
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("使用する") {
-                                    vm.confirmDamageSpell()
-                                }
-                                .buttonStyle(.borderedProminent)
-
                                 HStack(spacing: 12) {
-                                    Button("対象変更") {
-                                        vm.cancelDamageConfirm()
+                                    Button("OK") {
+                                        vm.confirmDamageSpell()
                                     }
                                     .buttonStyle(.borderedProminent)
-
-                                    Button("選択終了") {
-                                        vm.cancelDamageSelection()
+                                    
+                                    Button("対象変更") {
+                                        vm.cancelDamageConfirm()
                                     }
                                     .buttonStyle(.borderedProminent)
                                 }
@@ -627,19 +589,14 @@ struct ContentView: View {
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("土地改変") {
-                                    vm.confirmTileAttributeChange()
-                                }
-                                .buttonStyle(.borderedProminent)
-
                                 HStack(spacing: 12) {
-                                    Button("対象変更") {
-                                        vm.cancelTileAttributeConfirm()
+                                    Button("OK") {
+                                        vm.confirmTileAttributeChange()
                                     }
                                     .buttonStyle(.borderedProminent)
-
-                                    Button("選択終了") {
-                                        vm.cancelTileAttributeSelection()
+                                    
+                                    Button("対象変更") {
+                                        vm.cancelTileAttributeConfirm()
                                     }
                                     .buttonStyle(.borderedProminent)
                                 }
@@ -672,19 +629,14 @@ struct ContentView: View {
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("毒を付与") {
-                                    vm.confirmPoisonSpell()
-                                }
-                                .buttonStyle(.borderedProminent)
-
                                 HStack(spacing: 12) {
-                                    Button("対象変更") {
-                                        vm.cancelPoisonConfirm()
+                                    Button("OK") {
+                                        vm.confirmPoisonSpell()
                                     }
                                     .buttonStyle(.borderedProminent)
-
-                                    Button("選択終了") {
-                                        vm.cancelPoisonSelection()
+                                    
+                                    Button("対象変更") {
+                                        vm.cancelPoisonConfirm()
                                     }
                                     .buttonStyle(.borderedProminent)
                                 }
@@ -717,19 +669,14 @@ struct ContentView: View {
                                     .multilineTextAlignment(.center)
                                     .font(.bestTenSubheadline)
 
-                                Button("効果解除") {
-                                    vm.confirmCleanseSpell()
-                                }
-                                .buttonStyle(.borderedProminent)
-
                                 HStack(spacing: 12) {
-                                    Button("対象変更") {
-                                        vm.cancelCleanseConfirm()
+                                    Button("OK") {
+                                        vm.confirmCleanseSpell()
                                     }
                                     .buttonStyle(.borderedProminent)
-
-                                    Button("選択終了") {
-                                        vm.cancelCleanseSelection()
+                                    
+                                    Button("対象変更") {
+                                        vm.cancelCleanseConfirm()
                                     }
                                     .buttonStyle(.borderedProminent)
                                 }
@@ -768,7 +715,7 @@ struct ContentView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
 
-                                    Button("閉じる") {
+                                    Button("対象変更") {
                                         vm.cancelLandLevelChangeConfirm()
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -805,7 +752,7 @@ struct ContentView: View {
                                 }
                                 .buttonStyle(.borderedProminent)
 
-                                Button("閉じる") {
+                                Button("対象変更") {
                                     vm.cancelLandTollZeroConfirm()
                                 }
                                 .buttonStyle(.borderedProminent)
@@ -936,25 +883,33 @@ struct ContentView: View {
                         if canPlace {
                             ZStack {
                                 VStack {
-                                    Text("このデジレプを配置しますか？")
+                                    Text("デジレプを配置")
                                         .font(.bestTenSubheadline).bold()
-                                    
                                     HStack(spacing: 12) {
                                         let price = card.stats?.cost ?? 0
                                         let enoughGold = vm.players[0].gold >= price
-
-                                        Button(enoughGold ? "配置" : "G不足") {
-                                            guard enoughGold else { return }
-                                            vm.confirmPlaceCreatureFromHand(card, at: t, by: 0)
-                                            vm.closeCardPopup()
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .disabled(!enoughGold)
                                         
-                                        Button("キャンセル") {
-                                            vm.closeCardPopup()
-                                        }
-                                        .buttonStyle(.borderedProminent)
+                                        Text(enoughGold ? "占領可能" : "G不足")
+                                        
+//                                    Text("このデジレプを配置しますか？")
+//                                        .font(.bestTenSubheadline).bold()
+//                                    
+//                                    HStack(spacing: 12) {
+//                                        let price = card.stats?.cost ?? 0
+//                                        let enoughGold = vm.players[0].gold >= price
+//
+//                                        Button(enoughGold ? "配置" : "G不足") {
+//                                            guard enoughGold else { return }
+//                                            vm.confirmPlaceCreatureFromHand(card, at: t, by: 0)
+//                                            vm.closeCardPopup()
+//                                        }
+//                                        .buttonStyle(.borderedProminent)
+//                                        .disabled(!enoughGold)
+//                                        
+//                                        Button("キャンセル") {
+//                                            vm.closeCardPopup()
+//                                        }
+//                                        .buttonStyle(.borderedProminent)
                                     }
                                     .padding(.vertical, 8)
                                     .padding(.horizontal, 12)
@@ -975,12 +930,12 @@ struct ContentView: View {
                             if vm.phase == .ready {
                                 ZStack {
                                     VStack(spacing: 12) {
-                                        Text("占領済みです")
+                                        Text("占領済み")
                                             .font(.bestTenSubheadline).bold()
-                                        Button("キャンセル") {
-                                            vm.closeCardPopup()
-                                        }
-                                        .buttonStyle(.borderedProminent)
+//                                        Button("キャンセル") {
+//                                            vm.closeCardPopup()
+//                                        }
+//                                        .buttonStyle(.borderedProminent)
                                     }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -1000,12 +955,12 @@ struct ContentView: View {
                         else if isCPU && hasCreature {
                             ZStack {
                                 VStack(spacing: 12) {
-                                    Text("相手の領地です")
+                                    Text("相手の領地")
                                         .font(.bestTenSubheadline).bold()
-                                    Button("キャンセル") {
-                                        vm.closeCardPopup()
-                                    }
-                                    .buttonStyle(.borderedProminent)
+//                                    Button("キャンセル") {
+//                                        vm.closeCardPopup()
+//                                    }
+//                                    .buttonStyle(.borderedProminent)
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -1023,12 +978,12 @@ struct ContentView: View {
                         else {
                             ZStack {
                                 VStack(spacing: 12) {
-                                    Text("この場所では配置できません")
+                                    Text("占領不可")
                                         .font(.bestTenSubheadline).bold()
-                                    Button("キャンセル") {
-                                        vm.closeCardPopup()
-                                    }
-                                    .buttonStyle(.borderedProminent)
+//                                    Button("キャンセル") {
+//                                        vm.closeCardPopup()
+//                                    }
+//                                    .buttonStyle(.borderedProminent)
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -1255,6 +1210,7 @@ struct ContentView: View {
                     .transition(.opacity)
                     .zIndex(2000)
             }
+            cardDetailOverlay
             }
             .opacity(isFadingOut ? 0 : 1)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1348,6 +1304,28 @@ struct ContentView: View {
                     // それ以外は通常マップBGMへ
                     SoundManager.shared.playBGM(.map)
                 }
+            }
+        }
+    }
+
+    private var cardDetailOverlay: some View {
+        Group {
+            if let card = vm.presentingCard {
+                ZStack {
+                    Color.black.opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture { vm.closeCardPopup() }
+
+                    CardDetailOverlay(
+                        card: card,
+                        vm: vm,
+                        onClose: { vm.closeCardPopup() }
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                }
+                .transition(.opacity.combined(with: .scale))
+                .zIndex(1800)
             }
         }
     }
@@ -1451,6 +1429,18 @@ struct CardDetailOverlay: View {
 
     private let frameImageName = "cardL"
     private let backImageName  = "cardLreverse"
+    private var spellCostForUI: Int {
+        CardDatabase.definition(for: card.id)?.cost ?? 0
+    }
+    private var canUseTargetedDiceSpell: Bool {
+        vm.turn == 0 &&
+        vm.mustDiscardFor == nil &&
+        (vm.phase == .ready || vm.phase == .moved) &&
+        !vm.showBattleOverlay
+    }
+    private var hasEnoughGoldForSpell: Bool {
+        vm.players.indices.contains(0) && vm.players[0].gold >= spellCostForUI
+    }
     private var primaryAction: (title: String, action: (() -> Void)?, enabled: Bool) {
 
         // コスト取得ヘルパー
@@ -1637,35 +1627,62 @@ struct CardDetailOverlay: View {
                         .buttonStyle(.plain)
                     }
                     .frame(maxWidth: .infinity)
-                    
+                
                 } else {
-                    // ★ 従来どおりの通常モード
-                    HStack(spacing: 10) {
-                        Button {
-                            primaryAction.action?()
-                        } label: {
-                            Image("okButton")
-                                .renderingMode(.original)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 44)
-                                .opacity(primaryAction.enabled ? 1 : 0.4)
+                    if vm.isTargetedDiceSpell(card) && vm.mustDiscardFor == nil {
+                        HStack(spacing: 12) {
+                            Button("自分") {
+                                guard canUseTargetedDiceSpell, hasEnoughGoldForSpell else { return }
+                                vm.useTargetedDiceSpell(card, target: 0)
+                                onClose()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!(canUseTargetedDiceSpell && hasEnoughGoldForSpell))
+                            
+                            Button("相手") {
+                                guard canUseTargetedDiceSpell, hasEnoughGoldForSpell else { return }
+                                vm.useTargetedDiceSpell(card, target: 1)
+                                onClose()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!(canUseTargetedDiceSpell && hasEnoughGoldForSpell))
+                            
+                            Button("キャンセル") {
+                                onClose()
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(!primaryAction.enabled)
-                        
-                        Button {
-                            onClose()
-                        } label: {
-                            Image("cancelButton")
-                                .renderingMode(.original)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 44)
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        // ★ 従来どおりの通常モード
+                        HStack(spacing: 10) {
+                            Button {
+                                primaryAction.action?()
+                            } label: {
+                                Image("okButton")
+                                    .renderingMode(.original)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 44)
+                                    .opacity(primaryAction.enabled ? 1 : 0.4)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!primaryAction.enabled)
+                            
+                            Button {
+                                onClose()
+                            } label: {
+                                Image("cancelButton")
+                                    .renderingMode(.original)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 44)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
                 }
             }
             .padding(.horizontal, 20)
@@ -1699,13 +1716,13 @@ struct CardDetailOverlay: View {
 
     private var flipCardAngle: some View {
         CardFlipDisplay(
-            vm: vm,
             card: card,
             angle: $spinAngle,
             frameImageName: frameImageName,
             backImageName: backImageName,
             dissolving: $isDiscardingCard,
-            onDissolveCompleted: completeDiscardIfNeeded
+            onDissolveCompleted: completeDiscardIfNeeded,
+            spellDescription: { vm.spellDescription(for: $0) }
         )
     }
 
@@ -1751,11 +1768,11 @@ struct NPCSpellPreviewOverlay: View {
                     .multilineTextAlignment(.center)
 
                 CardFlipDisplay(
-                    vm: vm,
                     card: card,
                     angle: $spinAngle,
                     frameImageName: frameImageName,
-                    backImageName: backImageName
+                    backImageName: backImageName,
+                    spellDescription: { vm.spellDescription(for: $0) }
                 )
                 .frame(maxWidth: 300)
 
@@ -1820,11 +1837,11 @@ struct DrawCardOverlay: View {
 
                 // 既存の Flip 表現を再利用
                 CardFlipDisplay(
-                    vm: vm,
                     card: card,
                     angle: $spinAngle,
                     frameImageName: frameImageName,
-                    backImageName: backImageName
+                    backImageName: backImageName,
+                    spellDescription: { vm.spellDescription(for: $0) }
                 )
                 .frame(maxWidth: 300)
 
@@ -1878,7 +1895,6 @@ struct DrawCardOverlay: View {
 }
 
 struct CardFlipDisplay: View {
-    @ObservedObject var vm: GameVM
     let card: Card
     @Binding var angle: Double
     var frameImageName: String = "cardL"
@@ -1886,13 +1902,14 @@ struct CardFlipDisplay: View {
     var dissolving: Binding<Bool>? = nil
     var onDissolveCompleted: (() -> Void)?
     var tapToSpin: Bool = true
+    var spellDescription: (Card) -> String = { _ in "" }
 
     var body: some View {
         FlipAngle(angle: angle) {
             FrontCardFace(
                 card: card,
-                vm: vm,
                 frameImageName: frameImageName,
+                spellDescription: spellDescription,
                 isDissolving: dissolving ?? .constant(false),
                 onDissolveCompleted: onDissolveCompleted
             )

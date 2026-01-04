@@ -6,16 +6,16 @@
 //
 import SwiftUI
 
-#Preview {
-    DeckBuilderView(collection: CardCollection(), onStartBattle: { _, _ in })
-}
+//#Preview {
+//    DeckBuilderView(collection: CardCollection(), onStartBattle: { _, _ in })
+//}
 
 #Preview("メイン") {
     ContentView()
         .environmentObject(GameVM(selectedDeck: .previewSample, difficulty: .beginner))
 }
 
-#Preview("Heal") {
-    SpellEffectPreviewView(kind: .heal)
-        .frame(width: 300, height: 300)
-}
+//#Preview("Heal") {
+//    SpellEffectPreviewView(kind: .heal)
+//        .frame(width: 300, height: 300)
+//}

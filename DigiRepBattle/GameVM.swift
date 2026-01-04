@@ -1698,19 +1698,12 @@ final class GameVM: ObservableObject {
         }
     }
 
-    private func logVictoryCheck(playerTotal: Int, npcTotal: Int, reason: String) {
-        print("[VictoryCheck] reason=\(reason) playerTotal=\(playerTotal) npcTotal=\(npcTotal) status=\(String(describing: victoryStatus)) threshold=\(victoryThreshold)")
-    }
-
     private func checkVictoryCondition() {
         let playerTotal = totalAssets(for: 0)
         let npcTotal = totalAssets(for: 1)
 
-        if let status = victoryStatus {
-            logVictoryCheck(playerTotal: playerTotal, npcTotal: npcTotal, reason: "blocked(status=\(status))")
+        if victoryStatus != nil {
             return
-        } else {
-            logVictoryCheck(playerTotal: playerTotal, npcTotal: npcTotal, reason: "evaluating")
         }
 
         if playerTotal >= victoryThreshold {

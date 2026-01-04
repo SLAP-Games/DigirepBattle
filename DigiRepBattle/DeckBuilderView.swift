@@ -305,35 +305,26 @@ struct DeckBuilderView: View {
                         .ignoresSafeArea()
                         .onTapGesture { closeDetail() }
 
-                    VStack(spacing: 12) {
-                        // CardDetailOverlay と同じような見た目を reuse
-                        CardDetailSimple(card: card)
-
-                        HStack(spacing: 12) {
+                    DeckBuilderCardDetailOverlay(
+                        card: card,
+                        actionTitle: {
+                            switch source {
+                            case .deck:
+                                return "削除"
+                            case .collection:
+                                return "追加"
+                            }
+                        }(),
+                        onPrimary: {
                             switch source {
                             case .deck(let id, let kind):
-                                Button("削除") {
-                                    startCountEdit(id: id, kind: kind, mode: .remove)
-                                }
-                                .buttonStyle(.borderedProminent)
-
+                                startCountEdit(id: id, kind: kind, mode: .remove)
                             case .collection(let id, let kind):
-                                Button("追加") {
-                                    startCountEdit(id: id, kind: kind, mode: .add)
-                                }
-                                .buttonStyle(.borderedProminent)
+                                startCountEdit(id: id, kind: kind, mode: .add)
                             }
-
-                            Button("閉じる") {
-                                closeDetail()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(UIColor.systemBackground))
+                        },
+                        onClose: { closeDetail() },
+                        spellDescription: spellDescription(for:)
                     )
                     .padding(24)
                 }
@@ -353,6 +344,77 @@ struct DeckBuilderView: View {
     private func closeDetail() {
         showingDetailCard = nil
         detailSource = nil
+    }
+    
+    private func spellDescription(for card: Card) -> String {
+        guard let effect = card.spell else {
+            return ""
+        }
+        switch effect {
+        case .fixNextRoll(let n):
+            return "次の出目を \(n) に固定"
+        case .doubleDice:
+            return "次のターン、サイコロを2つ振る"
+        case .buffPower(let n):
+            return "戦闘中、戦闘力を \(n) 上昇"
+        case .buffDefense(let n):
+            return "戦闘中、耐久力を \(n) 上昇"
+        case .firstStrike:
+            return "戦闘中、先に攻撃を行う"
+        case .poison:
+            return "毎ターンHPの20%の毒ダメージを付与"
+        case .reflectSkill:
+            return "敵の特殊スキルを跳ね返す"
+        case .teleport:
+            return "任意のマスへワープする"
+        case .healHP(let n):
+            return "HPを \(n) 回復する"
+        case .drawCards(let n):
+            return "手札を \(n) 枚引く"
+        case .discardOpponentCards(let n):
+            return "相手の手札を \(n) 枚削除"
+        case .fullHealAnyCreature:
+            return "デジレプのHPを全回復させる"
+        case .changeLandLevel:
+            return "任意の土地のレベルを1下げる"
+        case .setLandTollZero:
+            return "任意の土地の通行料を0にする"
+        case .multiplyLandToll:
+            return "任意の土地の通行料を2倍にする"
+        case .damageAnyCreature(let n):
+            return "デジレプに \(n) ダメージを与える"
+        case .poisonAnyCreature:
+            return "デジレプを毒状態にする"
+        case .cleanseTileStatus:
+            return "土地にかかっている効果を解除する"
+        case .gainGold(let n):
+            return "\(n)Gを獲得する"
+        case .stealGold(let n):
+            return "相手から \(n)G 奪い、自分のGOLDに加える"
+        case .inspectCreature:
+            return "相手デジレプのステータスを確認できる"
+        case .aoeDamageByResist(let category, _, let n):
+            let label: String
+            switch category {
+            case .dry:   label = "乾耐性"
+            case .water: label = "水耐性"
+            case .heat:  label = "熱耐性"
+            case .cold:  label = "冷耐性"
+            }
+            return "全デジレプに対し \(label)8未満で \(n) 、8以上で \(n) - (耐性×3) ダメージ"
+        case .changeTileAttribute(let kind):
+            let label: String
+            switch kind {
+            case .normal: label = "草原"
+            case .dry:    label = "砂漠"
+            case .water:  label = "水辺"
+            case .heat:   label = "火山"
+            case .cold:   label = "雪山"
+            }
+            return "任意の土地を \(label) に変える"
+        case .purgeAllCreatures:
+            return "自軍を含む全てのデジレプを削除する"
+        }
     }
 
     // MARK: - Count Picker Overlay
@@ -472,33 +534,79 @@ private struct AlertMessage: Identifiable {
     let text: String
 }
 
-// MARK: - CardDetail の簡易版（外見だけ流用）
+// MARK: - DeckBuilder 用 Card Detail
 
-/// GameVM などに依存しない、デッキ編成専用のシンプルなカード詳細
-struct CardDetailSimple: View {
+private struct DeckBuilderCardDetailOverlay: View {
     let card: Card
+    let actionTitle: String
+    let onPrimary: () -> Void
+    let onClose: () -> Void
+    let spellDescription: (Card) -> String
+
+    @State private var appearOpacity: Double = 0
+    @State private var appearOffsetY: CGFloat = 50
+    @State private var spinAngle: Double = 0
+    private let cardSize = CGSize(width: 260, height: 360)
+
+    private let frameImageName = "cardL"
+    private let backImageName  = "cardLreverse"
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 14) {
             Text(card.name)
-                .font(.bestTen(size: 26))
+                .font(.bestTen(size: 22))
                 .fontWeight(.semibold)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
-                .foregroundColor(.primary)
-                .frame(maxWidth: 430)
+                .foregroundColor(.white)
+                .frame(maxWidth: 320)
                 .padding(.horizontal, 20)
 
-            // ここでは簡単に大型の CardView を利用
-            CardView(card: card)
-                .frame(width: 140, height: 200)
+            CardFlipDisplay(
+                card: card,
+                angle: $spinAngle,
+                frameImageName: frameImageName,
+                backImageName: backImageName,
+                spellDescription: spellDescription
+            )
+            .frame(width: cardSize.width, height: cardSize.height)
 
-            // 必要に応じてステータステキストなど追加
-            if let stats = card.stats {
-                Text("HP \(stats.hpMax)  POW \(stats.power)  DUR \(stats.durability)")
-                    .font(.bestTenFootnote)
+            HStack(spacing: 12) {
+                Button(actionTitle) {
+                    onPrimary()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("閉じる") {
+                    onClose()
+                }
+                .buttonStyle(.borderedProminent)
             }
         }
-        .padding(.top, 8)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .frame(maxWidth: 360)
+        .shadow(radius: 16)
+        .opacity(appearOpacity)
+        .offset(y: appearOffsetY)
+        .onAppear {
+            appearOpacity = 0
+            appearOffsetY = 50
+
+            withAnimation(.easeOut(duration: 0.6)) {
+                appearOpacity = 1
+                appearOffsetY = 0
+            }
+
+            spinAngle = 0
+            withAnimation(.linear(duration: 0.7)) {
+                spinAngle = 360
+            }
+        }
+        .onDisappear {
+            appearOpacity = 0
+            appearOffsetY = 50
+            spinAngle = 0
+        }
     }
 }

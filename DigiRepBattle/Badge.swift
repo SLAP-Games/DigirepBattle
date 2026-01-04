@@ -13,6 +13,10 @@ struct Badge: View {
     let tint: Color
     let total: Int
     
+    private var totalScale: CGFloat {
+        total >= 1_000 ? 0.9 : 1.0
+    }
+    
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "person.fill")
@@ -27,6 +31,10 @@ struct Badge: View {
                     .foregroundColor(.white)
                 Text("TOTAL: \(total)G")
                     .font(.bestTenCaption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .allowsTightening(true)
+                    .scaleEffect(totalScale, anchor: .leading)
                     .foregroundColor(.white)
             }
         }
