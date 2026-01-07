@@ -1135,28 +1135,28 @@ struct ContentView: View {
             ZStack {
                 VStack {
                     Text("スペル使用先を選択")
-                                    .font(.bestTenSubheadline).bold()
+                        .font(.bestTenSubheadline).bold()
 
-                                HStack(spacing: 12) {
-                                    Button("自分") {
-                                        vm.useTargetedDiceSpell(card, target: 0)
-                                        vm.closeCardPopup()
-                                    }
-                                    .buttonStyle(.borderedProminent)
-
-                                    Button("NPC") {
-                                        vm.useTargetedDiceSpell(card, target: 1)
-                                        vm.closeCardPopup()
-                                    }
-                                    .buttonStyle(.borderedProminent)
-
-                                    Button("キャンセル") {
-                                        vm.closeCardPopup()
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                }
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
+//                                HStack(spacing: 12) {
+//                                    Button("自分") {
+//                                        vm.useTargetedDiceSpell(card, target: 0)
+//                                        vm.closeCardPopup()
+//                                    }
+//                                    .buttonStyle(.borderedProminent)
+//
+//                                    Button("NPC") {
+//                                        vm.useTargetedDiceSpell(card, target: 1)
+//                                        vm.closeCardPopup()
+//                                    }
+//                                    .buttonStyle(.borderedProminent)
+//
+//                                    Button("キャンセル") {
+//                                        vm.closeCardPopup()
+//                                    }
+//                                    .buttonStyle(.borderedProminent)
+//                                }
+//                                .padding(.vertical, 8)
+//                                .padding(.horizontal, 12)
                             }
                         }
                         .frame(maxWidth: .infinity)

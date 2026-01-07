@@ -170,7 +170,7 @@ final class GameVM: ObservableObject {
     @Published var toll: [Int]
     @Published var players: [Player] = [
         Player(name: "You", pos: 0, gold: 300),
-        Player(name: "CPU", pos: 0, gold: 300)
+        Player(name: "NPC", pos: 0, gold: 300)
     ]
     @Published var turn: Int = 0
     @Published var lastRoll: Int = 0
@@ -514,7 +514,7 @@ final class GameVM: ObservableObject {
         let startGold = GameVM.startingGold(for: difficulty)
         self.players = [
             Player(name: "You", pos: layout.homeNode, gold: startGold),
-            Player(name: "CPU", pos: layout.homeNode, gold: startGold)
+            Player(name: "NPC", pos: layout.homeNode, gold: startGold)
         ]
         
         let initialPlayerDeck = selectedDeck ?? DeckList.defaultBattleDeck
@@ -1886,7 +1886,7 @@ final class GameVM: ObservableObject {
                 pushCenterMessage("次のサイコロを \(n) に固定")
                 showDiceGlitch(number: n)
             } else {
-                pushCenterMessage("CPUの次のサイコロを \(n) に固定")
+                pushCenterMessage("相手の次のサイコロを \(n) に固定")
                 showDiceGlitch(number: n)
             }
             consumeFromHand(card, for: 0)
@@ -1897,7 +1897,7 @@ final class GameVM: ObservableObject {
             if target == turn {
                 pushCenterMessage("次のサイコロが２つになります")
             } else {
-                pushCenterMessage("NPCの次のサイコロが２つになります")
+                pushCenterMessage("相手の次のサイコロが２つになります")
             }
             consumeFromHand(card, for: 0)
             
@@ -4027,15 +4027,15 @@ final class GameVM: ObservableObject {
             }
         } else if updated.count > beforeCount {
             if pid == 0 {
-                pushCenterMessage("敵デジレプのステータスを透視しました")
+                pushCenterMessage("敵デジレプのステータスを透視した")
             } else {
-                pushCenterMessage("NPCが透視を使用しました")
+                pushCenterMessage("NPCが透視を使用")
             }
         } else {
             if pid == 0 {
                 pushCenterMessage("新たに透視できる敵デジレプはいません")
             } else {
-                pushCenterMessage("NPCが透視を使用しました")
+                pushCenterMessage("NPCが透視を使用")
             }
         }
 

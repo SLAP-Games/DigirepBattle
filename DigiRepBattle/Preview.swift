@@ -12,10 +12,10 @@ import SwiftUI
 
 #Preview("メイン") {
     ContentView()
-        .environmentObject(GameVM(selectedDeck: .previewSample, difficulty: .beginner))
+        .environmentObject(GameVM(selectedDeck: .previewSample, difficulty: .advanced))
 }
 
-//#Preview("Heal") {
-//    SpellEffectPreviewView(kind: .heal)
-//        .frame(width: 300, height: 300)
-//}
+#Preview("Heal") {
+    SpellEffectPreviewView(kind: .heal)
+        .frame(width: 300, height: 300)
+}

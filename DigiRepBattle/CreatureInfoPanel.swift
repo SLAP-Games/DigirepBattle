@@ -13,7 +13,7 @@ struct CreatureInfoPanel: View {
     let onClose: () -> Void
 
     var ownerLabel: String {
-        iv.owner == 0 ? "You" : "CPU"
+        iv.owner == 0 ? "You" : "NPC"
     }
     
     private var creatureImageName: String {
