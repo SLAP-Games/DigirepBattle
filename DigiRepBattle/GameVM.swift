@@ -650,6 +650,9 @@ final class GameVM: ObservableObject {
         pendingMoveSourceTile = nil
         moveCreatureSourceCandidates = []
         moveCreatureDestinationCandidates = []
+        isSelectingSwapCreature = false
+        pendingSwapHandIndex = nil
+        creatureMenuTile = nil
         highlightSummonableCreatures = false
         showEndTurnWithoutSummonConfirm = false
         cancelMoveSelectionIfNeeded()
@@ -1271,6 +1274,7 @@ final class GameVM: ObservableObject {
         guard let idx = pendingSwapHandIndex else { return }
         if swapCreature(withHandIndex: idx) {
             pendingSwapHandIndex = nil
+            isSelectingSwapCreature = false
             showCreatureMenu = false
             creatureMenuTile = nil
             battleResult = "デジレプを交換しました"
@@ -4908,6 +4912,7 @@ final class GameVM: ObservableObject {
         let attacker = BattleCombatant(
             name: (turn == 0 ? "あなた" : "NPC"),
             imageName: card.symbol,
+            isNPC: (pid == 1),
             hp: atkStats.hpMax, hpMax: atkStats.hpMax,
             power: atkStats.power, durability: atkStats.durability,
             itemPower: 0, itemDurability: 0,
@@ -4920,6 +4925,7 @@ final class GameVM: ObservableObject {
         let defender = BattleCombatant(
             name: (defOwner == 0 ? "あなた" : "NPC"),
             imageName: creatureOnTile[t]?.imageName ?? "enemyCreature",
+            isNPC: (defOwner == 1),
             hp: hp.indices.contains(t) ? hp[t] : 0,
             hpMax: hpMax.indices.contains(t) ? hpMax[t] : 0,
             power: pow.indices.contains(t) ? pow[t] : 0,

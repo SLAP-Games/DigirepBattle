@@ -14,6 +14,7 @@ public struct BattleCombatant: Identifiable, Equatable {
     public let id = UUID()
     public let name: String
     public let imageName: String
+    public let isNPC: Bool
     public var hp: Int
     public let hpMax: Int
     public let power: Int
@@ -35,6 +36,7 @@ public struct BattleCombatant: Identifiable, Equatable {
     public init(
         name: String,
         imageName: String,
+        isNPC: Bool = false,
         hp: Int, hpMax: Int,
         power: Int, durability: Int,
         itemPower: Int, itemDurability: Int,
@@ -45,6 +47,7 @@ public struct BattleCombatant: Identifiable, Equatable {
     ) {
         self.name = name
         self.imageName = imageName
+        self.isNPC = isNPC
         self.hp = hp
         self.hpMax = hpMax
         self.power = power
@@ -234,6 +237,7 @@ fileprivate struct StatRow: View {
 fileprivate struct FighterHUD: View {
     let who: BattleCombatant
     let attr: BattleAttribute
+    let hideCombatStats: Bool
     @Binding var animatedHP: CGFloat
 
     var body: some View {
@@ -262,20 +266,32 @@ fileprivate struct FighterHUD: View {
             let atkItem  = CGFloat(who.itemPower)
             let atkSkill = CGFloat(who.attackSkillBonus(for: attr) + who.gatherAttackBonus)
             let atkSum   = min(150, atkWhite + atkRes + atkItem + atkSkill)
-            StatRow(
-                title: "戦闘力",
-                displayedValue: Text("\(Int(atkWhite)) + \(Int(atkRes)) + \(Int(atkItem)) + \(Int(atkSkill))"),
-                bar: SegmentedBar(
-                    maxValue: 150, height: 10, cornerRadius: 6,
-                    segments: [
-                        .init(value: atkWhite, color: .white),
-                        .init(value: atkRes, color: resistColor(for: attr)),
-                        .init(value: atkItem, color: .purple),
-                        .init(value: atkSkill, color: .red),
-                        .init(value: max(0, 150 - atkSum), color: .black)
-                    ]
+            if hideCombatStats {
+                StatRow(
+                    title: "戦闘力",
+                    displayedValue: Text("???"),
+                    bar: SegmentedBar(
+                        maxValue: 150, height: 10, cornerRadius: 6,
+                        segments: [.init(value: 0, color: .clear),
+                                   .init(value: 150, color: .black)]
+                    )
                 )
-            )
+            } else {
+                StatRow(
+                    title: "戦闘力",
+                    displayedValue: Text("\(Int(atkSum))"),
+                    bar: SegmentedBar(
+                        maxValue: 150, height: 10, cornerRadius: 6,
+                        segments: [
+                            .init(value: atkWhite, color: .white),
+                            .init(value: atkRes, color: resistColor(for: attr)),
+                            .init(value: atkItem, color: .purple),
+                            .init(value: atkSkill, color: .red),
+                            .init(value: max(0, 150 - atkSum), color: .black)
+                        ]
+                    )
+                )
+            }
 
             // DEF (max 100): white=durability, resistColor=resist, purple=itemDurability, rest black
             let defWhite = CGFloat(who.durability)
@@ -283,20 +299,32 @@ fileprivate struct FighterHUD: View {
             let defItem  = CGFloat(who.itemDurability)
             let defSkill = CGFloat(who.defenseSkillBonus(for: attr) + who.gatherDefenseBonus)
             let defSum   = min(100, defWhite + defRes + defItem + defSkill)
-            StatRow(
-                title: "耐久力",
-                displayedValue: Text("\(Int(defWhite)) + \(Int(defRes)) + \(Int(defItem)) + \(Int(defSkill))"),
-                bar: SegmentedBar(
-                    maxValue: 100, height: 10, cornerRadius: 6,
-                    segments: [
-                        .init(value: defWhite, color: .white),
-                        .init(value: defRes, color: resistColor(for: attr)),
-                        .init(value: defItem, color: .purple),
-                        .init(value: defSkill, color: .red),
-                        .init(value: max(0, 100 - defSum), color: .black)
-                    ]
+            if hideCombatStats {
+                StatRow(
+                    title: "耐久力",
+                    displayedValue: Text("???"),
+                    bar: SegmentedBar(
+                        maxValue: 100, height: 10, cornerRadius: 6,
+                        segments: [.init(value: 0, color: .clear),
+                                   .init(value: 100, color: .black)]
+                    )
                 )
-            )
+            } else {
+                StatRow(
+                    title: "耐久力",
+                    displayedValue: Text("\(Int(defSum))"),
+                    bar: SegmentedBar(
+                        maxValue: 100, height: 10, cornerRadius: 6,
+                        segments: [
+                            .init(value: defWhite, color: .white),
+                            .init(value: defRes, color: resistColor(for: attr)),
+                            .init(value: defItem, color: .purple),
+                            .init(value: defSkill, color: .red),
+                            .init(value: max(0, 100 - defSum), color: .black)
+                        ]
+                    )
+                )
+            }
         }
     }
 }
@@ -594,15 +622,17 @@ public struct BattleOverlayView: View {
     
     @ViewBuilder
     private func hudRow() -> some View {
+        let hideLeft = isItemSelecting && L.isNPC
+        let hideRight = isItemSelecting && R.isNPC
         HStack(alignment: .top, spacing: 12) {
             // 左側HUD（左寄せ）
             VStack(alignment: .leading, spacing: 0) {
-                FighterHUD(who: L, attr: attribute, animatedHP: $leftHPAnim)
+                FighterHUD(who: L, attr: attribute, hideCombatStats: hideLeft, animatedHP: $leftHPAnim)
             }
             Spacer(minLength: 0)
             // 右側HUD（右寄せ）
             VStack(alignment: .trailing, spacing: 0) {
-                FighterHUD(who: R, attr: attribute, animatedHP: $rightHPAnim)
+                FighterHUD(who: R, attr: attribute, hideCombatStats: hideRight, animatedHP: $rightHPAnim)
             }
         }
         .padding(.horizontal, 12)
