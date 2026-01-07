@@ -34,6 +34,11 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
 
     // mapSound の音量フェード用タイマー
     private var mapFadeTimer: Timer?
+    
+    // 売却用一時BGM
+    private var saleBGMPlayer: AVAudioPlayer?
+    private var pausedBGMKindForSale: BGMKind?
+    private var pausedTurnForSale: Bool = false
 
     // サウンドON/OFF
     var isSoundOn: Bool = true
@@ -144,6 +149,53 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     
     func playSellTileSound() {
         playSE(named: "sellTile")
+    }
+    
+    /// 土地売却用のBGMを開始（通常BGMを一時停止）
+    func beginSaleBGM() {
+        guard isSoundOn else { return }
+        guard saleBGMPlayer == nil else { return }
+
+        pausedBGMKindForSale = currentBGM
+        pausedTurnForSale = turnPlayer?.isPlaying ?? false
+
+        stopTurnBGM()
+        stopBGM()
+
+        guard let url = Bundle.main.url(forResource: "sellCreatureSound", withExtension: "mp3") else {
+            print("Sale BGM not found: sellCreatureSound")
+            return
+        }
+
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.numberOfLoops = -1
+            player.volume = 1.0
+            player.prepareToPlay()
+            player.play()
+            saleBGMPlayer = player
+        } catch {
+            print("Failed to play sale BGM: \(error)")
+        }
+    }
+
+    /// 売却BGMを終了し、元のBGMへ戻す
+    func endSaleBGM() {
+        saleBGMPlayer?.stop()
+        saleBGMPlayer = nil
+
+        let resumeTurn = pausedTurnForSale
+        let resumeMain = pausedBGMKindForSale
+
+        pausedTurnForSale = false
+        pausedBGMKindForSale = nil
+
+        if let kind = resumeMain {
+            playBGM(kind)
+        }
+        if resumeTurn {
+            playBGM(.turn)
+        }
     }
     
     func playStartSound() {

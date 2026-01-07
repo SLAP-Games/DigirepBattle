@@ -27,12 +27,12 @@ extension DeckList {
 
         deck.creatureSlots = [
             "cre-defaultLizard":        5,
-            "cre-defaultCrocodile":     5,
-            "cre-defaultTurtle":        5,
-            "cre-defaultBeardedDragon": 5,
-            "cre-defaultHornedFrog":    5,
-            "cre-defaultGreenIguana":   5,
-            "cre-defaultBallPython":    5
+            "cre-defaultCrocodile":     6,
+            "cre-defaultTurtle":        6,
+            "cre-defaultBeardedDragon": 6,
+            "cre-defaultHornedFrog":    6,
+            "cre-defaultGreenIguana":   6,
+            "cre-defaultBallPython":    6
             
 //            "cre-defaultCrocodile":        25
         ]
@@ -59,7 +59,7 @@ extension DeckList {
 //            "sp-poisonSmoke": 25,
 //            "sp-cure": 3,
 //            "sp-treasure": 25,
-//            "sp-plunder": 10,
+            "sp-plunder": 20,
 //            "sp-clairvoyance": 25,
 //            "sp-blizzard": 3,
 //            "sp-eruption": 6,
@@ -71,24 +71,24 @@ extension DeckList {
 //            "sp-jungle": 3
             
 //以下本番テスト用
-            "sp-dice1": 1,
-            "sp-dice2": 1,
-            "sp-dice3": 1,
-            "sp-dice4": 1,
-            "sp-dice5": 1,
-            "sp-dice6": 1,
-            "sp-firstStrike": 2,
-            "sp-hardFang": 2,
-            "sp-poisonFang": 1,
-            "sp-hardScale": 2,
-            "sp-draw2": 2,
-            "sp-elixir": 2,
-            "sp-harvest": 2,
-            "sp-greatStorm": 2,
-            "sp-snowMountain": 1,
-            "sp-desert": 1,
-            "sp-volcano": 1,
-            "sp-jungle": 1
+//            "sp-dice1": 1,
+//            "sp-dice2": 1,
+//            "sp-dice3": 1,
+//            "sp-dice4": 1,
+//            "sp-dice5": 1,
+//            "sp-dice6": 1,
+//            "sp-firstStrike": 1,
+//            "sp-hardFang": 2,
+//            "sp-poisonFang": 1,
+//            "sp-hardScale": 2,
+//            "sp-draw2": 1,
+//            "sp-elixir": 1,
+//            "sp-harvest": 1,
+//            "sp-greatStorm": 1,
+//            "sp-snowMountain": 1,
+//            "sp-desert": 1,
+//            "sp-volcano": 1,
+//            "sp-jungle": 1
         ]
 
         return deck
@@ -105,8 +105,8 @@ struct DeckList: Codable {
     // スペル用：合計25枚
     var spellSlots: [CardID: Int] = [:]
 
-    static let creatureLimit = 35
-    static let spellLimit = 25
+    static let creatureLimit = 40
+    static let spellLimit = 20
 
     var totalCreatures: Int {
         creatureSlots.values.reduce(0, +)

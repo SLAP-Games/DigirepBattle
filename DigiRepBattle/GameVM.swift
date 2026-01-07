@@ -348,6 +348,7 @@ final class GameVM: ObservableObject {
     private var plunderAnimationTask: Task<Void, Never>? = nil
     private var saleFocusTask: Task<Void, Never>? = nil
     private var saleFocusToken: UUID? = nil
+    private var pendingSaleTiles: Set<Int> = []
     private var diceGlitchContinuation: CheckedContinuation<Void, Never>? = nil
     private var diceGlitchShouldPinAfterReveal: Bool = false
     let layout: BoardLayout
@@ -387,34 +388,34 @@ final class GameVM: ObservableObject {
         case .beginner:
             deck.creatureSlots = [
                 "cre-defaultLizard": 9,
-                "cre-defaultsnake": 7,
-                "cre-defaultCrocodile": 7,
-                "cre-defaultTurtle": 7,
-                "cre-defaultBeardedDragon": 5
+                "cre-defaultsnake": 8,
+                "cre-defaultCrocodile": 8,
+                "cre-defaultTurtle": 8,
+                "cre-defaultBeardedDragon": 7
             ]
             deck.spellSlots = [
-                "sp-dice2": 3,
+                "sp-dice2": 2,
                 "sp-dice4": 3,
                 "sp-dice6": 3,
-                "sp-bigScale": 5,
-                "sp-sharpFang": 4,
+                "sp-bigScale": 3,
+                "sp-sharpFang": 3,
                 "sp-draw2": 2,
-                "sp-decay": 4
+                "sp-decay": 3
             ]
         case .intermediate:
             deck.creatureSlots = [
-                "cre-defaultLizard": 6,
-                "cre-defaultTurtle": 6,
-                "cre-defaultCrocodile": 6,
-                "cre-defaultBeardedDragon": 5,
-                "cre-defaultGreenIguana": 6,
+                "cre-defaultLizard": 7,
+                "cre-defaultTurtle": 7,
+                "cre-defaultCrocodile": 7,
+                "cre-defaultBeardedDragon": 6,
+                "cre-defaultGreenIguana": 7,
                 "cre-defaultHornedFrog": 6
             ]
             deck.spellSlots = [
-                "sp-dice6": 5,
-                "sp-hardScale": 4,
-                "sp-hardFang": 4,
-                "sp-deleteHand": 4,
+                "sp-dice6": 3,
+                "sp-hardScale": 3,
+                "sp-hardFang": 3,
+                "sp-deleteHand": 3,
                 "sp-greatStorm":2,
                 "sp-harvest": 2,
                 "sp-draw2": 2,
@@ -424,21 +425,21 @@ final class GameVM: ObservableObject {
             deck.creatureSlots = [
                 "cre-defaultTurtle": 5,
                 "cre-defaultNileCrocodile": 5,
-                "cre-defaultStarTurtle": 5,
-                "cre-defaultLeopardGecko": 5,
-                "cre-defaultBallPython": 5,
-                "cre-defaultGreenIguana": 5,
-                "cre-defaultHornedFrog": 5
+                "cre-defaultStarTurtle": 6,
+                "cre-defaultLeopardGecko": 6,
+                "cre-defaultBallPython": 6,
+                "cre-defaultGreenIguana": 6,
+                "cre-defaultHornedFrog": 6
             ]
             deck.spellSlots = [
-                "sp-devastation": 3,
+                "sp-devastation": 2,
                 "sp-poisonSmoke": 2,
-                "sp-plunder": 3,
-                "sp-doubleDice": 4,
+                "sp-plunder": 2,
+                "sp-doubleDice": 3,
                 "sp-hardScale": 3,
-                "sp-deleteHand": 3,
+                "sp-deleteHand": 2,
                 "sp-hardFang": 3,
-                "sp-draw2": 3,
+                "sp-draw2": 2,
                 "sp-treasure": 1
             ]
         }
@@ -678,8 +679,22 @@ final class GameVM: ObservableObject {
             return
         }
 
-        beginTurnTransition()
+        beginTurnTransitionRespectingSaleFocus()
         checkVictoryCondition()
+    }
+
+    private func beginTurnTransitionRespectingSaleFocus() {
+        // 売却時のカメラ移動シーケンスが残っている場合は完了を待ってからターン演出開始
+        if let task = saleFocusTask {
+            Task {
+                _ = await task.value
+                await MainActor.run { [weak self] in
+                    self?.beginTurnTransition()
+                }
+            }
+        } else {
+            beginTurnTransition()
+        }
     }
 
     private func shouldRequireSummonReminder() -> Bool {
@@ -3508,30 +3523,19 @@ final class GameVM: ObservableObject {
     // ▼ CPU：最小売却の自動実行（合計が赤字額以上になる最小合計を選ぶ）
     private func autoLiquidateCPU(target deficit: Int) {
         let p = 1
-        let myTiles: [Int] = owner.enumerated().compactMap { (i, o) in (o == p) ? i : nil }
-        let values: [(idx: Int, val: Int)] = myTiles.map { ($0, saleValue(for: $0)) }.filter { $0.val > 0 }
-        guard !values.isEmpty else { return } // 売れる土地が無い → 別途ゲームオーバー等の検討箇所
-
-        // 簡易DP：sums[合計]=タイル配列、から「合計>=deficitの最小」を選ぶ
-        var sums: [Int: [Int]] = [0: []]
-        let cap = values.map(\.val).reduce(0, +)
-        let limit = max(0, deficit)
-        for (idx, val) in values {
-            let snap = sums
-            for (s, arr) in snap {
-                let ns = s + val
-                if ns > cap { continue }
-                if sums[ns] == nil || (sums[ns]!.count > arr.count + 1) {
-                    sums[ns] = arr + [idx]
-                }
+        var safety = max(1, tileCount + 2)
+        while players.indices.contains(p),
+              players[p].gold < 0,
+              safety > 0 {
+            safety -= 1
+            let candidates: [(idx: Int, val: Int)] = owner.enumerated().compactMap { (i, o) in
+                guard o == p,
+                      !pendingSaleTiles.contains(i) else { return nil }
+                let v = saleValue(for: i)
+                return v > 0 ? (i, v) : nil
             }
-        }
-        if let bestSum = sums.keys.filter({ $0 >= limit }).min(),
-           let sellSet = sums[bestSum] {
-            for t in sellSet { performSell(tile: t, for: p) }
-        } else {
-            // どう組んでも足りない → すべて売却（フォールバック）
-            for t in values.sorted(by: { $0.val < $1.val }).map(\.idx) { performSell(tile: t, for: p) }
+            guard let targetTile = candidates.max(by: { $0.val < $1.val }) else { break }
+            performSell(tile: targetTile.idx, for: p)
         }
     }
 
@@ -4344,12 +4348,18 @@ final class GameVM: ObservableObject {
 
     // ▼ 売却の実処理（共通）: 所有解除・レベル/通行料/シンボル初期化
     private func performSell(tile idx: Int, for player: Int) {
-        enqueueSaleFocus(for: idx)
+        guard !pendingSaleTiles.contains(idx) else { return }
+        pendingSaleTiles.insert(idx)
+
         let v = saleValue(for: idx)
+
+        // 先に所有権とレベル／通行料だけリセットし、クリーチャー本体は演出タイミングで消す
+        if owner.indices.contains(idx) { owner[idx] = nil }
+        if level.indices.contains(idx) { level[idx] = 0 }
+        if toll.indices.contains(idx)  { toll[idx]  = 0 }
+
+        enqueueSaleFocus(for: idx)
         addGold(v, to: player)
-        clearCreatureInfo(at: idx,
-                          clearOwnerAndLevel: true,
-                          resetToll: true)
     }
 
     private func enqueueSaleFocus(for tile: Int) {
@@ -4365,6 +4375,9 @@ final class GameVM: ObservableObject {
 
     @MainActor
     private func runSaleFocusSequence(on tile: Int) async {
+        SoundManager.shared.beginSaleBGM()
+        defer { SoundManager.shared.endSaleBGM() }
+
         // フォーカスをトークンで管理し、他のカメラ操作と競合した場合は復元をスキップ
         let token = UUID()
         saleFocusToken = token
@@ -4373,7 +4386,11 @@ final class GameVM: ObservableObject {
         forceCameraFocus = true
         focusTile = tile
 
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        pendingSaleTiles.remove(tile)
+        clearCreatureInfo(at: tile,
+                          clearOwnerAndLevel: true,
+                          resetToll: true)
         SoundManager.shared.playSellTileSound()
 
         if saleFocusToken == token {
