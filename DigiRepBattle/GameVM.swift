@@ -238,6 +238,7 @@ final class GameVM: ObservableObject {
     @Published var moveCreatureSourceCandidates: Set<Int> = []
     @Published var moveCreatureDestinationCandidates: Set<Int> = []
     @Published var pendingMoveSourceTile: Int? = nil
+    @Published var npcSpellUsedThisTurn: Bool = false
     // === ここから追加: sp-elixir 用 ===
     @Published var isSelectingFullHealTarget: Bool = false
     @Published var fullHealCandidateTiles: Set<Int> = []
@@ -439,7 +440,7 @@ final class GameVM: ObservableObject {
                 "sp-hardScale": 3,
                 "sp-deleteHand": 2,
                 "sp-hardFang": 3,
-                "sp-draw2": 2,
+                "sp-greatStorm": 2,
                 "sp-treasure": 1
             ]
         }
@@ -1255,6 +1256,14 @@ final class GameVM: ObservableObject {
                 }
             }
         }
+    }
+    
+    private func presentNPCSpellPreview(forIndex idx: Int, pid: Int) async -> Card? {
+        guard hands.indices.contains(pid),
+              hands[pid].indices.contains(idx) else { return nil }
+        let card = hands[pid].remove(at: idx)
+        await presentNPCSpellPreview(for: card)
+        return card
     }
     
     // カードA（手札で選んだカード）から、確認ポップを出す
@@ -3210,13 +3219,13 @@ final class GameVM: ObservableObject {
     @MainActor
     private func runCpuAuto() async {
         try? await Task.sleep(nanoseconds: 500_000_000)
+        npcSpellUsedThisTurn = false
 
         // 捨て必要ならランダム捨て
         if hands[1].count > 4, let c = hands[1].randomElement() { discard(c, for: 1) }
 
         // ロール前にスペル使用
-        await cpuUseRandomDiceFixSpellIfAvailable()
-        await cpuUseDeleteHandIfAvailable()
+        await cpuUseOneSpellIfAvailable()
 
         let r: Int
         if let forced = nextForcedRoll[1] {
@@ -3361,99 +3370,386 @@ final class GameVM: ObservableObject {
         }
     }
     
-    private func cpuUseRandomDiceFixSpellIfAvailable() async {
-        // すでに強制出目 or ダブルダイスが決まっていたら何もしない
-        if nextForcedRoll[1] != nil || doubleDice[1] { return }
+    private func cpuUseOneSpellIfAvailable() async {
+        let npcId = 1
+        guard !npcSpellUsedThisTurn,
+              hands.indices.contains(npcId),
+              players.indices.contains(npcId) else { return }
 
-        enum Candidate {
-            case fix(idx: Int, n: Int)
-            case double(idx: Int)
+        // 使える候補を優先順位付きで列挙
+        struct Candidate {
+            let priority: Int
+            let idx: Int
+            let perform: () async -> Void
         }
+        var candidates: [Candidate] = []
 
-        let candidates: [Candidate] = hands[1].enumerated().compactMap { (i, c) in
-            guard c.kind == .spell, let spell = c.spell else { return nil }
+        for (i, card) in hands[npcId].enumerated() {
+            guard card.kind == .spell,
+                  let spell = card.spell else { continue }
+
+            let cost = spellCost(of: card)
+            guard players[npcId].gold >= cost else { continue }
 
             switch spell {
+            case .stealGold(let amount):
+                candidates.append(
+                    Candidate(priority: 10, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        let stolen = self.stealGold(amount: amount, from: 0, to: npcId, showVisual: false)
+                        if stolen > 0 {
+                            self.pushCenterMessage("NPCが\(stolen)Gを奪取")
+                        }
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .discardOpponentCards:
+                // プレイヤー手札が無いなら意味なし
+                guard hands.indices.contains(0), !hands[0].isEmpty else { continue }
+                candidates.append(
+                    Candidate(priority: 9, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        guard !self.hands[0].isEmpty else { return }
+                        let removeIdx = Int.random(in: 0..<self.hands[0].count)
+                        let removedCard = self.hands[0].remove(at: removeIdx)
+                        self.deletePreviewCard = removedCard
+                        self.deletingTargetPlayer = 0
+                        self.isSelectingOpponentHandToDelete = false
+                        self.pendingDeleteHandIndex = nil
+                        self.pushCenterMessage("NPCがあなたの手札を1枚削除")
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
             case let .fixNextRoll(n) where (1...6).contains(n):
-                return .fix(idx: i, n: n)
+                // 既に強制出目／ダブルがあるならスキップ
+                guard nextForcedRoll[1] == nil, !doubleDice[1] else { continue }
+                candidates.append(
+                    Candidate(priority: 5, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.nextForcedRoll[1] = n
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
             case .doubleDice:
-                return .double(idx: i)
+                guard nextForcedRoll[1] == nil, !doubleDice[1] else { continue }
+                candidates.append(
+                    Candidate(priority: 4, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.doubleDice[1] = true
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .fullHealAnyCreature:
+                // NPCのダメージを受けている自軍マスだけ
+                let healTargets: [Int] = (0..<tileCount).compactMap { tile in
+                    guard owner.indices.contains(tile),
+                          owner[tile] == npcId,
+                          level.indices.contains(tile), level[tile] > 0,
+                          hp.indices.contains(tile), hpMax.indices.contains(tile),
+                          hp[tile] < hpMax[tile] else { return nil }
+                    return tile
+                }
+                guard let targetTile = healTargets.max(by: { (hpMax[$0] - hp[$0]) < (hpMax[$1] - hp[$1]) }) else { continue }
+                candidates.append(
+                    Candidate(priority: 6, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        let heal = max(0, (self.hpMax.indices.contains(targetTile) ? self.hpMax[targetTile] : 0) - (self.hp.indices.contains(targetTile) ? self.hp[targetTile] : 0))
+                        guard heal > 0 else { return }
+                        Task { @MainActor in
+                            await self.applyFullHealAnimation(at: targetTile, heal: heal)
+                        }
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .changeLandLevel(let delta):
+                guard delta < 0, let target = bestPlayerTileForLevelDown() else { continue }
+                candidates.append(
+                    Candidate(priority: 7, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.lowerTileLevel(by: -delta, at: target)
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .setLandTollZero:
+                guard let target = bestPlayerTileForTollZero() else { continue }
+                candidates.append(
+                    Candidate(priority: 7, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.devastatedTiles.insert(target)
+                        self.harvestedTiles.remove(target)
+                        if self.toll.indices.contains(target) { self.toll[target] = 0 }
+                        self.pushCenterMessage("NPCが通行量を0にした")
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .multiplyLandToll(let factor):
+                guard let target = bestNpcTileForHarvest() else { continue }
+                candidates.append(
+                    Candidate(priority: 6, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.harvestedTiles.insert(target)
+                        if self.toll.indices.contains(target) { self.toll[target] = self.toll(at: target) }
+                        self.pushCenterMessage("NPCが通行量を\(factor)xにした")
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .damageAnyCreature(let amount):
+                guard let target = bestPlayerCreatureTileAvoidingCancel() else { continue }
+                candidates.append(
+                    Candidate(priority: 8, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.applyDirectDamage(amount, to: target)
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .poisonAnyCreature:
+                guard let target = bestPlayerCreatureTileForPoison() else { continue }
+                candidates.append(
+                    Candidate(priority: 6, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        if self.poisonedTiles.indices.contains(target) {
+                            self.poisonedTiles[target] = true
+                        }
+                        self.pushCenterMessage("NPCが毒を付与")
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .cleanseTileStatus:
+                guard let target = bestNpcTileNeedingCleanse() else { continue }
+                candidates.append(
+                    Candidate(priority: 5, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.cleanseTileStatusDirect(target)
+                        self.pushCenterMessage("NPCが浄化を使用")
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .inspectCreature:
+                candidates.append(
+                    Candidate(priority: 1, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.pushCenterMessage("NPCが透視を使った")
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .aoeDamageByResist(let category, _, let amount):
+                candidates.append(
+                    Candidate(priority: 5, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.applyResistBasedAOE(
+                            category: category,
+                            amount: amount,
+                            by: npcId,
+                            spellName: nil,
+                            effect: self.boardWideEffectKind(for: category)
+                        )
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .changeTileAttribute(let kind):
+                guard let target = bestTileForAttributeChange() else { continue }
+                candidates.append(
+                    Candidate(priority: 4, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.applyTileAttribute(kind, to: target)
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .gainGold(let amount):
+                candidates.append(
+                    Candidate(priority: 3, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.addGold(max(0, amount), to: npcId)
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
+            case .drawCards(let n):
+                candidates.append(
+                    Candidate(priority: 2, idx: i) { [weak self] in
+                        guard let self else { return }
+                        guard self.paySpellCostIfNeeded(cost, by: npcId) else { return }
+                        _ = await self.presentNPCSpellPreview(forIndex: i, pid: npcId)
+                        self.queuePreviewDraws(n, for: npcId)
+                        self.npcSpellUsedThisTurn = true
+                    }
+                )
+
             default:
-                return nil
+                continue
             }
         }
 
-        guard let pick = candidates.randomElement() else { return }
+        guard let choice = candidates.sorted(by: { $0.priority > $1.priority }).first else { return }
+        await choice.perform()
+    }
 
-        switch pick {
-        case let .fix(idx, n):
-            guard hands[1].indices.contains(idx) else { return }
-            let card = hands[1].remove(at: idx)
-            await presentNPCSpellPreview(for: card)
-            nextForcedRoll[1] = n
+    // NPCスペル用ターゲット選択・適用ヘルパー
+    private func bestPlayerTileForLevelDown() -> Int? {
+        (0..<tileCount)
+            .filter { owner.indices.contains($0) && owner[$0] == 0 && level.indices.contains($0) && level[$0] >= 2 && !tileHasCancelSkill($0) }
+            .max(by: { tollValue(for: $0) < tollValue(for: $1) })
+    }
 
-        case let .double(idx):
-            guard hands[1].indices.contains(idx) else { return }
-            let card = hands[1].remove(at: idx)
-            await presentNPCSpellPreview(for: card)
-            doubleDice[1] = true
+    private func lowerTileLevel(by amount: Int, at tile: Int) {
+        guard level.indices.contains(tile) else { return }
+        let newLevel = max(1, level[tile] - amount)
+        level[tile] = newLevel
+        if toll.indices.contains(tile) { toll[tile] = toll(at: tile) }
+    }
+
+    private func bestPlayerTileForTollZero() -> Int? {
+        (0..<tileCount)
+            .filter { owner.indices.contains($0) && owner[$0] == 0 && toll.indices.contains($0) && toll[$0] > 0 && !tileHasCancelSkill($0) }
+            .max(by: { tollValue(for: $0) < tollValue(for: $1) })
+    }
+
+    private func bestNpcTileForHarvest() -> Int? {
+        (0..<tileCount)
+            .filter {
+                owner.indices.contains($0) && owner[$0] == 1 &&
+                toll.indices.contains($0) && toll[$0] > 0 &&
+                !devastatedTiles.contains($0) &&
+                !harvestedTiles.contains($0) &&
+                !tileHasCancelSkill($0)
+            }
+            .max(by: { tollValue(for: $0) < tollValue(for: $1) })
+    }
+
+    private func bestPlayerCreatureTileAvoidingCancel() -> Int? {
+        (0..<tileCount)
+            .filter {
+                owner.indices.contains($0) && owner[$0] == 0 &&
+                creatureSymbol.indices.contains($0) && creatureSymbol[$0] != nil &&
+                hp.indices.contains($0) && hp[$0] > 0 &&
+                !tileHasCancelSkill($0)
+            }
+            .max(by: { hpValue(for: $0) < hpValue(for: $1) })
+    }
+
+    private func bestPlayerCreatureTileForPoison() -> Int? {
+        (0..<tileCount)
+            .filter {
+                owner.indices.contains($0) && owner[$0] == 0 &&
+                creatureSymbol.indices.contains($0) && creatureSymbol[$0] != nil &&
+                hp.indices.contains($0) && hp[$0] > 0 &&
+                poisonedTiles.indices.contains($0) && poisonedTiles[$0] == false &&
+                !tileHasCancelSkill($0)
+            }
+            .max(by: { tollValue(for: $0) < tollValue(for: $1) })
+    }
+
+    private func bestNpcTileNeedingCleanse() -> Int? {
+        (0..<tileCount)
+            .filter { owner.indices.contains($0) && owner[$0] == 1 && tileHasCleanseStatus($0) }
+            .max(by: { tollValue(for: $0) < tollValue(for: $1) })
+    }
+
+    private func bestTileForAttributeChange() -> Int? {
+        // 優先：プレイヤー高通行料マス → それ以外をランダム
+        let candidates = (0..<tileCount).filter {
+            owner.indices.contains($0) && owner[$0] != nil &&
+            !tileAttributeRestrictedTiles.contains($0) &&
+            !tileHasCancelSkill($0)
+        }
+        if let bestPlayer = candidates.filter({ owner.indices.contains($0) && owner[$0] == 0 }).max(by: { tollValue(for: $0) < tollValue(for: $1) }) {
+            return bestPlayer
+        }
+        return candidates.randomElement()
+    }
+
+    private func hpValue(for tile: Int) -> Int {
+        (hp.indices.contains(tile) ? hp[tile] : 0)
+    }
+
+    private func tollValue(for tile: Int) -> Int {
+        if toll.indices.contains(tile) { return toll[tile] }
+        return 0
+    }
+
+    private func applyDirectDamage(_ amount: Int, to tile: Int) {
+        guard hp.indices.contains(tile), hpMax.indices.contains(tile) else { return }
+        let newHp = max(0, hp[tile] - amount)
+        hp[tile] = newHp
+        if var c = creatureOnTile[tile] {
+            c.hp = newHp
+            creatureOnTile[tile] = c
+        }
+        if newHp <= 0 {
+            clearCreatureInfo(at: tile, clearOwnerAndLevel: true, resetToll: true)
+        } else {
+            hp = hp
         }
     }
-    
-    private func cpuUseDeleteHandIfAvailable() async {
-        let npcId = 1          // CPU
-        let playerId = 0       // プレイヤー
 
-        // プレイヤーの手札がないなら何もできない
-        guard hands.indices.contains(playerId),
-              !hands[playerId].isEmpty else { return }
+    private func cleanseTileStatusDirect(_ tile: Int) {
+        if poisonedTiles.indices.contains(tile) { poisonedTiles[tile] = false }
+        devastatedTiles.remove(tile)
+        harvestedTiles.remove(tile)
+        if toll.indices.contains(tile) { toll[tile] = toll(at: tile) }
+    }
 
-        // CPUの手札から「discardOpponentCards」のスペルを探す
-        guard hands.indices.contains(npcId) else { return }
-
-        guard let idx = hands[npcId].firstIndex(where: { card in
-            guard card.kind == .spell,
-                  let effect = card.spell else { return false }
-
-            // sp-deleteHand: .discardOpponentCards(1) のみ対象
-            switch effect {
-            case .discardOpponentCards:
-                // GOLD が足りているかもこの場でチェック
-                let c = spellCost(of: card)
-                return c <= (players.indices.contains(npcId) ? players[npcId].gold : 0)
-            default:
-                return false
+    private func applyTileAttribute(_ kind: SpellEffect.TileKind, to tile: Int) {
+        let attr = tileAttribute(from: kind)
+        let image = terrainImageName(for: attr)
+        if terrain.indices.contains(tile) {
+            terrain[tile] = TileTerrain(imageName: image, attribute: attr)
+        } else {
+            var updated = terrain
+            if updated.count != tileCount {
+                updated = buildFixedTerrain(for: difficulty)
             }
-        }) else {
-            return
+            if updated.indices.contains(tile) {
+                updated[tile] = TileTerrain(imageName: image, attribute: attr)
+            }
+            terrain = updated
         }
-
-        let spellCard = hands[npcId][idx]
-        let cost = spellCost(of: spellCard)
-
-        // GOLD 支払い（足りなければ使わない）
-        if cost > 0 {
-            guard tryPay(cost, by: npcId) else { return }
-        }
-
-        // スペルカード自体をCPU手札から削除
-        hands[npcId].remove(at: idx)
-
-        await presentNPCSpellPreview(for: spellCard)
-
-        // プレイヤー手札からランダムに1枚削除
-        guard !hands[playerId].isEmpty else { return }
-        let removeIdx = Int.random(in: 0..<hands[playerId].count)
-        let removedCard = hands[playerId].remove(at: removeIdx)
-
-        // オーバーレイ表示用に保存
-        deletePreviewCard = removedCard
-        deletingTargetPlayer = playerId
-        isSelectingOpponentHandToDelete = false
-        pendingDeleteHandIndex = nil
-
-        // 中央メッセージ
-        pushCenterMessage("NPCがあなたの手札を1枚削除")
+        if toll.indices.contains(tile) { toll[tile] = toll(at: tile) }
+        recalcAllTolls()
     }
     
     private func cpuPickCreatureForTile(_ tile: Int) -> Card? {

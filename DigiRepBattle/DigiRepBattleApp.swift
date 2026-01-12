@@ -29,11 +29,11 @@ struct RootDeckBuilderScreen: View {
         var c = CardCollection()
 
         // ★ ここで初期所持カードを設定
-        c.add("cre-defaultLizard", count: 5)
-        c.add("cre-defaultCrocodile", count: 5)
-        c.add("cre-defaultTurtle", count: 5)
-        c.add("cre-defaultBeardedDragon", count: 5)
-        c.add("cre-defaultHornedFrog", count: 5)
+        c.add("cre-defaultLizard", count: 6)
+        c.add("cre-defaultCrocodile", count: 6)
+        c.add("cre-defaultTurtle", count: 6)
+        c.add("cre-defaultBeardedDragon", count: 6)
+        c.add("cre-defaultHornedFrog", count: 6)
         c.add("cre-defaultGreenIguana", count: 5)
         c.add("cre-defaultBallPython", count: 5)
 

@@ -26,13 +26,13 @@ extension DeckList {
         var deck = DeckList()
 
         deck.creatureSlots = [
-            "cre-defaultLizard":        5,
+            "cre-defaultLizard":        6,
             "cre-defaultCrocodile":     6,
             "cre-defaultTurtle":        6,
             "cre-defaultBeardedDragon": 6,
             "cre-defaultHornedFrog":    6,
-            "cre-defaultGreenIguana":   6,
-            "cre-defaultBallPython":    6
+            "cre-defaultGreenIguana":   5,
+            "cre-defaultBallPython":    5
             
 //            "cre-defaultCrocodile":        25
         ]
